@@ -2,27 +2,28 @@
 using CustomWFUI.Controls;
 using CustomWFUI.Forms;
 using System.Diagnostics;
-using System.IO;
-using System.Text.Json;
 
 namespace SpotifyReleaseGui
 {
-    public partial class Form1 : StyledForm
+    public partial class MainForm : StyledForm
     {
         private BackendRunner backendRunner = new BackendRunner();
 
         private Label lblStatus;
         private Label lblProgress;
         private ProgressBar progressBar;
-        private Button btnUpdatePlaylist;
-        private TextBox txtOutput;
-        private Button btnOpenReport;
-        private Button btnCancel;
 
         private TextBox txtPlaylistName;
+        private Button btnEditPlaylistName;
         private NumericUpDown numLookbackDays;
 
-        public Form1() : base("Spotify Release Updater")
+        private Button btnCancel;
+        private Button btnOpenReport;
+        private Button btnUpdatePlaylist;
+
+        private TextBox txtOutput;
+
+        public MainForm() : base("Spotify Release Updater")
         {
             InitializeComponent();
             RegisterBackendEvents();
@@ -35,7 +36,7 @@ namespace SpotifyReleaseGui
             mainPanel.Dock = DockStyle.Fill;
             mainPanel.Padding = new Padding(16);
 
-            StyledPropertyTable propertyTable = new StyledPropertyTable
+            StyledPropertyTable propertyTable = new()
             {
                 Dock = DockStyle.Top
             };
@@ -56,30 +57,17 @@ namespace SpotifyReleaseGui
             txtPlaylistName = UIStyles.TextBoxes.CreateBorderstyleNone("[Followed Artists - New Releases]");
             txtPlaylistName.ReadOnly = true;
 
-            Button btnEditPlaylistName = UIStyles.Buttons.CreateStandard(
+            btnEditPlaylistName = UIStyles.Buttons.CreateStandard(
                 "✎",
                 "Playlistnamen bearbeiten",
                 new Size(30, 30),
                 true
             );
+
             btnEditPlaylistName.FlatAppearance.BorderSize = 1;
             btnEditPlaylistName.FlatAppearance.BorderColor = UIStyles.Colors.BorderLight;
 
-            btnEditPlaylistName.Click += delegate
-            {
-                txtPlaylistName.ReadOnly = !txtPlaylistName.ReadOnly;
-
-                if (txtPlaylistName.ReadOnly)
-                {
-                    btnEditPlaylistName.Text = "✎";
-                }
-                else
-                {
-                    btnEditPlaylistName.Text = "💾";
-                    txtPlaylistName.Focus();
-                    txtPlaylistName.SelectAll();
-                }
-            };
+            btnEditPlaylistName.Click += BtnEditPlaylistName_Click;
 
             numLookbackDays = UIStyles.NumericUpDowns.CreateStandard(1, 20, 1, 10);
 
@@ -140,6 +128,35 @@ namespace SpotifyReleaseGui
 
             LoadSettingsToUi();
         }
+
+        private void BtnEditPlaylistName_Click(object? sender, EventArgs e)
+        {
+            if (txtPlaylistName.ReadOnly)
+            {
+                txtPlaylistName.ReadOnly = false;
+                btnEditPlaylistName.Text = "💾";
+                btnUpdatePlaylist.Enabled = false;
+
+                txtPlaylistName.Focus();
+                txtPlaylistName.SelectAll();
+
+                return;
+            }
+
+            if (!ValidatePlaylistName())
+            {
+                txtPlaylistName.Focus();
+                txtPlaylistName.SelectAll();
+                return;
+            }
+
+            txtPlaylistName.ReadOnly = true;
+            btnEditPlaylistName.Text = "✎";
+            btnUpdatePlaylist.Enabled = true;
+
+            SaveSettingsFromUi();
+        }
+
         private void RegisterBackendEvents()
         {
             backendRunner.OutputReceived += message =>
@@ -175,7 +192,7 @@ namespace SpotifyReleaseGui
                 }));
             };
 
-            backendRunner.Exited += exitCode =>
+            backendRunner.Exited += (exitCode, stoppedByUser) =>
             {
                 Invoke(new Action(() =>
                 {
@@ -216,6 +233,11 @@ namespace SpotifyReleaseGui
 
         private void BtnUpdatePlaylist_Click(object? sender, EventArgs e)
         {
+            if (!ConfirmStart())
+            {
+                return;
+            }
+
             if (!SaveSettingsFromUi())
             {
                 return;
@@ -243,11 +265,31 @@ namespace SpotifyReleaseGui
                 txtOutput.AppendText(ex.Message + Environment.NewLine);
             }
         }
+        private bool ConfirmStart()
+        {
+            DialogResult result = CustomMessageBox.Show(
+                "Die Playlist wird geleert und anschließend neu befüllt.\n\nFortfahren?",
+                "Playlist aktualisieren",
+                CustomMessageBoxButtons.YesNo,
+                CustomMessageBoxIcon.Question,
+                this,
+                CustomMessageBoxSize.Small
+            );
+
+            return result == DialogResult.Yes;
+        }
         private void BtnOpenReport_Click(object? sender, EventArgs e)
         {
             if (!File.Exists(AppPaths.ReportPath))
             {
-                MessageBox.Show("Noch kein Bericht vorhanden.");
+                CustomMessageBox.Show(
+                    "Noch kein Bericht vorhanden.",
+                    "Bericht",
+                    CustomMessageBoxButtons.OK,
+                    CustomMessageBoxIcon.Info,
+                    this,
+                    CustomMessageBoxSize.Small
+                );
                 return;
             }
 
@@ -266,7 +308,14 @@ namespace SpotifyReleaseGui
 
             if (!isValid)
             {
-                MessageBox.Show(errorMessage);
+                CustomMessageBox.Show(
+                    errorMessage,
+                    "Ungültiger Playlistname",
+                    CustomMessageBoxButtons.OK,
+                    CustomMessageBoxIcon.Warning,
+                    this,
+                    CustomMessageBoxSize.Small
+                );
                 return false;
             }
 

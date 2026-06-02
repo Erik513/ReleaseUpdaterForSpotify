@@ -11,8 +11,9 @@ namespace SpotifyReleaseGui
         public event Action<string>? ErrorReceived;
         public event Action<string>? StatusReceived;
         public event Action<int, int, int>? ProgressReceived;
-        public event Action<int>? Exited;
+        public event Action<int, bool>? Exited;
 
+        private bool wasStoppedByUser;
         public bool IsRunning
         {
             get
@@ -55,6 +56,8 @@ namespace SpotifyReleaseGui
 
         public void Stop()
         {
+            wasStoppedByUser = true;
+
             try
             {
                 if (currentProcess != null && !currentProcess.HasExited)
@@ -122,7 +125,7 @@ namespace SpotifyReleaseGui
                 currentProcess = null;
             }
 
-            Exited?.Invoke(exitCode);
+            Exited?.Invoke(exitCode, wasStoppedByUser);
         }
     }
 }

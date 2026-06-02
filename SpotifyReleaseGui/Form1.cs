@@ -14,6 +14,7 @@ namespace SpotifyReleaseGui
         private Button btnUpdatePlaylist;
         private TextBox txtOutput;
         private Button btnOpenReport;
+        private Button btnCancel;
 
         private Label lblPlaylistName;
         private Label lblLookbackDays;
@@ -77,6 +78,16 @@ namespace SpotifyReleaseGui
             };
             btnOpenReport.Click += BtnOpenReport_Click;
 
+            btnCancel = new Button
+            {
+                Text = "Abbrechen",
+                Location = new Point(270, 175),
+                Size = new Size(120, 30),
+                Enabled = false
+            };
+
+            btnCancel.Click += BtnCancel_Click;
+
             lblPlaylistName = new Label
             {
                 Text = "Playlistname:",
@@ -88,7 +99,7 @@ namespace SpotifyReleaseGui
             {
                 Location = new Point(140, 97),
                 Size = new Size(400, 25),
-                Text = "000 [Followed Artists - New Releases]"
+                Text = "[Followed Artists - New Releases]"
             };
 
             lblLookbackDays = new Label
@@ -113,6 +124,7 @@ namespace SpotifyReleaseGui
             Controls.Add(btnUpdatePlaylist);
             Controls.Add(txtOutput);
             Controls.Add(btnOpenReport);
+            Controls.Add(btnCancel);
             Controls.Add(lblPlaylistName);
             Controls.Add(txtPlaylistName);
             Controls.Add(lblLookbackDays);
@@ -160,6 +172,7 @@ namespace SpotifyReleaseGui
                 Invoke(new Action(() =>
                 {
                     btnUpdatePlaylist.Enabled = true;
+                    btnCancel.Enabled = false;
 
                     if (exitCode == 0)
                     {
@@ -174,6 +187,17 @@ namespace SpotifyReleaseGui
             };
         }
 
+        private void BtnCancel_Click(object? sender, EventArgs e)
+        {
+            backendRunner.Stop();
+
+            btnCancel.Enabled = false;
+            btnUpdatePlaylist.Enabled = true;
+
+            lblStatus.Text = "Status: Abgebrochen";
+            txtOutput.AppendText("Vorgang wurde abgebrochen." + Environment.NewLine);
+        }
+
         private void BtnUpdatePlaylist_Click(object? sender, EventArgs e)
         {
             if (!SaveSettingsFromUi())
@@ -186,6 +210,7 @@ namespace SpotifyReleaseGui
             progressBar.Value = 0;
             txtOutput.Clear();
             btnUpdatePlaylist.Enabled = false;
+            btnCancel.Enabled = true;
 
             try
             {

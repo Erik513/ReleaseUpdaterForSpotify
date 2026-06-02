@@ -34,7 +34,7 @@ namespace SpotifyReleaseGui
                 {
                     settings.PlaylistName =
                         playlistName.GetString()
-                        ?? "000 [Followed Artists - New Releases]";
+                        ?? "[Followed Artists - New Releases]";
                 }
 
                 if (root.TryGetProperty("release_lookback_days", out JsonElement days))

@@ -9,6 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="CustomWFUI">
+      <HintPath>..\..\CustomWFUI\CustomWFUI\bin\Debug\CustomWFUI.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="PythonBackend\.cache">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

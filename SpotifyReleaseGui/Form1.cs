@@ -1,10 +1,13 @@
+﻿using CustomWFUI;
+using CustomWFUI.Controls;
+using CustomWFUI.Forms;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 
 namespace SpotifyReleaseGui
 {
-    public partial class Form1 : Form
+    public partial class Form1 : StyledForm
     {
         private BackendRunner backendRunner = new BackendRunner();
 
@@ -16,119 +19,98 @@ namespace SpotifyReleaseGui
         private Button btnOpenReport;
         private Button btnCancel;
 
-        private Label lblPlaylistName;
-        private Label lblLookbackDays;
-
         private TextBox txtPlaylistName;
         private NumericUpDown numLookbackDays;
 
-        public Form1()
+        public Form1() : base("Spotify Release Updater")
         {
             InitializeComponent();
             RegisterBackendEvents();
-            this.Size = new Size(740, 640);
+            CenterToScreen();
 
-            lblStatus = new Label
+            Size = MinimumSize;
+            MinimumSize = new Size(460, 580);
+
+            Panel mainPanel = UIStyles.Panels.CreateDark();
+            mainPanel.Dock = DockStyle.Fill;
+            mainPanel.Padding = new Padding(16);
+
+            StyledPropertyTable propertyTable = new StyledPropertyTable
             {
-                Text = "Status: Idle",
-                Location = new Point(10, 10),
-                Size = new Size(500, 20)
+                Dock = DockStyle.Top
             };
 
-            lblProgress = new Label
-            {
-                Text = "Fortschritt: -",
-                Location = new Point(10, 35),
-                Size = new Size(500, 20)
-            };
+            lblStatus = UIStyles.Labels.CreateNormal("Idle");
+
+            lblProgress = UIStyles.Labels.CreateNormal("0 / 0");
 
             progressBar = new ProgressBar
             {
-                Location = new Point(10, 60),
-                Size = new Size(500, 20),
+                Dock = DockStyle.Top,
+                Height = 24,
                 Minimum = 0,
                 Maximum = 100,
                 Value = 0
             };
 
-            btnUpdatePlaylist = new Button
+            txtPlaylistName = UIStyles.TextBoxes.CreateBorderstyleNone("[Followed Artists - New Releases]");
+
+            numLookbackDays = UIStyles.NumericUpDowns.CreateStandard(1, 20, 1, 10);
+
+            propertyTable.AddRow("Status", lblStatus);
+            propertyTable.AddRow("Fortschritt", UIColumn.Percent(lblProgress, 50), UIColumn.Percent(progressBar, 50));
+            propertyTable.AddSection("Einstellungen");
+            propertyTable.AddRow("Playlistname", txtPlaylistName);
+            propertyTable.AddRow("Zeitraum (in Tagen)", UIColumn.Auto(numLookbackDays));
+
+            FlowLayoutPanel buttonPanel = new FlowLayoutPanel
             {
-                Text = "Start",
-                Location = new Point(10, 175),
-                Size = new Size(120, 30)
+                Dock = DockStyle.Top,
+                Height = 42,
+                FlowDirection = FlowDirection.RightToLeft,
+                Padding = new Padding(0, 8, 0, 0),
+                BackColor = Color.Transparent
             };
 
+            btnUpdatePlaylist = UIStyles.Buttons.CreateGreen(
+                "▶️",
+                "Playlist aktualisieren",
+                new Size(100, 32)
+            );
             btnUpdatePlaylist.Click += BtnUpdatePlaylist_Click;
 
-            txtOutput = new TextBox
-            {
-                Location = new Point(10, 220),
-                Size = new Size(700, 360),
-                Multiline = true,
-                ScrollBars = ScrollBars.Both,
-                WordWrap = false,
-                ReadOnly = true
-            };
-
-            btnOpenReport = new Button
-            {
-                Text = "Bericht �ffnen",
-                Location = new Point(140, 175),
-                Size = new Size(120, 30)
-            };
+            btnOpenReport = UIStyles.Buttons.CreateStandard(
+                "📄",
+                "Letzten HTML-Bericht öffnen",
+                new Size(100, 32)
+            );
             btnOpenReport.Click += BtnOpenReport_Click;
 
-            btnCancel = new Button
-            {
-                Text = "Abbrechen",
-                Location = new Point(270, 175),
-                Size = new Size(120, 30),
-                Enabled = false
-            };
-
+            btnCancel = UIStyles.Buttons.CreateDanger(
+                "■",
+                "Laufenden Vorgang abbrechen",
+                new Size(100, 32)
+            );
+            btnCancel.Enabled = false;
             btnCancel.Click += BtnCancel_Click;
 
-            lblPlaylistName = new Label
-            {
-                Text = "Playlistname:",
-                Location = new Point(10, 100),
-                Size = new Size(120, 20)
-            };
+            buttonPanel.Controls.Add(btnUpdatePlaylist);
+            buttonPanel.Controls.Add(btnOpenReport);
+            buttonPanel.Controls.Add(btnCancel);
 
-            txtPlaylistName = new TextBox
-            {
-                Location = new Point(140, 97),
-                Size = new Size(400, 25),
-                Text = "[Followed Artists - New Releases]"
-            };
+            txtOutput = UIStyles.TextBoxes.CreateStandard();
+            txtOutput.Dock = DockStyle.Fill;
+            txtOutput.Multiline = true;
+            txtOutput.ScrollBars = ScrollBars.None;
+            txtOutput.WordWrap = false;
+            txtOutput.ReadOnly = true;
+            txtOutput.Font = UIStyles.Fonts.Monospace;
 
-            lblLookbackDays = new Label
-            {
-                Text = "Zeitraum in Tagen:",
-                Location = new Point(10, 135),
-                Size = new Size(120, 20)
-            };
+            mainPanel.Controls.Add(txtOutput);
+            mainPanel.Controls.Add(buttonPanel);
+            mainPanel.Controls.Add(propertyTable);
 
-            numLookbackDays = new NumericUpDown
-            {
-                Location = new Point(140, 132),
-                Size = new Size(80, 25),
-                Minimum = 1,
-                Maximum = 20,
-                Value = 10
-            };
-
-            Controls.Add(lblStatus);
-            Controls.Add(lblProgress);
-            Controls.Add(progressBar);
-            Controls.Add(btnUpdatePlaylist);
-            Controls.Add(txtOutput);
-            Controls.Add(btnOpenReport);
-            Controls.Add(btnCancel);
-            Controls.Add(lblPlaylistName);
-            Controls.Add(txtPlaylistName);
-            Controls.Add(lblLookbackDays);
-            Controls.Add(numLookbackDays);
+            ContentPanel.Controls.Add(mainPanel);
 
             LoadSettingsToUi();
         }
@@ -154,7 +136,7 @@ namespace SpotifyReleaseGui
             {
                 lblStatus.Invoke(new Action(() =>
                 {
-                    lblStatus.Text = $"Status: {status}";
+                    lblStatus.Text = $"{status}";
                 }));
             };
 
@@ -163,7 +145,7 @@ namespace SpotifyReleaseGui
                 progressBar.Invoke(new Action(() =>
                 {
                     progressBar.Value = Math.Min(100, Math.Max(0, percent));
-                    lblProgress.Text = $"Fortschritt: {current} / {total} ({percent}%)";
+                    lblProgress.Text = $"{current} / {total} ({percent}%)";
                 }));
             };
 
@@ -173,11 +155,15 @@ namespace SpotifyReleaseGui
                 {
                     btnUpdatePlaylist.Enabled = true;
                     btnCancel.Enabled = false;
-
                     if (exitCode == 0)
                     {
-                        lblStatus.Text = "Status: Fertig";
+                        lblStatus.Text = "Fertig";
                         progressBar.Value = 100;
+
+                        ToastForm.ShowToast(
+                            "Playlist erfolgreich aktualisiert.",
+                            this
+                        );
                     }
                     else
                     {
@@ -190,6 +176,10 @@ namespace SpotifyReleaseGui
         private void BtnCancel_Click(object? sender, EventArgs e)
         {
             backendRunner.Stop();
+            ToastForm.ShowToast(
+                "Vorgang abgebrochen.",
+                this
+            );
 
             btnCancel.Enabled = false;
             btnUpdatePlaylist.Enabled = true;
@@ -205,8 +195,8 @@ namespace SpotifyReleaseGui
                 return;
             }
 
-            lblStatus.Text = "Status: Starte Backend...";
-            lblProgress.Text = "Fortschritt: -";
+            lblStatus.Text = "Starte Backend...";
+            lblProgress.Text = "-";
             progressBar.Value = 0;
             txtOutput.Clear();
             btnUpdatePlaylist.Enabled = false;
@@ -214,6 +204,10 @@ namespace SpotifyReleaseGui
 
             try
             {
+                ToastForm.ShowToast(
+                    "Playlist-Aktualisierung gestartet.",
+                    this
+                );
                 backendRunner.Start();
             }
             catch (Exception ex)
@@ -288,7 +282,7 @@ namespace SpotifyReleaseGui
 
             SettingsService.Save(settings);
 
-            lblStatus.Text = "Status: Einstellungen gespeichert";
+            lblStatus.Text = "Einstellungen gespeichert";
 
             return true;
         }

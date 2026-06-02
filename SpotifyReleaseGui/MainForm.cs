@@ -27,7 +27,6 @@ namespace SpotifyReleaseGui
         {
             InitializeComponent();
             RegisterBackendEvents();
-            CenterToScreen();
 
             Size = MinimumSize;
             MinimumSize = new Size(460, 580);
@@ -41,7 +40,7 @@ namespace SpotifyReleaseGui
                 Dock = DockStyle.Top
             };
 
-            lblStatus = UIStyles.Labels.CreateNormal("Idle");
+            lblStatus = UIStyles.Labels.CreateNormal("Bereit");
 
             lblProgress = UIStyles.Labels.CreateNormal("0 / 0");
 
@@ -127,6 +126,7 @@ namespace SpotifyReleaseGui
             ContentPanel.Controls.Add(mainPanel);
 
             LoadSettingsToUi();
+            CenterToScreen();
         }
 
         private void BtnEditPlaylistName_Click(object? sender, EventArgs e)

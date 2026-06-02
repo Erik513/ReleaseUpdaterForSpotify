@@ -54,13 +54,39 @@ namespace SpotifyReleaseGui
             };
 
             txtPlaylistName = UIStyles.TextBoxes.CreateBorderstyleNone("[Followed Artists - New Releases]");
+            txtPlaylistName.ReadOnly = true;
+
+            Button btnEditPlaylistName = UIStyles.Buttons.CreateStandard(
+                "✎",
+                "Playlistnamen bearbeiten",
+                new Size(30, 30),
+                true
+            );
+            btnEditPlaylistName.FlatAppearance.BorderSize = 1;
+            btnEditPlaylistName.FlatAppearance.BorderColor = UIStyles.Colors.BorderLight;
+
+            btnEditPlaylistName.Click += delegate
+            {
+                txtPlaylistName.ReadOnly = !txtPlaylistName.ReadOnly;
+
+                if (txtPlaylistName.ReadOnly)
+                {
+                    btnEditPlaylistName.Text = "✎";
+                }
+                else
+                {
+                    btnEditPlaylistName.Text = "💾";
+                    txtPlaylistName.Focus();
+                    txtPlaylistName.SelectAll();
+                }
+            };
 
             numLookbackDays = UIStyles.NumericUpDowns.CreateStandard(1, 20, 1, 10);
 
             propertyTable.AddRow("Status", lblStatus);
             propertyTable.AddRow("Fortschritt", UIColumn.Percent(lblProgress, 50), UIColumn.Percent(progressBar, 50));
             propertyTable.AddSection("Einstellungen");
-            propertyTable.AddRow("Playlistname", txtPlaylistName);
+            propertyTable.AddRow("Playlistname", UIColumn.Percent(txtPlaylistName, 100), UIColumn.Absolute(btnEditPlaylistName, 50));
             propertyTable.AddRow("Zeitraum (in Tagen)", UIColumn.Auto(numLookbackDays));
 
             FlowLayoutPanel buttonPanel = new FlowLayoutPanel

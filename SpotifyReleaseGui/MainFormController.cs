@@ -51,8 +51,6 @@ namespace SpotifyReleaseGui
                 "Vorgang abgebrochen.",
                 form
             );
-
-            form.ShowCancelled();
         }
 
         public void OpenReport()

@@ -1,13 +1,13 @@
 ﻿using CustomWFUI;
 using CustomWFUI.Controls;
 using CustomWFUI.Forms;
-using System.Diagnostics;
 
 namespace SpotifyReleaseGui
 {
     public partial class MainForm : StyledForm
     {
-        private BackendRunner backendRunner = new BackendRunner();
+        private readonly BackendRunner backendRunner = new BackendRunner();
+        private MainFormController controller;
 
         private Label lblStatus;
         private Label lblProgress;
@@ -23,9 +23,27 @@ namespace SpotifyReleaseGui
 
         private TextBox txtOutput;
 
+
+        public string PlaylistName
+        {
+            get { return txtPlaylistName.Text.Trim(); }
+        }
+
+        public int ReleaseLookbackDays
+        {
+            get { return (int)numLookbackDays.Value; }
+        }
+
+        public bool IsPlaylistNameReadOnly
+        {
+            get { return txtPlaylistName.ReadOnly; }
+        }
+
+        
         public MainForm() : base("Spotify Release Updater")
         {
             InitializeComponent();
+            controller = new MainFormController(this, backendRunner);
             RegisterBackendEvents();
 
             Size = MinimumSize;
@@ -125,36 +143,79 @@ namespace SpotifyReleaseGui
 
             ContentPanel.Controls.Add(mainPanel);
 
-            LoadSettingsToUi();
+            controller.LoadSettings();
             CenterToScreen();
         }
-
-        private void BtnEditPlaylistName_Click(object? sender, EventArgs e)
+        public void SetSettings(AppSettings settings)
         {
-            if (txtPlaylistName.ReadOnly)
+            txtPlaylistName.Text = settings.PlaylistName;
+
+            int days = settings.ReleaseLookbackDays;
+
+            if (days < numLookbackDays.Minimum)
             {
-                txtPlaylistName.ReadOnly = false;
-                btnEditPlaylistName.Text = "💾";
-                btnUpdatePlaylist.Enabled = false;
-
-                txtPlaylistName.Focus();
-                txtPlaylistName.SelectAll();
-
-                return;
+                days = (int)numLookbackDays.Minimum;
             }
 
-            if (!ValidatePlaylistName())
+            if (days > numLookbackDays.Maximum)
             {
-                txtPlaylistName.Focus();
-                txtPlaylistName.SelectAll();
-                return;
+                days = (int)numLookbackDays.Maximum;
             }
 
+            numLookbackDays.Value = days;
+        }
+
+        public void SetStatus(string status)
+        {
+            lblStatus.Text = status;
+        }
+
+        public void PrepareRunUi()
+        {
+            lblStatus.Text = "Starte Backend...";
+            lblProgress.Text = "-";
+            progressBar.Value = 0;
+            txtOutput.Clear();
+            btnUpdatePlaylist.Enabled = false;
+            btnCancel.Enabled = true;
+        }
+
+        public void ShowStartFailed(string message)
+        {
+            btnUpdatePlaylist.Enabled = true;
+            lblStatus.Text = "Start fehlgeschlagen";
+            txtOutput.AppendText(message + Environment.NewLine);
+        }
+
+        public void ShowCancelled()
+        {
+            btnCancel.Enabled = false;
+            btnUpdatePlaylist.Enabled = true;
+            lblStatus.Text = "Abgebrochen";
+            txtOutput.AppendText("Vorgang wurde abgebrochen." + Environment.NewLine);
+        }
+
+        public void EnablePlaylistNameEditing()
+        {
+            txtPlaylistName.ReadOnly = false;
+            btnEditPlaylistName.Text = "💾";
+            btnUpdatePlaylist.Enabled = false;
+
+            txtPlaylistName.Focus();
+            txtPlaylistName.SelectAll();
+        }
+
+        public void DisablePlaylistNameEditing()
+        {
             txtPlaylistName.ReadOnly = true;
             btnEditPlaylistName.Text = "✎";
             btnUpdatePlaylist.Enabled = true;
+        }
 
-            SaveSettingsFromUi();
+        public void FocusPlaylistName()
+        {
+            txtPlaylistName.Focus();
+            txtPlaylistName.SelectAll();
         }
 
         private void RegisterBackendEvents()
@@ -198,6 +259,16 @@ namespace SpotifyReleaseGui
                 {
                     btnUpdatePlaylist.Enabled = true;
                     btnCancel.Enabled = false;
+
+                    if (stoppedByUser)
+                    {
+                        lblStatus.Text = "Abgebrochen";
+                        txtOutput.AppendText(
+                            "Vorgang wurde abgebrochen." + Environment.NewLine
+                        );
+                        return;
+                    }
+
                     if (exitCode == 0)
                     {
                         lblStatus.Text = "Fertig";
@@ -210,157 +281,38 @@ namespace SpotifyReleaseGui
                     }
                     else
                     {
-                        lblStatus.Text = $"Status: Fehler ({exitCode})";
+                        lblStatus.Text = $"Fehler ({exitCode})";
+
+                        CustomMessageBox.Show(
+                            "Das Backend wurde unerwartet beendet.",
+                            "Fehler",
+                            CustomMessageBoxButtons.OK,
+                            CustomMessageBoxIcon.Error,
+                            this,
+                            CustomMessageBoxSize.Small
+                        );
                     }
                 }));
             };
         }
 
-        private void BtnCancel_Click(object? sender, EventArgs e)
-        {
-            backendRunner.Stop();
-            ToastForm.ShowToast(
-                "Vorgang abgebrochen.",
-                this
-            );
-
-            btnCancel.Enabled = false;
-            btnUpdatePlaylist.Enabled = true;
-
-            lblStatus.Text = "Status: Abgebrochen";
-            txtOutput.AppendText("Vorgang wurde abgebrochen." + Environment.NewLine);
-        }
-
         private void BtnUpdatePlaylist_Click(object? sender, EventArgs e)
         {
-            if (!ConfirmStart())
-            {
-                return;
-            }
-
-            if (!SaveSettingsFromUi())
-            {
-                return;
-            }
-
-            lblStatus.Text = "Starte Backend...";
-            lblProgress.Text = "-";
-            progressBar.Value = 0;
-            txtOutput.Clear();
-            btnUpdatePlaylist.Enabled = false;
-            btnCancel.Enabled = true;
-
-            try
-            {
-                ToastForm.ShowToast(
-                    "Playlist-Aktualisierung gestartet.",
-                    this
-                );
-                backendRunner.Start();
-            }
-            catch (Exception ex)
-            {
-                btnUpdatePlaylist.Enabled = true;
-                lblStatus.Text = "Status: Start fehlgeschlagen";
-                txtOutput.AppendText(ex.Message + Environment.NewLine);
-            }
+            controller.StartUpdate();
         }
-        private bool ConfirmStart()
+        private void BtnCancel_Click(object? sender, EventArgs e)
         {
-            DialogResult result = CustomMessageBox.Show(
-                "Die Playlist wird geleert und anschließend neu befüllt.\n\nFortfahren?",
-                "Playlist aktualisieren",
-                CustomMessageBoxButtons.YesNo,
-                CustomMessageBoxIcon.Question,
-                this,
-                CustomMessageBoxSize.Small
-            );
-
-            return result == DialogResult.Yes;
+            controller.CancelUpdate();
         }
         private void BtnOpenReport_Click(object? sender, EventArgs e)
         {
-            if (!File.Exists(AppPaths.ReportPath))
-            {
-                CustomMessageBox.Show(
-                    "Noch kein Bericht vorhanden.",
-                    "Bericht",
-                    CustomMessageBoxButtons.OK,
-                    CustomMessageBoxIcon.Info,
-                    this,
-                    CustomMessageBoxSize.Small
-                );
-                return;
-            }
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = AppPaths.ReportPath,
-                UseShellExecute = true
-            });
+            controller.OpenReport();
         }
-        private bool ValidatePlaylistName()
+        private void BtnEditPlaylistName_Click(object? sender, EventArgs e)
         {
-            bool isValid = PlaylistValidator.IsValidPlaylistName(
-                txtPlaylistName.Text,
-                out string errorMessage
-            );
-
-            if (!isValid)
-            {
-                CustomMessageBox.Show(
-                    errorMessage,
-                    "Ungültiger Playlistname",
-                    CustomMessageBoxButtons.OK,
-                    CustomMessageBoxIcon.Warning,
-                    this,
-                    CustomMessageBoxSize.Small
-                );
-                return false;
-            }
-
-            return true;
+            controller.TogglePlaylistNameEdit();
         }
 
-        private void LoadSettingsToUi()
-        {
-            AppSettings settings = SettingsService.Load();
-
-            txtPlaylistName.Text = settings.PlaylistName;
-
-            int days = settings.ReleaseLookbackDays;
-
-            if (days < numLookbackDays.Minimum)
-            {
-                days = (int)numLookbackDays.Minimum;
-            }
-
-            if (days > numLookbackDays.Maximum)
-            {
-                days = (int)numLookbackDays.Maximum;
-            }
-
-            numLookbackDays.Value = days;
-        }
-
-        private bool SaveSettingsFromUi()
-        {
-            if (!ValidatePlaylistName())
-            {
-                return false;
-            }
-
-            AppSettings settings = SettingsService.Load();
-
-            settings.PlaylistName = txtPlaylistName.Text.Trim();
-            settings.ReleaseLookbackDays = (int)numLookbackDays.Value;
-
-            SettingsService.Save(settings);
-
-            lblStatus.Text = "Einstellungen gespeichert";
-
-            return true;
-        }
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             backendRunner.Stop();

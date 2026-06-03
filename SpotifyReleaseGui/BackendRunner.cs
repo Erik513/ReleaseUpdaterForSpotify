@@ -24,6 +24,7 @@ namespace SpotifyReleaseGui
 
         public void Start()
         {
+            wasStoppedByUser = false;
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = AppPaths.BackendExePath,

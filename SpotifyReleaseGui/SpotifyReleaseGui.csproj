@@ -7,6 +7,12 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Assets\Icons\SpotifyReleaseUpdater_48px.ico</ApplicationIcon>
+    <Title>Spotify Release Updater</Title>
+    <Authors>Erik Wink</Authors>
+    <Product>Spotify Release Updater</Product>
+    <Description>Erstellt automatisch eine Spotify-Playlist mit neuen Releases gefolgter Künstler.</Description>
+    <Copyright>© 2026 Erik Wink</Copyright>
+    <PackageIcon>SpotifyReleaseUpdater_48px.ico</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -46,6 +52,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Assets\Icons\SpotifyReleaseUpdater_48px.ico">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
     <None Update="PythonBackend\spotify_backend.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

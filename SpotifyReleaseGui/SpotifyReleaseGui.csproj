@@ -12,6 +12,10 @@
   <ItemGroup>
     <None Remove="Assets\Pictures\SpotifyReleaseUpdater.png" />
     <None Remove="Assets\SpotifyReleaseUpdater.ico" />
+    <None Remove="PythonBackend\.cache" />
+    <None Remove="PythonBackend\.env" />
+    <None Remove="PythonBackend\config.json" />
+    <None Remove="PythonBackend\main.exe" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +23,18 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Assets\Pictures\SpotifyReleaseUpdater.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="PythonBackend\.cache">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="PythonBackend\.env">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="PythonBackend\config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="PythonBackend\main.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -30,18 +46,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="PythonBackend\.cache">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="PythonBackend\.env">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="PythonBackend\config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="PythonBackend\main.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Update="PythonBackend\spotify_backend.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

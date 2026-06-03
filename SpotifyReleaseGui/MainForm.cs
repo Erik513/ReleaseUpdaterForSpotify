@@ -6,6 +6,8 @@ namespace SpotifyReleaseGui
 {
     public partial class MainForm : StyledForm
     {
+        private static readonly Icon AppIcon = new Icon("Assets\\Icons\\SpotifyReleaseUpdater_48px.ico");
+
         private readonly BackendRunner backendRunner = new BackendRunner();
         private MainFormController controller;
 
@@ -40,9 +42,22 @@ namespace SpotifyReleaseGui
         }
 
         
-        public MainForm() : base("Spotify Release Updater")
+        public MainForm() : base(
+            StyledFormOptions.CreateStandard(
+                title: "Spotify Release Updater",
+                icon: Image.FromFile(
+                    Path.Combine(
+                        Application.StartupPath,
+                        "Assets",
+                        "Pictures",
+                        "SpotifyReleaseUpdater.png"
+                    )
+                )
+            )
+        )
         {
             InitializeComponent();
+            Icon = AppIcon;
             controller = new MainFormController(this, backendRunner);
             RegisterBackendEvents();
 

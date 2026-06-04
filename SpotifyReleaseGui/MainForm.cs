@@ -45,6 +45,8 @@ namespace SpotifyReleaseGui
         public MainForm() : base(
             StyledFormOptions.CreateStandard(
                 title: "Spotify Release Updater",
+                titleTextAlign: ContentAlignment.MiddleCenter,
+                backColor: UIStyles.Colors.BackgroundDarkElevated,
                 icon: Image.FromFile(
                     Path.Combine(
                         Application.StartupPath,
@@ -64,13 +66,15 @@ namespace SpotifyReleaseGui
             Size = MinimumSize;
             MinimumSize = new Size(460, 580);
 
-            Panel mainPanel = UIStyles.Panels.CreateDark();
+            Panel mainPanel = UIStyles.Panels.CreateElevated();
+            mainPanel.BackColor = UIStyles.Colors.BackgroundLight;
             mainPanel.Dock = DockStyle.Fill;
             mainPanel.Padding = new Padding(16);
 
             StyledPropertyTable propertyTable = new()
             {
-                Dock = DockStyle.Top
+                Dock = DockStyle.Top,
+                Padding = new Padding(5)
             };
 
             lblStatus = UIStyles.Labels.CreateNormal("Bereit");
@@ -92,7 +96,7 @@ namespace SpotifyReleaseGui
             btnEditPlaylistName = UIStyles.Buttons.CreateStandard(
                 "✎",
                 "Playlistnamen bearbeiten",
-                new Size(30, 30),
+                new Size(50, 30),
                 true
             );
 

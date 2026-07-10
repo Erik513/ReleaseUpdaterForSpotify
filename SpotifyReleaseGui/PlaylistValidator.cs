@@ -10,13 +10,13 @@
 
             if (string.IsNullOrWhiteSpace(playlistName))
             {
-                errorMessage = "Bitte gib einen Playlistnamen ein.";
+                errorMessage = "Please enter a playlist name.";
                 return false;
             }
 
             if (playlistName.Trim().Length > 100)
             {
-                errorMessage = "Der Playlistname darf maximal 100 Zeichen lang sein.";
+                errorMessage = "The playlist name can be up to 100 characters long.";
                 return false;
             }
 
@@ -26,7 +26,7 @@
             {
                 if (playlistName.Contains(forbiddenChar))
                 {
-                    errorMessage = "Der Playlistname enthält ungültige Zeichen.";
+                    errorMessage = "The playlist name contains invalid characters.";
                     return false;
                 }
             }

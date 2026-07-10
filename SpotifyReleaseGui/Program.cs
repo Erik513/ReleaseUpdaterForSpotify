@@ -1,17 +1,34 @@
-namespace SpotifyReleaseGui
+﻿namespace SpotifyReleaseGui
 {
     internal static class Program
     {
-        /// <summary>
-        ///  The main entry point for the application.
-        /// </summary>
+        private static Mutex? mutex;
+
         [STAThread]
         static void Main()
         {
-            // To customize application configuration such as set high DPI settings or default font,
-            // see https://aka.ms/applicationconfiguration.
+            bool createdNew;
+
+            mutex = new Mutex(
+                true,
+                "SpotifyReleaseUpdater_SingleInstance",
+                out createdNew
+            );
+
+            if (!createdNew)
+            {
+                MessageBox.Show(
+                    "The application is already running.",
+                    "Spotify Release Updater"
+                );
+
+                return;
+            }
+
             ApplicationConfiguration.Initialize();
-            Application.Run(new Form1());
+            Application.Run(new MainForm());
+
+            mutex.ReleaseMutex();
         }
     }
 }

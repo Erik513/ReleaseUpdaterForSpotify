@@ -6,24 +6,48 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Spotify Release Updater</AssemblyName>
+    <RootNamespace>SpotifyReleaseGui</RootNamespace>
+    <ApplicationIcon>Assets\Icons\SpotifyReleaseUpdater_48px.ico</ApplicationIcon>
+    <Title>Spotify Release Updater</Title>
+    <Authors>Erik Wink</Authors>
+    <Product>Spotify Release Updater</Product>
+    <Description>Automatically creates a Spotify playlist with new releases from followed artists.</Description>
+    <Copyright>© 2026 Erik Wink</Copyright>
+    <PackageIcon>SpotifyReleaseUpdater_48px.ico</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Update="PythonBackend\.cache">
+    <None Remove="Assets\Pictures\SpotifyReleaseUpdater.png" />
+    <None Remove="Assets\SpotifyReleaseUpdater.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\Icons\SpotifyReleaseUpdater_48px.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="PythonBackend\.env">
+    </Content>
+    <Content Include="Assets\Pictures\SpotifyReleaseUpdater.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="CustomWFUI">
+      <HintPath>..\..\CustomWFUI\CustomWFUI\bin\Debug\CustomWFUI.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\Icons\SpotifyReleaseUpdater_48px.ico">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
     </None>
-    <None Update="PythonBackend\config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="PythonBackend\main.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="PythonBackend\spotify_backend.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SpotifyRelease.Core\SpotifyRelease.Core.csproj" />
+    <ProjectReference Include="..\SpotifyRelease.Data\SpotifyRelease.Data.csproj" />
+    <ProjectReference Include="..\SpotifyRelease.Spotify\SpotifyRelease.Spotify.csproj" />
   </ItemGroup>
 
 </Project>

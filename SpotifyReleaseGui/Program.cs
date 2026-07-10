@@ -1,4 +1,4 @@
-namespace SpotifyReleaseGui
+ï»¿namespace SpotifyReleaseGui
 {
     internal static class Program
     {
@@ -11,14 +11,14 @@ namespace SpotifyReleaseGui
 
             mutex = new Mutex(
                 true,
-                "SpotifyReleaseGui_SingleInstance",
+                "SpotifyReleaseUpdater_SingleInstance",
                 out createdNew
             );
 
             if (!createdNew)
             {
                 MessageBox.Show(
-                    "Die Anwendung läuft bereits.",
+                    "The application is already running.",
                     "Spotify Release Updater"
                 );
 

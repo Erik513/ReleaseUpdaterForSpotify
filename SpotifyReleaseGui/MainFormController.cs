@@ -121,6 +121,7 @@ namespace SpotifyReleaseGui
                     progress,
                     runCancellation.Token);
 
+                form.SetSettings(settingsStore.Load());
                 form.ShowCompleted(result);
             }
             catch (OperationCanceledException)
@@ -220,6 +221,14 @@ namespace SpotifyReleaseGui
             }
 
             ReleaseSettings settings = form.GetSettings();
+            ReleaseSettings savedSettings = settingsStore.Load();
+
+            if (ShouldKeepSavedPlaylistId(settings, savedSettings))
+            {
+                settings.PlaylistId = savedSettings.PlaylistId;
+                form.SetSettings(settings);
+            }
+
             settingsStore.Save(settings);
             form.SetStatus("Settings saved");
 
@@ -243,7 +252,7 @@ namespace SpotifyReleaseGui
         private bool ConfirmStart()
         {
             DialogResult result = CustomMessageBox.Show(
-                "The playlist will be cleared and filled again.\n\nContinue?",
+                "The playlist will be replaced with the found songs.\n\nContinue?",
                 "Update playlist",
                 CustomMessageBoxButtons.YesNo,
                 CustomMessageBoxIcon.Question,
@@ -251,6 +260,18 @@ namespace SpotifyReleaseGui
                 CustomMessageBoxSize.Small);
 
             return result == DialogResult.Yes;
+        }
+
+        private static bool ShouldKeepSavedPlaylistId(
+            ReleaseSettings uiSettings,
+            ReleaseSettings savedSettings)
+        {
+            return string.IsNullOrWhiteSpace(uiSettings.PlaylistId) &&
+                !string.IsNullOrWhiteSpace(savedSettings.PlaylistId) &&
+                string.Equals(
+                    uiSettings.PlaylistName,
+                    savedSettings.PlaylistName,
+                    StringComparison.Ordinal);
         }
 
         private static bool IsLoginCancellation(Exception exception)

@@ -12,23 +12,28 @@
             mutex = new Mutex(
                 true,
                 "SpotifyReleaseUpdater_SingleInstance",
-                out createdNew
-            );
+                out createdNew);
 
             if (!createdNew)
             {
                 MessageBox.Show(
                     "The application is already running.",
-                    "Spotify Release Updater"
-                );
+                    "Spotify Release Updater");
 
+                mutex.Dispose();
                 return;
             }
 
-            ApplicationConfiguration.Initialize();
-            Application.Run(new MainForm());
-
-            mutex.ReleaseMutex();
+            try
+            {
+                ApplicationConfiguration.Initialize();
+                Application.Run(new MainForm());
+            }
+            finally
+            {
+                mutex.ReleaseMutex();
+                mutex.Dispose();
+            }
         }
     }
 }

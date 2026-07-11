@@ -8,15 +8,18 @@ public sealed class SpotifyReleaseUpdater
     private readonly ISpotifyGateway spotify;
     private readonly ISettingsStore settingsStore;
     private readonly IReportWriter reportWriter;
+    private readonly IReleaseClock clock;
 
     public SpotifyReleaseUpdater(
         ISpotifyGateway spotify,
         ISettingsStore settingsStore,
-        IReportWriter reportWriter)
+        IReportWriter reportWriter,
+        IReleaseClock clock)
     {
         this.spotify = spotify;
         this.settingsStore = settingsStore;
         this.reportWriter = reportWriter;
+        this.clock = clock;
     }
 
     /// <summary>
@@ -85,6 +88,22 @@ public sealed class SpotifyReleaseUpdater
 
         if (uniqueTracks.Count == 0)
         {
+            ReportStatus(progress, "Checking playlist");
+            string? existingPlaylistId = await GetPlaylistIdAsync(
+                settings,
+                progress,
+                createIfMissing: false,
+                cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(existingPlaylistId))
+            {
+                ReportStatus(progress, "Updating playlist");
+                await spotify.ReplacePlaylistTracksAsync(
+                    existingPlaylistId,
+                    Array.Empty<string>(),
+                    cancellationToken);
+            }
+
             ReportStatus(progress, "No new songs");
             string reportPath = reportWriter.WriteReport(
                 uniqueTracks,
@@ -103,13 +122,11 @@ public sealed class SpotifyReleaseUpdater
         ReportStatus(progress, "Checking playlist");
         string playlistId = await GetOrCreatePlaylistIdAsync(
             settings,
+            progress,
             cancellationToken);
 
-        ReportStatus(progress, "Clearing playlist");
-        await spotify.ClearPlaylistAsync(playlistId, cancellationToken);
-
-        ReportStatus(progress, "Adding songs");
-        await spotify.AddTracksToPlaylistAsync(
+        ReportStatus(progress, "Updating playlist");
+        await spotify.ReplacePlaylistTracksAsync(
             playlistId,
             uniqueTracks.Select(track => track.Uri).ToList(),
             cancellationToken);
@@ -122,7 +139,9 @@ public sealed class SpotifyReleaseUpdater
         ReportStatus(progress, "Done");
         ReportMessage(
             progress,
-            $"Done. {uniqueTracks.Count} songs were added to the playlist.");
+            uniqueTracks.Count == 1
+                ? "Done. 1 song was added to the playlist."
+                : $"Done. {uniqueTracks.Count} songs were added to the playlist.");
 
         return new PlaylistUpdateResult(
             artists.Count,
@@ -187,7 +206,7 @@ public sealed class SpotifyReleaseUpdater
         CancellationToken cancellationToken)
     {
         List<ReleaseCandidate> releases = new();
-        DateOnly cutoffDate = DateOnly.FromDateTime(DateTime.Now).AddDays(-days);
+        DateOnly cutoffDate = clock.Today.AddDays(-days);
 
         ReportStatus(progress, "Searching releases");
 
@@ -276,7 +295,7 @@ public sealed class SpotifyReleaseUpdater
         CancellationToken cancellationToken)
     {
         List<ReleaseTrack> tracks = new();
-        DateOnly cutoffDate = DateOnly.FromDateTime(DateTime.Now).AddDays(-days);
+        DateOnly cutoffDate = clock.Today.AddDays(-days);
 
         ReportStatus(progress, "Searching songs");
 
@@ -321,26 +340,50 @@ public sealed class SpotifyReleaseUpdater
     }
 
     /// <summary>
-    /// Reuses the saved playlist while owner and name still match.
+    /// Reuses an existing playlist when it still belongs to the signed-in user.
     /// </summary>
     private async Task<string> GetOrCreatePlaylistIdAsync(
         ReleaseSettings settings,
+        IProgress<ReleaseProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        string? playlistId = await GetPlaylistIdAsync(
+            settings,
+            progress,
+            createIfMissing: true,
+            cancellationToken);
+
+        return playlistId
+            ?? throw new InvalidOperationException("Spotify playlist could not be created.");
+    }
+
+    private async Task<string?> GetPlaylistIdAsync(
+        ReleaseSettings settings,
+        IProgress<ReleaseProgress>? progress,
+        bool createIfMissing,
         CancellationToken cancellationToken)
     {
         SpotifyUser currentUser = await spotify.GetCurrentUserAsync(cancellationToken);
         string description = CreatePlaylistDescription(settings.ReleaseLookbackDays);
+        IReadOnlyList<SpotifyPlaylist> userPlaylists =
+            await spotify.GetCurrentUserPlaylistsAsync(cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(settings.PlaylistId))
         {
             SpotifyPlaylist? playlist =
                 await spotify.TryGetPlaylistAsync(settings.PlaylistId, cancellationToken);
+            bool isInLibrary = userPlaylists.Any(
+                listedPlaylist => listedPlaylist.Id == settings.PlaylistId);
 
-            bool isReusable = playlist is not null
-                && playlist.OwnerId == currentUser.Id
-                && playlist.Name == settings.PlaylistName;
-
-            if (isReusable)
+            if (playlist is not null &&
+                playlist.OwnerId == currentUser.Id &&
+                isInLibrary)
             {
+                if (playlist.Name != settings.PlaylistName)
+                {
+                    ReportMessage(progress, "Saved playlist will be renamed.");
+                }
+
                 await spotify.UpdatePlaylistDetailsAsync(
                     settings.PlaylistId,
                     settings.PlaylistName,
@@ -349,10 +392,45 @@ public sealed class SpotifyReleaseUpdater
 
                 return settings.PlaylistId;
             }
+
+            ReportMessage(
+                progress,
+                createIfMissing
+                    ? "Saved playlist was not found in your Spotify library. A visible playlist will be reused or created."
+                    : "Saved playlist was not found in your Spotify library.");
+        }
+
+        SpotifyPlaylist? existingPlaylist = userPlaylists.FirstOrDefault(
+            playlist => playlist.OwnerId == currentUser.Id &&
+                string.Equals(
+                    playlist.Name,
+                    settings.PlaylistName,
+                    StringComparison.Ordinal));
+
+        if (existingPlaylist is not null)
+        {
+            ReportMessage(
+                progress,
+                "Existing playlist with the selected name will be reused.");
+
+            await spotify.UpdatePlaylistDetailsAsync(
+                existingPlaylist.Id,
+                settings.PlaylistName,
+                description,
+                cancellationToken);
+
+            settings.PlaylistId = existingPlaylist.Id;
+            settingsStore.Save(settings);
+
+            return existingPlaylist.Id;
+        }
+
+        if (!createIfMissing)
+        {
+            return null;
         }
 
         string playlistId = await spotify.CreatePlaylistAsync(
-            currentUser.Id,
             settings.PlaylistName,
             description,
             cancellationToken);

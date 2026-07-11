@@ -26,7 +26,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
         this.httpClient = httpClient;
     }
 
-    public bool HasCachedToken => tokenStore.Load() is not null;
+    public bool HasCachedToken => HasRequiredScopes(tokenStore.Load());
 
     /// <summary>
     /// Checks the stored token and returns the currently signed-in Spotify user.
@@ -106,6 +106,13 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
             codeVerifier,
             cancellationToken);
 
+        if (!HasRequiredScopes(token))
+        {
+            tokenStore.Clear();
+            throw new InvalidOperationException(
+                "Spotify did not grant the required permissions. Please sign in again and approve the requested access.");
+        }
+
         tokenStore.Save(token);
 
         SpotifyUser? user = await TryGetCurrentUserAsync(cancellationToken);
@@ -133,6 +140,13 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
                 "Please sign in to Spotify first.");
         }
 
+        if (!HasRequiredScopes(token))
+        {
+            tokenStore.Clear();
+            throw new InvalidOperationException(
+                "Spotify login is missing required permissions. Please sign in again.");
+        }
+
         if (token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
         {
             return token.AccessToken;
@@ -143,6 +157,13 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
             await RefreshTokenAsync(clientId, token, cancellationToken);
 
         tokenStore.Save(refreshedToken);
+
+        if (!HasRequiredScopes(refreshedToken))
+        {
+            tokenStore.Clear();
+            throw new InvalidOperationException(
+                "Spotify login is missing required permissions. Please sign in again.");
+        }
 
         return refreshedToken.AccessToken;
     }
@@ -199,7 +220,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
             ["code_verifier"] = codeVerifier
         };
 
-        return await SendTokenRequestAsync(form, null, cancellationToken);
+        return await SendTokenRequestAsync(form, null, null, cancellationToken);
     }
 
     private async Task<SpotifyToken> RefreshTokenAsync(
@@ -223,12 +244,14 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
         return await SendTokenRequestAsync(
             form,
             currentToken.RefreshToken,
+            currentToken.Scope,
             cancellationToken);
     }
 
     private async Task<SpotifyToken> SendTokenRequestAsync(
         Dictionary<string, string> form,
         string? existingRefreshToken,
+        string? existingScope,
         CancellationToken cancellationToken)
     {
         using FormUrlEncodedContent content = new(form);
@@ -266,8 +289,24 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
             ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresInSeconds),
             Scope = root.TryGetProperty("scope", out JsonElement scopeElement)
                 ? scopeElement.GetString() ?? string.Empty
-                : string.Empty
+                : existingScope ?? string.Empty
         };
+    }
+
+    private static bool HasRequiredScopes(SpotifyToken? token)
+    {
+        if (token is null)
+        {
+            return false;
+        }
+
+        HashSet<string> grantedScopes = token.Scope
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return ReleaseDefaults.SpotifyScope
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .All(grantedScopes.Contains);
     }
 
     private static void OpenBrowser(Uri authorizationUri)
@@ -403,13 +442,15 @@ internal sealed class LoopbackCallbackListener : IDisposable
         }
 
         string target = parts[1];
+        int queryStart = target.IndexOf('?');
+        string targetPath = queryStart >= 0
+            ? target[..queryStart]
+            : target;
 
-        if (!target.StartsWith(expectedPath, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(targetPath, expectedPath, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Spotify callback path is invalid.");
         }
-
-        int queryStart = target.IndexOf('?');
 
         if (queryStart < 0 || queryStart == target.Length - 1)
         {

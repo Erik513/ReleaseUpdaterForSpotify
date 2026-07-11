@@ -25,8 +25,10 @@ public interface ISpotifyGateway
         string playlistId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<SpotifyPlaylist>> GetCurrentUserPlaylistsAsync(
+        CancellationToken cancellationToken);
+
     Task<string> CreatePlaylistAsync(
-        string userId,
         string name,
         string description,
         CancellationToken cancellationToken);
@@ -37,8 +39,9 @@ public interface ISpotifyGateway
         string description,
         CancellationToken cancellationToken);
 
-    Task ClearPlaylistAsync(
+    Task ReplacePlaylistTracksAsync(
         string playlistId,
+        IReadOnlyList<string> trackUris,
         CancellationToken cancellationToken);
 
     Task AddTracksToPlaylistAsync(

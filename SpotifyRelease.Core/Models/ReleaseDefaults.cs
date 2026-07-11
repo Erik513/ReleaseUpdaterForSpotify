@@ -12,10 +12,12 @@ public static class ReleaseDefaults
     public const int TrackPageSize = 50;
     public const int SearchResultLimit = 20;
     public const int PlaylistBatchSize = 100;
-    public const bool LogicTestModeEnabled = false;
+    public const int PlaylistPageSize = 50;
+    // Keep this enabled only while testing; disable it before distributing the app.
+    public const bool LogicTestModeEnabled = true;
     public const int LogicTestArtistLimit = 10;
     public const int LogicTestReleaseLimit = 5;
 
     public const string SpotifyScope =
-        "user-follow-read playlist-modify-private playlist-modify-public";
+        "user-follow-read playlist-modify-public";
 }

@@ -1,6 +1,7 @@
 using CustomWFUI;
 using CustomWFUI.Controls;
 using CustomWFUI.Forms;
+using SpotifyRelease.Data;
 using SpotifyRelease.Core.Models;
 using SpotifyRelease.Core.Services;
 using SpotifyRelease.Data.Reports;
@@ -19,6 +20,7 @@ namespace SpotifyReleaseGui
         private readonly SpotifyAuthService authService;
         private readonly SpotifyApiClient spotifyApiClient;
         private readonly SpotifyReleaseUpdater releaseUpdater;
+        private readonly SystemReleaseClock releaseClock = new();
         private readonly HttpClient spotifyAccountsHttpClient = new();
         private readonly HttpClient spotifyApiHttpClient = new();
 
@@ -90,7 +92,8 @@ namespace SpotifyReleaseGui
             releaseUpdater = new SpotifyReleaseUpdater(
                 spotifyApiClient,
                 settingsStore,
-                reportWriter);
+                reportWriter,
+                releaseClock);
 
             controller = new MainFormController(
                 this,

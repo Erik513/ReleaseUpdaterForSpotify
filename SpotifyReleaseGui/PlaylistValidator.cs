@@ -20,15 +20,10 @@
                 return false;
             }
 
-            char[] forbiddenChars = Path.GetInvalidFileNameChars();
-
-            foreach (char forbiddenChar in forbiddenChars)
+            if (playlistName.Any(char.IsControl))
             {
-                if (playlistName.Contains(forbiddenChar))
-                {
-                    errorMessage = "The playlist name contains invalid characters.";
-                    return false;
-                }
+                errorMessage = "The playlist name contains invalid characters.";
+                return false;
             }
 
             return true;

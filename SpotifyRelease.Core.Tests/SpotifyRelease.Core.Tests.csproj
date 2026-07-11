@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SpotifyRelease.Core\SpotifyRelease.Core.csproj" />
+    <ProjectReference Include="..\SpotifyRelease.Spotify\SpotifyRelease.Spotify.csproj" />
+    <ProjectReference Include="..\SpotifyRelease.Data\SpotifyRelease.Data.csproj" />
   </ItemGroup>
 
 </Project>

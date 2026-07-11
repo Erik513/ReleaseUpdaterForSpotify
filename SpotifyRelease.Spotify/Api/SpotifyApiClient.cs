@@ -9,13 +9,16 @@ using SpotifyRelease.Spotify.Auth;
 
 namespace SpotifyRelease.Spotify.Api;
 
-public sealed class SpotifyApiClient : ISpotifyGateway
+public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnostics
 {
     private static readonly Uri ApiBaseUri = new("https://api.spotify.com/v1/");
     private const int MaxRetryAttempts = 5;
 
     private readonly ISpotifyAccessTokenProvider accessTokenProvider;
     private readonly HttpClient httpClient;
+    private readonly SpotifyApiRateLimiter rateLimiter;
+
+    public IProgress<ReleaseProgress>? Progress { get; set; }
 
     public SpotifyApiClient(
         ISpotifyAccessTokenProvider accessTokenProvider,
@@ -23,6 +26,7 @@ public sealed class SpotifyApiClient : ISpotifyGateway
     {
         this.accessTokenProvider = accessTokenProvider;
         this.httpClient = httpClient;
+        rateLimiter = new SpotifyApiRateLimiter();
     }
 
     public async Task<SpotifyUser> GetCurrentUserAsync(
@@ -427,11 +431,14 @@ public sealed class SpotifyApiClient : ISpotifyGateway
                 request.Content = JsonContent.Create(body);
             }
 
+            await rateLimiter.WaitForSlotAsync(cancellationToken);
+
             HttpResponseMessage response =
                 await httpClient.SendAsync(request, cancellationToken);
 
             if (IsRetryable(response.StatusCode) && attempt < MaxRetryAttempts)
             {
+                EnableRobustModeWhenNeeded(response.StatusCode, attempt);
                 TimeSpan retryDelay = GetRetryDelay(response, attempt);
                 response.Dispose();
                 await Task.Delay(retryDelay, cancellationToken);
@@ -466,6 +473,24 @@ public sealed class SpotifyApiClient : ISpotifyGateway
 
         return statusCode == HttpStatusCode.TooManyRequests ||
             statusCodeNumber is >= 500 and <= 599;
+    }
+
+    private void EnableRobustModeWhenNeeded(HttpStatusCode statusCode, int attempt)
+    {
+        bool shouldSwitch =
+            statusCode == HttpStatusCode.TooManyRequests ||
+            attempt >= 2;
+
+        if (!shouldSwitch || !rateLimiter.EnableRobustMode())
+        {
+            return;
+        }
+
+        string message = statusCode == HttpStatusCode.TooManyRequests
+            ? "Spotify request limit reached. Switching to robust request mode."
+            : "Spotify returned repeated temporary errors. Switching to robust request mode.";
+
+        Progress?.Report(new ReleaseProgress(string.Empty, Message: message));
     }
 
     private static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)

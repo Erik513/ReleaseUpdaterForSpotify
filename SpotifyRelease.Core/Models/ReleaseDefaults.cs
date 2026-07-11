@@ -13,6 +13,8 @@ public static class ReleaseDefaults
     public const int SearchResultLimit = 20;
     public const int PlaylistBatchSize = 100;
     public const int PlaylistPageSize = 50;
+    public const int SpotifyRobustRequestBudget = 90;
+    public const int SpotifyRobustWindowSeconds = 30;
     // Keep this enabled only while testing; disable it before distributing the app.
     public const bool LogicTestModeEnabled = true;
     public const int LogicTestArtistLimit = 10;

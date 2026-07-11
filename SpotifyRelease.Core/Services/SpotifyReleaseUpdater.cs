@@ -29,6 +29,11 @@ public sealed class SpotifyReleaseUpdater
         IProgress<ReleaseProgress>? progress,
         CancellationToken cancellationToken)
     {
+        if (spotify is ISpotifyRequestDiagnostics diagnostics)
+        {
+            diagnostics.Progress = progress;
+        }
+
         ReleaseSettings settings = settingsStore.Load().Normalize();
 
         ReportStatus(progress, "Loading followed artists");

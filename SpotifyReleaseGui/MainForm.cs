@@ -1,6 +1,7 @@
 using CustomWFUI;
 using CustomWFUI.Controls;
 using CustomWFUI.Forms;
+using SpotifyRelease.Data;
 using SpotifyRelease.Core.Models;
 using SpotifyRelease.Core.Services;
 using SpotifyRelease.Data.Reports;
@@ -12,13 +13,20 @@ namespace SpotifyReleaseGui
 {
     public partial class MainForm : StyledForm
     {
+        private static readonly Size PropertyIconButtonSize = new(36, 30);
+        private static readonly Size ActionIconButtonSize = new(48, 34);
+        private const int PropertyIconColumnWidth = 54;
+        private const int PropertyRowHeight = 34;
+
         private readonly AppDataPaths dataPaths;
         private readonly JsonSettingsStore settingsStore;
         private readonly FileTokenStore tokenStore;
+        private readonly SettingsSpotifyClientIdProvider clientIdProvider;
         private readonly HtmlReportWriter reportWriter;
         private readonly SpotifyAuthService authService;
         private readonly SpotifyApiClient spotifyApiClient;
         private readonly SpotifyReleaseUpdater releaseUpdater;
+        private readonly SystemReleaseClock releaseClock = new();
         private readonly HttpClient spotifyAccountsHttpClient = new();
         private readonly HttpClient spotifyApiHttpClient = new();
 
@@ -28,11 +36,14 @@ namespace SpotifyReleaseGui
         private Label lblStatus = null!;
         private Label lblProgress = null!;
         private Label lblLoginStatus = null!;
+        private Button btnSharedClientStatus = null!;
         private ProgressBar progressBar = null!;
 
         private TextBox txtPlaylistName = null!;
         private Button btnEditPlaylistName = null!;
         private NumericUpDown numLookbackDays = null!;
+        private TextBox txtSpotifyClientId = null!;
+        private Button btnEditSpotifyClientId = null!;
 
         private Button btnLogin = null!;
         private Button btnCancel = null!;
@@ -41,7 +52,9 @@ namespace SpotifyReleaseGui
 
         private TextBox txtOutput = null!;
         private ToolTip spotifyAuthToolTip = null!;
+        private System.Windows.Forms.Timer runAvailabilityTimer = null!;
         private bool isSpotifySignedIn;
+        private bool isSpotifyAuthLocked;
         private bool isLoadingSettings;
 
         public string PlaylistName
@@ -54,9 +67,19 @@ namespace SpotifyReleaseGui
             get { return (int)numLookbackDays.Value; }
         }
 
+        public string CustomSpotifyClientId
+        {
+            get { return txtSpotifyClientId.Text.Trim(); }
+        }
+
         public bool IsPlaylistNameReadOnly
         {
             get { return txtPlaylistName.ReadOnly; }
+        }
+
+        public bool IsSpotifyClientIdReadOnly
+        {
+            get { return txtSpotifyClientId.ReadOnly; }
         }
 
         public bool IsSpotifySignedIn
@@ -77,11 +100,13 @@ namespace SpotifyReleaseGui
             dataPaths = AppDataPaths.CreateDefault();
             settingsStore = new JsonSettingsStore(dataPaths);
             tokenStore = new FileTokenStore(dataPaths);
+            clientIdProvider = new SettingsSpotifyClientIdProvider(settingsStore);
             reportWriter = new HtmlReportWriter(dataPaths);
 
             authService = new SpotifyAuthService(
                 tokenStore,
-                spotifyAccountsHttpClient);
+                spotifyAccountsHttpClient,
+                clientIdProvider);
 
             spotifyApiClient = new SpotifyApiClient(
                 authService,
@@ -90,19 +115,22 @@ namespace SpotifyReleaseGui
             releaseUpdater = new SpotifyReleaseUpdater(
                 spotifyApiClient,
                 settingsStore,
-                reportWriter);
+                reportWriter,
+                releaseClock);
 
             controller = new MainFormController(
                 this,
                 settingsStore,
                 reportWriter,
                 authService,
-                releaseUpdater);
+                releaseUpdater,
+                releaseClock);
 
             Size = MinimumSize;
-            MinimumSize = new Size(520, 700);
+            MinimumSize = new Size(520, 740);
 
             BuildUi();
+            StartRunAvailabilityTimer();
             CenterToScreen();
         }
 
@@ -118,7 +146,8 @@ namespace SpotifyReleaseGui
             {
                 PlaylistId = currentPlaylistId,
                 PlaylistName = PlaylistName,
-                ReleaseLookbackDays = ReleaseLookbackDays
+                ReleaseLookbackDays = ReleaseLookbackDays,
+                CustomSpotifyClientId = CustomSpotifyClientId
             }.Normalize();
         }
 
@@ -135,6 +164,7 @@ namespace SpotifyReleaseGui
                 numLookbackDays.Value = ClampForControl(
                     normalized.ReleaseLookbackDays,
                     numLookbackDays);
+                txtSpotifyClientId.Text = normalized.CustomSpotifyClientId ?? string.Empty;
             }
             finally
             {
@@ -153,9 +183,26 @@ namespace SpotifyReleaseGui
             lblLoginStatus.Text = status;
         }
 
+        public void SetSharedClientStatus(
+            string status,
+            SharedClientStatusKind statusKind)
+        {
+            Color backColor = GetSharedClientStatusColor(statusKind);
+
+            btnSharedClientStatus.BackColor = backColor;
+            btnSharedClientStatus.ForeColor = Color.White;
+            btnSharedClientStatus.AccessibleName = status;
+            btnSharedClientStatus.FlatAppearance.MouseOverBackColor =
+                ControlPaint.Light(backColor);
+            btnSharedClientStatus.FlatAppearance.MouseDownBackColor =
+                ControlPaint.Dark(backColor);
+            spotifyAuthToolTip?.SetToolTip(btnSharedClientStatus, status);
+        }
+
         public void SetAuthenticationBusy()
         {
-            btnLogin.Enabled = false;
+            isSpotifyAuthLocked = true;
+            btnLogin.Enabled = true;
             SetSpotifyAuthToolTip(
                 isSpotifySignedIn
                     ? "Spotify sign-out is currently running."
@@ -164,6 +211,7 @@ namespace SpotifyReleaseGui
 
         public void SetAuthenticationState(bool isLoggedIn)
         {
+            isSpotifyAuthLocked = false;
             isSpotifySignedIn = isLoggedIn;
             btnLogin.Enabled = true;
             SetButtonSymbol(
@@ -174,6 +222,17 @@ namespace SpotifyReleaseGui
                 isLoggedIn
                     ? "Click to sign out from this app and remove the saved Spotify login."
                     : "Click to open Spotify login in your browser.");
+        }
+
+        public void SetUpdateAvailability(bool isAvailable, string tooltip)
+        {
+            bool isSettingEditActive = IsSettingEditActive();
+            btnUpdatePlaylist.Enabled = isAvailable && !isSettingEditActive;
+            spotifyAuthToolTip?.SetToolTip(
+                btnUpdatePlaylist,
+                isSettingEditActive
+                    ? "Save the edited setting before updating the playlist."
+                    : tooltip);
         }
 
         public void ApplyProgress(ReleaseProgress progress)
@@ -205,7 +264,8 @@ namespace SpotifyReleaseGui
             txtOutput.Clear();
 
             btnUpdatePlaylist.Enabled = false;
-            btnLogin.Enabled = false;
+            isSpotifyAuthLocked = true;
+            btnLogin.Enabled = true;
             btnCancel.Enabled = true;
             SetSpotifyAuthToolTip(
                 "Spotify sign-in is disabled while the playlist update is running.");
@@ -214,6 +274,7 @@ namespace SpotifyReleaseGui
         public void ShowCompleted(PlaylistUpdateResult result)
         {
             btnUpdatePlaylist.Enabled = true;
+            isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
             btnCancel.Enabled = false;
             progressBar.Value = 100;
@@ -234,6 +295,7 @@ namespace SpotifyReleaseGui
         public void ShowRunFailed(string message)
         {
             btnUpdatePlaylist.Enabled = true;
+            isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
             btnCancel.Enabled = false;
 
@@ -246,11 +308,17 @@ namespace SpotifyReleaseGui
         {
             btnCancel.Enabled = false;
             btnUpdatePlaylist.Enabled = true;
+            isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
 
             lblStatus.Text = "Cancelled";
             txtOutput.AppendText(
                 "The update was cancelled." + Environment.NewLine);
+        }
+
+        public void AppendOutput(string message)
+        {
+            txtOutput.AppendText(message + Environment.NewLine);
         }
 
         public void EnablePlaylistNameEditing()
@@ -273,7 +341,6 @@ namespace SpotifyReleaseGui
                 btnEditPlaylistName,
                 ButtonSymbolKind.Edit,
                 "Edit playlist name");
-            btnUpdatePlaylist.Enabled = true;
         }
 
         public void FocusPlaylistName()
@@ -282,7 +349,38 @@ namespace SpotifyReleaseGui
             txtPlaylistName.SelectAll();
         }
 
-        public void ShowInfo(string message, string title)
+        public void EnableSpotifyClientIdEditing()
+        {
+            txtSpotifyClientId.ReadOnly = false;
+            SetButtonSymbol(
+                btnEditSpotifyClientId,
+                ButtonSymbolKind.Check,
+                "Save Spotify Client ID");
+            btnUpdatePlaylist.Enabled = false;
+
+            txtSpotifyClientId.Focus();
+            txtSpotifyClientId.SelectAll();
+        }
+
+        public void DisableSpotifyClientIdEditing()
+        {
+            txtSpotifyClientId.ReadOnly = true;
+            SetButtonSymbol(
+                btnEditSpotifyClientId,
+                ButtonSymbolKind.Edit,
+                "Edit Spotify Client ID");
+        }
+
+        public void FocusSpotifyClientId()
+        {
+            txtSpotifyClientId.Focus();
+            txtSpotifyClientId.SelectAll();
+        }
+
+        public void ShowInfo(
+            string message,
+            string title,
+            CustomMessageBoxSize size = CustomMessageBoxSize.Small)
         {
             CustomMessageBox.Show(
                 message,
@@ -290,7 +388,7 @@ namespace SpotifyReleaseGui
                 CustomMessageBoxButtons.OK,
                 CustomMessageBoxIcon.Info,
                 this,
-                CustomMessageBoxSize.Small);
+                size);
         }
 
         public void ShowWarning(string message, string title)
@@ -346,7 +444,7 @@ namespace SpotifyReleaseGui
             btnLogin = UIStyles.Buttons.CreateStandard(
                 string.Empty,
                 string.Empty,
-                new Size(36, 30),
+                PropertyIconButtonSize,
                 true);
             SetButtonSymbol(
                 btnLogin,
@@ -356,6 +454,20 @@ namespace SpotifyReleaseGui
                 "Click to open Spotify login in your browser.");
             btnLogin.Click += BtnLogin_Click;
 
+            btnSharedClientStatus = UIStyles.Buttons.CreateStandard(
+                string.Empty,
+                string.Empty,
+                PropertyIconButtonSize,
+                true);
+            SetButtonSymbol(
+                btnSharedClientStatus,
+                ButtonSymbolKind.Status,
+                "Standard Client ID status");
+            SetSharedClientStatus(
+                "Standard Client ID status will appear here.",
+                SharedClientStatusKind.Info);
+            btnSharedClientStatus.Click += BtnClientIdHelp_Click;
+
             txtPlaylistName = UIStyles.TextBoxes.CreateBorderstyleNone(
                 ReleaseDefaults.PlaylistName);
             txtPlaylistName.ReadOnly = true;
@@ -363,7 +475,7 @@ namespace SpotifyReleaseGui
             btnEditPlaylistName = UIStyles.Buttons.CreateStandard(
                 string.Empty,
                 "Edit playlist name",
-                new Size(36, 30),
+                PropertyIconButtonSize,
                 true);
             SetButtonSymbol(
                 btnEditPlaylistName,
@@ -378,28 +490,62 @@ namespace SpotifyReleaseGui
                 ReleaseDefaults.ReleaseLookbackDays);
             numLookbackDays.ValueChanged += SettingsControl_Changed;
 
-            propertyTable.AddRow("Status", lblStatus);
+            txtSpotifyClientId = UIStyles.TextBoxes.CreateBorderstyleNone(
+                string.Empty);
+            txtSpotifyClientId.PlaceholderText = "Shared app (once per day)";
+            txtSpotifyClientId.ReadOnly = true;
+            spotifyAuthToolTip.SetToolTip(
+                txtSpotifyClientId,
+                "Optional. The standard Client ID can be used once per day. Add your own Client ID to remove that limit.");
+
+            btnEditSpotifyClientId = UIStyles.Buttons.CreateStandard(
+                string.Empty,
+                "Edit Spotify Client ID",
+                PropertyIconButtonSize,
+                true);
+            SetButtonSymbol(
+                btnEditSpotifyClientId,
+                ButtonSymbolKind.Edit,
+                "Edit Spotify Client ID");
+            btnEditSpotifyClientId.Click += BtnEditSpotifyClientId_Click;
+
+            propertyTable.AddRow(
+                "Status",
+                PropertyRowHeight,
+                UIColumn.Percent(lblStatus, 100),
+                UIColumn.Absolute(btnSharedClientStatus, PropertyIconColumnWidth));
             propertyTable.AddRow(
                 "Progress",
+                PropertyRowHeight,
                 UIColumn.Percent(lblProgress, 50),
                 UIColumn.Percent(progressBar, 50));
             propertyTable.AddSection("Settings");
             propertyTable.AddRow(
                 "Spotify",
+                PropertyRowHeight,
                 UIColumn.Percent(lblLoginStatus, 100),
-                UIColumn.Absolute(btnLogin, 54));
+                UIColumn.Absolute(btnLogin, PropertyIconColumnWidth));
+            propertyTable.AddRow(
+                "Client ID",
+                PropertyRowHeight,
+                UIColumn.Percent(txtSpotifyClientId, 100),
+                UIColumn.Absolute(btnEditSpotifyClientId, PropertyIconColumnWidth));
             propertyTable.AddRow(
                 "Playlist name",
+                PropertyRowHeight,
                 UIColumn.Percent(txtPlaylistName, 100),
-                UIColumn.Absolute(btnEditPlaylistName, 54));
+                UIColumn.Absolute(btnEditPlaylistName, PropertyIconColumnWidth));
             propertyTable.AddRow(
                 "Lookback days",
+                PropertyRowHeight,
                 UIColumn.Auto(numLookbackDays));
+
+            CenterPropertyTableText(propertyTable);
 
             FlowLayoutPanel buttonPanel = new FlowLayoutPanel
             {
-                Dock = DockStyle.Top,
-                Height = 42,
+                Dock = DockStyle.Bottom,
+                Height = 48,
                 FlowDirection = FlowDirection.RightToLeft,
                 Padding = new Padding(0, 8, 0, 0),
                 BackColor = Color.Transparent
@@ -408,17 +554,20 @@ namespace SpotifyReleaseGui
             btnUpdatePlaylist = UIStyles.Buttons.CreateGreen(
                 string.Empty,
                 "Update playlist",
-                new Size(38, 32));
+                ActionIconButtonSize);
             SetButtonSymbol(
                 btnUpdatePlaylist,
                 ButtonSymbolKind.Play,
                 "Update playlist");
             btnUpdatePlaylist.Click += BtnUpdatePlaylist_Click;
+            spotifyAuthToolTip.SetToolTip(
+                btnUpdatePlaylist,
+                "Update playlist");
 
             btnOpenReport = UIStyles.Buttons.CreateStandard(
                 string.Empty,
                 "Open last HTML report",
-                new Size(38, 32));
+                ActionIconButtonSize);
             SetButtonSymbol(
                 btnOpenReport,
                 ButtonSymbolKind.Report,
@@ -428,7 +577,7 @@ namespace SpotifyReleaseGui
             btnCancel = UIStyles.Buttons.CreateDanger(
                 string.Empty,
                 "Cancel running update",
-                new Size(38, 32));
+                ActionIconButtonSize);
             SetButtonSymbol(
                 btnCancel,
                 ButtonSymbolKind.Stop,
@@ -444,7 +593,7 @@ namespace SpotifyReleaseGui
             txtOutput.Dock = DockStyle.Fill;
             txtOutput.Multiline = true;
             txtOutput.ScrollBars = ScrollBars.Vertical;
-            txtOutput.WordWrap = false;
+            txtOutput.WordWrap = true;
             txtOutput.ReadOnly = true;
             txtOutput.Font = UIStyles.Fonts.Monospace;
 
@@ -467,6 +616,11 @@ namespace SpotifyReleaseGui
 
         private async void BtnLogin_Click(object? sender, EventArgs e)
         {
+            if (isSpotifyAuthLocked)
+            {
+                return;
+            }
+
             if (IsSpotifySignedIn)
             {
                 await controller.LogoutAsync();
@@ -496,13 +650,40 @@ namespace SpotifyReleaseGui
             controller.TogglePlaylistNameEdit();
         }
 
+        private void BtnEditSpotifyClientId_Click(object? sender, EventArgs e)
+        {
+            controller.ToggleSpotifyClientIdEdit();
+        }
+
+        private void BtnClientIdHelp_Click(object? sender, EventArgs e)
+        {
+            controller.OpenSpotifyClientIdHelp();
+        }
+
+        private void RunAvailabilityTimer_Tick(object? sender, EventArgs e)
+        {
+            controller.RefreshRunAvailability();
+        }
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             controller.CancelUpdate();
             spotifyAuthToolTip?.Dispose();
+            runAvailabilityTimer?.Stop();
+            runAvailabilityTimer?.Dispose();
             spotifyAccountsHttpClient.Dispose();
             spotifyApiHttpClient.Dispose();
             base.OnFormClosing(e);
+        }
+
+        private void StartRunAvailabilityTimer()
+        {
+            runAvailabilityTimer = new System.Windows.Forms.Timer
+            {
+                Interval = 30_000
+            };
+            runAvailabilityTimer.Tick += RunAvailabilityTimer_Tick;
+            runAvailabilityTimer.Start();
         }
 
         private static decimal ClampForControl(int value, NumericUpDown control)
@@ -582,6 +763,29 @@ namespace SpotifyReleaseGui
             spotifyAuthToolTip?.SetToolTip(btnLogin, text);
         }
 
+        private bool IsSettingEditActive()
+        {
+            return !txtPlaylistName.ReadOnly || !txtSpotifyClientId.ReadOnly;
+        }
+
+        private static void CenterPropertyTableText(Control parent)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child is Label label)
+                {
+                    label.TextAlign = ContentAlignment.MiddleLeft;
+                    label.Margin = new Padding(
+                        label.Margin.Left,
+                        0,
+                        label.Margin.Right,
+                        0);
+                }
+
+                CenterPropertyTableText(child);
+            }
+        }
+
         private static string GetButtonSymbol(ButtonSymbolKind kind)
         {
             return kind switch
@@ -593,7 +797,22 @@ namespace SpotifyReleaseGui
                 ButtonSymbolKind.Logout => "\u21A9",
                 ButtonSymbolKind.Edit => "\u270E",
                 ButtonSymbolKind.Check => "\u2713",
+                ButtonSymbolKind.Status => "\u25CF",
                 _ => string.Empty
+            };
+        }
+
+        private static Color GetSharedClientStatusColor(
+            SharedClientStatusKind statusKind)
+        {
+            return statusKind switch
+            {
+                SharedClientStatusKind.Available => Color.FromArgb(33, 150, 83),
+                SharedClientStatusKind.Blocked => Color.FromArgb(190, 55, 55),
+                SharedClientStatusKind.Custom => Color.FromArgb(40, 115, 180),
+                SharedClientStatusKind.TestMode => Color.FromArgb(33, 150, 83),
+                SharedClientStatusKind.Cooldown => Color.FromArgb(190, 55, 55),
+                _ => Color.FromArgb(90, 100, 110)
             };
         }
 
@@ -605,7 +824,18 @@ namespace SpotifyReleaseGui
             Login,
             Logout,
             Edit,
-            Check
+            Check,
+            Status
         }
+    }
+
+    public enum SharedClientStatusKind
+    {
+        Info,
+        Available,
+        Blocked,
+        Custom,
+        TestMode,
+        Cooldown
     }
 }

@@ -9,12 +9,16 @@ using SpotifyRelease.Spotify.Auth;
 
 namespace SpotifyRelease.Spotify.Api;
 
-public sealed class SpotifyApiClient : ISpotifyGateway
+public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnostics
 {
     private static readonly Uri ApiBaseUri = new("https://api.spotify.com/v1/");
+    private const int MaxRetryAttempts = 5;
 
     private readonly ISpotifyAccessTokenProvider accessTokenProvider;
     private readonly HttpClient httpClient;
+    private readonly SpotifyApiRateLimiter rateLimiter;
+
+    public IProgress<ReleaseProgress>? Progress { get; set; }
 
     public SpotifyApiClient(
         ISpotifyAccessTokenProvider accessTokenProvider,
@@ -22,6 +26,7 @@ public sealed class SpotifyApiClient : ISpotifyGateway
     {
         this.accessTokenProvider = accessTokenProvider;
         this.httpClient = httpClient;
+        rateLimiter = new SpotifyApiRateLimiter();
     }
 
     public async Task<SpotifyUser> GetCurrentUserAsync(
@@ -190,16 +195,51 @@ public sealed class SpotifyApiClient : ISpotifyGateway
             return null;
         }
 
-        JsonElement root = json.RootElement;
+        return ParsePlaylist(json.RootElement);
+    }
 
-        return new SpotifyPlaylist(
-            GetRequiredString(root, "id"),
-            GetRequiredString(root, "name"),
-            GetRequiredString(root.GetProperty("owner"), "id"));
+    /// <summary>
+    /// Loads playlists that Spotify currently lists for the signed-in user.
+    /// </summary>
+    public async Task<IReadOnlyList<SpotifyPlaylist>> GetCurrentUserPlaylistsAsync(
+        CancellationToken cancellationToken)
+    {
+        List<SpotifyPlaylist> playlists = new();
+        int offset = 0;
+
+        while (true)
+        {
+            string path =
+                $"me/playlists?limit={ReleaseDefaults.PlaylistPageSize}&offset={offset}";
+
+            using JsonDocument json =
+                await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
+
+            JsonElement root = json.RootElement;
+            JsonElement items = root.GetProperty("items");
+
+            foreach (JsonElement item in items.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Null)
+                {
+                    continue;
+                }
+
+                playlists.Add(ParsePlaylist(item));
+            }
+
+            int itemCount = items.GetArrayLength();
+            int total = root.GetProperty("total").GetInt32();
+            offset += itemCount;
+
+            if (itemCount == 0 || offset >= total)
+            {
+                return playlists;
+            }
+        }
     }
 
     public async Task<string> CreatePlaylistAsync(
-        string userId,
         string name,
         string description,
         CancellationToken cancellationToken)
@@ -207,14 +247,13 @@ public sealed class SpotifyApiClient : ISpotifyGateway
         var body = new
         {
             name,
-            @public = false,
-            collaborative = false,
+            @public = true,
             description
         };
 
         using JsonDocument json = await SendJsonAsync(
             HttpMethod.Post,
-            $"users/{Uri.EscapeDataString(userId)}/playlists",
+            "me/playlists",
             body,
             false,
             cancellationToken);
@@ -231,8 +270,6 @@ public sealed class SpotifyApiClient : ISpotifyGateway
         var body = new
         {
             name,
-            @public = false,
-            collaborative = false,
             description
         };
 
@@ -243,19 +280,41 @@ public sealed class SpotifyApiClient : ISpotifyGateway
             cancellationToken);
     }
 
-    public Task ClearPlaylistAsync(
+    /// <summary>
+    /// Replaces the playlist contents first, then appends remaining tracks in Spotify-sized batches.
+    /// </summary>
+    public async Task ReplacePlaylistTracksAsync(
         string playlistId,
+        IReadOnlyList<string> trackUris,
         CancellationToken cancellationToken)
     {
+        string[] firstChunk = trackUris
+            .Take(ReleaseDefaults.PlaylistBatchSize)
+            .ToArray();
+
         var body = new
         {
-            uris = Array.Empty<string>()
+            uris = firstChunk
         };
 
-        return SendWithoutBodyAsync(
+        await SendWithoutBodyAsync(
             HttpMethod.Put,
             $"playlists/{Uri.EscapeDataString(playlistId)}/tracks",
             body,
+            cancellationToken);
+
+        if (trackUris.Count <= firstChunk.Length)
+        {
+            return;
+        }
+
+        IReadOnlyList<string> remainingTrackUris = trackUris
+            .Skip(firstChunk.Length)
+            .ToList();
+
+        await AddTracksToPlaylistAsync(
+            playlistId,
+            remainingTrackUris,
             cancellationToken);
     }
 
@@ -356,7 +415,7 @@ public sealed class SpotifyApiClient : ISpotifyGateway
         bool allowNotFound,
         CancellationToken cancellationToken)
     {
-        for (int attempt = 1; attempt <= 3; attempt++)
+        for (int attempt = 1; attempt <= MaxRetryAttempts; attempt++)
         {
             string accessToken =
                 await accessTokenProvider.GetAccessTokenAsync(cancellationToken);
@@ -372,12 +431,15 @@ public sealed class SpotifyApiClient : ISpotifyGateway
                 request.Content = JsonContent.Create(body);
             }
 
+            await rateLimiter.WaitForSlotAsync(cancellationToken);
+
             HttpResponseMessage response =
                 await httpClient.SendAsync(request, cancellationToken);
 
-            if (response.StatusCode == HttpStatusCode.TooManyRequests && attempt < 3)
+            if (IsRetryable(response.StatusCode) && attempt < MaxRetryAttempts)
             {
-                TimeSpan retryDelay = GetRetryDelay(response);
+                EnableRobustModeWhenNeeded(response.StatusCode, attempt);
+                TimeSpan retryDelay = GetRetryDelay(response, attempt);
                 response.Dispose();
                 await Task.Delay(retryDelay, cancellationToken);
                 continue;
@@ -396,23 +458,70 @@ public sealed class SpotifyApiClient : ISpotifyGateway
             string responseText =
                 await response.Content.ReadAsStringAsync(cancellationToken);
 
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                TimeSpan retryDelay = GetRetryDelay(response, attempt);
+                response.Dispose();
+
+                throw new SpotifyRateLimitException(
+                    method.Method,
+                    path,
+                    retryDelay,
+                    responseText);
+            }
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                response.Dispose();
+
+                throw new InvalidOperationException(
+                    "Spotify denied access for this account. If you use the shared app, your account may not be allowlisted. Add your own Spotify Client ID or ask the developer to allowlist your account.");
+            }
+
             response.Dispose();
 
             throw new InvalidOperationException(
-                $"Spotify API error: {(int)response.StatusCode} {response.StatusCode} {responseText}");
+                $"Spotify API error after {attempt} attempt(s) on {method.Method} /{path}: {(int)response.StatusCode} {response.StatusCode} {responseText}");
         }
 
-        throw new InvalidOperationException("Spotify API limit reached.");
+        throw new InvalidOperationException("Spotify API request failed after all retry attempts.");
     }
 
-    private static TimeSpan GetRetryDelay(HttpResponseMessage response)
+    private static bool IsRetryable(HttpStatusCode statusCode)
+    {
+        int statusCodeNumber = (int)statusCode;
+
+        return statusCode == HttpStatusCode.TooManyRequests ||
+            statusCodeNumber is >= 500 and <= 599;
+    }
+
+    private void EnableRobustModeWhenNeeded(HttpStatusCode statusCode, int attempt)
+    {
+        bool shouldSwitch =
+            statusCode == HttpStatusCode.TooManyRequests ||
+            attempt >= 2;
+
+        if (!shouldSwitch || !rateLimiter.EnableRobustMode())
+        {
+            return;
+        }
+
+        string message = statusCode == HttpStatusCode.TooManyRequests
+            ? "Spotify request limit reached. Switching to robust request mode."
+            : "Spotify returned repeated temporary errors. Switching to robust request mode.";
+
+        Progress?.Report(new ReleaseProgress(string.Empty, Message: message));
+    }
+
+    private static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)
     {
         if (response.Headers.RetryAfter?.Delta is TimeSpan delta)
         {
             return delta;
         }
 
-        return TimeSpan.FromSeconds(5);
+        int delaySeconds = Math.Min(30, attempt * attempt * 2);
+        return TimeSpan.FromSeconds(delaySeconds);
     }
 
     private static SpotifyArtist ParseArtist(JsonElement item) =>
@@ -482,6 +591,12 @@ public sealed class SpotifyApiClient : ISpotifyGateway
 
         return string.Empty;
     }
+
+    private static SpotifyPlaylist ParsePlaylist(JsonElement item) =>
+        new(
+            GetRequiredString(item, "id"),
+            GetRequiredString(item, "name"),
+            GetRequiredString(item.GetProperty("owner"), "id"));
 
     private static string GetRequiredString(JsonElement item, string propertyName)
     {

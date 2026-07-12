@@ -458,6 +458,26 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             string responseText =
                 await response.Content.ReadAsStringAsync(cancellationToken);
 
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                TimeSpan retryDelay = GetRetryDelay(response, attempt);
+                response.Dispose();
+
+                throw new SpotifyRateLimitException(
+                    method.Method,
+                    path,
+                    retryDelay,
+                    responseText);
+            }
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                response.Dispose();
+
+                throw new InvalidOperationException(
+                    "Spotify denied access for this account. If you use the shared app, your account may not be allowlisted. Add your own Spotify Client ID or ask the developer to allowlist your account.");
+            }
+
             response.Dispose();
 
             throw new InvalidOperationException(

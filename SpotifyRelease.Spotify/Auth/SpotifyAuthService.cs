@@ -16,17 +16,29 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
     private static readonly Uri AccountsBaseUri = new("https://accounts.spotify.com");
 
     private readonly ISpotifyTokenStore tokenStore;
+    private readonly ISpotifyClientIdProvider clientIdProvider;
     private readonly HttpClient httpClient;
 
     public SpotifyAuthService(
         ISpotifyTokenStore tokenStore,
-        HttpClient httpClient)
+        HttpClient httpClient,
+        ISpotifyClientIdProvider clientIdProvider)
     {
         this.tokenStore = tokenStore;
         this.httpClient = httpClient;
+        this.clientIdProvider = clientIdProvider;
     }
 
-    public bool HasCachedToken => HasRequiredScopes(tokenStore.Load());
+    public bool HasCachedToken
+    {
+        get
+        {
+            SpotifyToken? token = tokenStore.Load();
+
+            return HasRequiredScopes(token) &&
+                TokenBelongsToClient(token, GetConfiguredClientId());
+        }
+    }
 
     /// <summary>
     /// Checks the stored token and returns the currently signed-in Spotify user.
@@ -133,11 +145,19 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
         CancellationToken cancellationToken)
     {
         SpotifyToken? token = tokenStore.Load();
+        string clientId = GetConfiguredClientId();
 
         if (token is null)
         {
             throw new InvalidOperationException(
                 "Please sign in to Spotify first.");
+        }
+
+        if (!TokenBelongsToClient(token, clientId))
+        {
+            tokenStore.Clear();
+            throw new InvalidOperationException(
+                "The saved Spotify login belongs to another Client ID. Please sign in again.");
         }
 
         if (!HasRequiredScopes(token))
@@ -152,7 +172,6 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
             return token.AccessToken;
         }
 
-        string clientId = GetConfiguredClientId();
         SpotifyToken refreshedToken =
             await RefreshTokenAsync(clientId, token, cancellationToken);
 
@@ -170,7 +189,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
     private string GetConfiguredClientId()
     {
-        string clientId = SpotifyAppOptions.ClientId;
+        string clientId = clientIdProvider.CurrentClientId;
 
         if (string.IsNullOrWhiteSpace(clientId))
         {
@@ -220,7 +239,11 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
             ["code_verifier"] = codeVerifier
         };
 
-        return await SendTokenRequestAsync(form, null, null, cancellationToken);
+        SpotifyToken token =
+            await SendTokenRequestAsync(form, null, null, cancellationToken);
+        token.ClientId = clientId;
+
+        return token;
     }
 
     private async Task<SpotifyToken> RefreshTokenAsync(
@@ -241,11 +264,14 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
             ["refresh_token"] = currentToken.RefreshToken
         };
 
-        return await SendTokenRequestAsync(
+        SpotifyToken refreshedToken = await SendTokenRequestAsync(
             form,
             currentToken.RefreshToken,
             currentToken.Scope,
             cancellationToken);
+        refreshedToken.ClientId = clientId;
+
+        return refreshedToken;
     }
 
     private async Task<SpotifyToken> SendTokenRequestAsync(
@@ -307,6 +333,29 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
         return ReleaseDefaults.SpotifyScope
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .All(grantedScopes.Contains);
+    }
+
+    private static bool TokenBelongsToClient(
+        SpotifyToken? token,
+        string clientId)
+    {
+        if (token is null)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(token.ClientId))
+        {
+            return string.Equals(
+                clientId,
+                ReleaseDefaults.SharedSpotifyClientId,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        return string.Equals(
+            token.ClientId,
+            clientId,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static void OpenBrowser(Uri authorizationUri)

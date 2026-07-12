@@ -169,6 +169,30 @@ public sealed class SpotifyApiClientTests
             item => item.Message == "Spotify request limit reached. Switching to robust request mode.");
     }
 
+    // Verifies that Spotify 429 remains actionable after all retry attempts are exhausted.
+    [Fact]
+    public async Task GetCurrentUserAsync_ThrowsRateLimitExceptionWhenRetriesAreExhausted()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+
+        for (int index = 0; index < 5; index++)
+        {
+            handler.EnqueueJson(
+                """{ "error": { "status": 429, "message": "Too many requests" } }""",
+                HttpStatusCode.TooManyRequests,
+                retryAfter: TimeSpan.Zero);
+        }
+
+        SpotifyRateLimitException exception =
+            await Assert.ThrowsAsync<SpotifyRateLimitException>(
+                () => client.GetCurrentUserAsync(CancellationToken.None));
+
+        Assert.Equal(5, handler.Requests.Count);
+        Assert.Equal("GET", exception.Method);
+        Assert.Equal("me", exception.Path);
+    }
+
     // Verifies that repeated temporary Spotify errors switch to robust mode before retrying again.
     [Fact]
     public async Task GetCurrentUserAsync_RetriesRepeatedServerErrorsAndReportsRobustMode()

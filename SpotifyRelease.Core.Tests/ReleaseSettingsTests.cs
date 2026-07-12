@@ -20,6 +20,7 @@ public sealed class ReleaseSettingsTests
         Assert.Equal("playlist-1", settings.PlaylistId);
         Assert.Equal("My playlist", settings.PlaylistName);
         Assert.Equal(ReleaseDefaults.MaxReleaseLookbackDays, settings.ReleaseLookbackDays);
+        Assert.True(settings.UsesSharedSpotifyClientId);
     }
 
     // Verifies that empty settings fall back to safe defaults.
@@ -38,5 +39,37 @@ public sealed class ReleaseSettingsTests
         Assert.Null(settings.PlaylistId);
         Assert.Equal(ReleaseDefaults.PlaylistName, settings.PlaylistName);
         Assert.Equal(ReleaseDefaults.MinReleaseLookbackDays, settings.ReleaseLookbackDays);
+    }
+
+    // Verifies that a custom Spotify Client ID is trimmed and becomes the effective OAuth client.
+    [Fact]
+    public void Normalize_UsesTrimmedCustomSpotifyClientId()
+    {
+        ReleaseSettings settings = new()
+        {
+            CustomSpotifyClientId = "  0123456789abcdef0123456789abcdef  "
+        };
+
+        settings.Normalize();
+
+        Assert.Equal("0123456789abcdef0123456789abcdef", settings.CustomSpotifyClientId);
+        Assert.False(settings.UsesSharedSpotifyClientId);
+        Assert.Equal("0123456789abcdef0123456789abcdef", settings.EffectiveSpotifyClientId);
+    }
+
+    // Verifies that the app owner can enter the bundled Client ID as a saved custom value.
+    [Fact]
+    public void Normalize_KeepsCustomClientIdWhenItMatchesSharedClientId()
+    {
+        ReleaseSettings settings = new()
+        {
+            CustomSpotifyClientId = ReleaseDefaults.SharedSpotifyClientId.ToUpperInvariant()
+        };
+
+        settings.Normalize();
+
+        Assert.Equal(ReleaseDefaults.SharedSpotifyClientId, settings.CustomSpotifyClientId);
+        Assert.False(settings.UsesSharedSpotifyClientId);
+        Assert.Equal(ReleaseDefaults.SharedSpotifyClientId, settings.EffectiveSpotifyClientId);
     }
 }

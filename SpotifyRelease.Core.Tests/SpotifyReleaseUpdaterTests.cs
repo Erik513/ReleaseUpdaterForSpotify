@@ -603,7 +603,11 @@ public sealed class SpotifyReleaseUpdaterTests
             {
                 PlaylistId = settings.PlaylistId,
                 PlaylistName = settings.PlaylistName,
-                ReleaseLookbackDays = settings.ReleaseLookbackDays
+                ReleaseLookbackDays = settings.ReleaseLookbackDays,
+                CustomSpotifyClientId = settings.CustomSpotifyClientId,
+                SharedClientLastRunDate = settings.SharedClientLastRunDate,
+                SpotifyCooldownUntilUtc = settings.SpotifyCooldownUntilUtc,
+                SpotifyCooldownClientId = settings.SpotifyCooldownClientId
             };
     }
 

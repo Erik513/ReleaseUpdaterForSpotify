@@ -11,7 +11,8 @@ public sealed record SpotifyArtist(
 public sealed record SpotifyAlbum(
     string Id,
     string Name,
-    DateOnly? ReleaseDate);
+    DateOnly? ReleaseDate,
+    string? ImageUrl = null);
 
 public sealed record SpotifyTrackItem(
     string Id,

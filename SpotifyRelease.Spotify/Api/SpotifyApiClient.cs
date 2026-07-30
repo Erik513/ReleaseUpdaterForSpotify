@@ -95,18 +95,34 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         string artistId,
         CancellationToken cancellationToken)
     {
-        string path =
-            $"artists/{Uri.EscapeDataString(artistId)}/albums" +
-            $"?include_groups=album,single&limit={ReleaseDefaults.AlbumPageSize}";
-
-        using JsonDocument json =
-            await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
-
         List<SpotifyAlbum> albums = new();
+        int offset = 0;
 
-        foreach (JsonElement item in json.RootElement.GetProperty("items").EnumerateArray())
+        while (true)
         {
-            albums.Add(ParseAlbum(item));
+            string path =
+                $"artists/{Uri.EscapeDataString(artistId)}/albums" +
+                $"?include_groups=album,single&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
+
+            using JsonDocument json =
+                await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
+
+            JsonElement root = json.RootElement;
+            JsonElement items = root.GetProperty("items");
+
+            foreach (JsonElement item in items.EnumerateArray())
+            {
+                albums.Add(ParseAlbum(item));
+            }
+
+            int itemCount = items.GetArrayLength();
+            int total = root.GetProperty("total").GetInt32();
+            offset += itemCount;
+
+            if (offset >= total || itemCount == 0)
+            {
+                break;
+            }
         }
 
         return albums;
@@ -475,7 +491,7 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
                 response.Dispose();
 
                 throw new InvalidOperationException(
-                    "Spotify denied access for this account. If you use the shared app, your account may not be allowlisted. Add your own Spotify Client ID or ask the developer to allowlist your account.");
+                    "Spotify denied access for this account. Make sure this Spotify account is allowlisted in your Spotify Developer Dashboard app, or request extended quota mode from Spotify.");
             }
 
             response.Dispose();
@@ -533,7 +549,27 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         new(
             GetRequiredString(item, "id"),
             GetRequiredString(item, "name"),
-            TryParseReleaseDate(item));
+            TryParseReleaseDate(item),
+            GetSmallestImageUrl(item));
+
+    /// <summary>
+    /// Spotify lists album images largest-first, so the last entry is the smallest thumbnail.
+    /// </summary>
+    private static string? GetSmallestImageUrl(JsonElement item)
+    {
+        if (!item.TryGetProperty("images", out JsonElement images) ||
+            images.ValueKind != JsonValueKind.Array ||
+            images.GetArrayLength() == 0)
+        {
+            return null;
+        }
+
+        JsonElement smallestImage = images[images.GetArrayLength() - 1];
+
+        return smallestImage.TryGetProperty("url", out JsonElement urlElement)
+            ? urlElement.GetString()
+            : null;
+    }
 
     private static SpotifyTrackItem ParseTrack(
         JsonElement item,

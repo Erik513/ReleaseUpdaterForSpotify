@@ -236,7 +236,8 @@ public sealed class SpotifyReleaseUpdater
                     artist.Name,
                     album.Name,
                     album.ReleaseDate.Value,
-                    album.Id));
+                    album.Id,
+                    album.ImageUrl));
             }
         }
 
@@ -283,7 +284,8 @@ public sealed class SpotifyReleaseUpdater
                     release.ReleaseDate,
                     release.AlbumName,
                     ReleaseTrackSource.ArtistAlbums,
-                    isFollowedArtistTrack));
+                    isFollowedArtistTrack,
+                    release.AlbumImageUrl));
             }
         }
 
@@ -337,7 +339,8 @@ public sealed class SpotifyReleaseUpdater
                     item.Album.ReleaseDate.Value,
                     item.Album.Name,
                     ReleaseTrackSource.Search,
-                    true));
+                    true,
+                    item.Album.ImageUrl));
             }
         }
 

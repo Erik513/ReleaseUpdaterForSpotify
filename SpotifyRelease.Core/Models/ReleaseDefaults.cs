@@ -2,20 +2,6 @@ namespace SpotifyRelease.Core.Models;
 
 public static class ReleaseDefaults
 {
-    private static readonly byte[] EncodedSharedSpotifyClientId =
-    [
-        109, 63, 56, 62, 111, 107, 99, 104,
-        107, 111, 99, 56, 110, 104, 109, 57,
-        99, 108, 108, 105, 111, 57, 108, 63,
-        62, 59, 109, 110, 108, 63, 108, 104
-    ];
-
-    private static readonly Lazy<string> DecodedSharedSpotifyClientId =
-        new(DecodeSharedSpotifyClientId);
-
-    public static string SharedSpotifyClientId =>
-        DecodedSharedSpotifyClientId.Value;
-
     public const string PlaylistName = "[Followed Artists - New Releases]";
     public const int ReleaseLookbackDays = 10;
     public const int MinReleaseLookbackDays = 1;
@@ -37,16 +23,4 @@ public static class ReleaseDefaults
 
     public const string SpotifyScope =
         "user-follow-read playlist-modify-public";
-
-    private static string DecodeSharedSpotifyClientId()
-    {
-        char[] decoded = new char[EncodedSharedSpotifyClientId.Length];
-
-        for (int index = 0; index < EncodedSharedSpotifyClientId.Length; index++)
-        {
-            decoded[index] = (char)(EncodedSharedSpotifyClientId[index] ^ 0x5A);
-        }
-
-        return new string(decoded);
-    }
 }

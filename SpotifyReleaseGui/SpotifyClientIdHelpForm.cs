@@ -110,11 +110,11 @@ namespace SpotifyReleaseGui
         private static string CreateInstructionText()
         {
             return
-                "The standard Spotify Client ID can be used once per day. " +
-                "If you add your own optional Client ID, this daily limit does not apply." +
+                "Release Updater for Spotify does not include a shared Spotify Client ID. " +
+                "Each user must create and enter their own Client ID." +
                 Environment.NewLine +
                 Environment.NewLine +
-                "To use your own Spotify Client ID:" + Environment.NewLine +
+                "To create your Spotify Client ID:" + Environment.NewLine +
                 Environment.NewLine +
                 "1. Click the button below to copy the redirect URI and open the Spotify Developer Dashboard." +
                 Environment.NewLine +

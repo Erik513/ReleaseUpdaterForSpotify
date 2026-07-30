@@ -16,7 +16,6 @@ namespace SpotifyReleaseGui
         private readonly IReportWriter reportWriter;
         private readonly ISpotifyAuthService authService;
         private readonly SpotifyReleaseUpdater releaseUpdater;
-        private readonly IReleaseClock releaseClock;
 
         private CancellationTokenSource? runCancellation;
 
@@ -25,15 +24,13 @@ namespace SpotifyReleaseGui
             ISettingsStore settingsStore,
             IReportWriter reportWriter,
             ISpotifyAuthService authService,
-            SpotifyReleaseUpdater releaseUpdater,
-            IReleaseClock releaseClock)
+            SpotifyReleaseUpdater releaseUpdater)
         {
             this.form = form;
             this.settingsStore = settingsStore;
             this.reportWriter = reportWriter;
             this.authService = authService;
             this.releaseUpdater = releaseUpdater;
-            this.releaseClock = releaseClock;
         }
 
         public async Task LoadSettingsAsync()
@@ -52,11 +49,15 @@ namespace SpotifyReleaseGui
                 return;
             }
 
+            if (!EnsureSpotifyClientIdConfigured(showMessage: true))
+            {
+                return;
+            }
+
+            using CancellationTokenSource loginCancellation = new(LoginTimeout);
+
             try
             {
-                using CancellationTokenSource loginCancellation =
-                    new(LoginTimeout);
-
                 form.SetAuthenticationBusy();
                 form.SetStatus("Waiting for Spotify login...");
                 form.SetLoginStatus("Browser login in progress...");
@@ -70,7 +71,7 @@ namespace SpotifyReleaseGui
 
                 ToastForm.ShowToast("Spotify login successful.", form);
             }
-            catch (Exception ex) when (IsLoginCancellation(ex))
+            catch (Exception ex) when (IsLoginCancellation(ex, loginCancellation.Token))
             {
                 await RefreshLoginStatusAsync();
                 form.SetStatus("Login cancelled or timed out");
@@ -110,6 +111,11 @@ namespace SpotifyReleaseGui
                 return;
             }
 
+            if (!EnsureSpotifyClientIdConfigured(showMessage: true))
+            {
+                return;
+            }
+
             if (!EnsureRunIsAllowed(showMessage: true))
             {
                 return;
@@ -131,12 +137,6 @@ namespace SpotifyReleaseGui
                     progress,
                     runCancellation.Token);
 
-                ReleaseSettings settings = settingsStore.Load().Normalize();
-                SpotifyRunPolicy.MarkSuccessfulSharedClientRun(
-                    settings,
-                    releaseClock.Today);
-                settingsStore.Save(settings);
-                form.SetSettings(settings);
                 form.ShowCompleted(result);
             }
             catch (SpotifyRateLimitException ex)
@@ -317,7 +317,6 @@ namespace SpotifyReleaseGui
                 form.SetSettings(settings);
             }
 
-            settings.SharedClientLastRunDate = savedSettings.SharedClientLastRunDate;
             settings.SpotifyCooldownUntilUtc = savedSettings.SpotifyCooldownUntilUtc;
             settings.SpotifyCooldownClientId = savedSettings.SpotifyCooldownClientId;
 
@@ -356,18 +355,56 @@ namespace SpotifyReleaseGui
             if (!isValid && showMessage)
             {
                 form.ShowWarning(
-                    "Spotify Client ID must be 32 hexadecimal characters. Leave it empty to use the shared app.",
+                    "Spotify Client ID must be 32 hexadecimal characters. Do not enter a Client Secret.",
                     "Invalid Spotify Client ID");
             }
 
             return isValid;
         }
 
+        private bool EnsureSpotifyClientIdConfigured(bool showMessage)
+        {
+            ReleaseSettings settings = form.GetSettings();
+
+            if (settings.HasSpotifyClientId)
+            {
+                return true;
+            }
+
+            string message =
+                "Please enter and save your Spotify Client ID before signing in or updating the playlist.";
+            form.SetStatus("Spotify Client ID required");
+            form.SetUpdateAvailability(false, message);
+            ApplyClientIdStatus(settings);
+
+            if (showMessage)
+            {
+                form.ShowInfo(message, "Spotify Client ID required");
+            }
+
+            return false;
+        }
+
         private bool EnsureRunIsAllowed(bool showMessage)
         {
             ReleaseSettings settings = settingsStore.Load().Normalize();
-            ApplySharedClientStatus(settings);
+            ApplyClientIdStatus(settings);
             DateTimeOffset now = DateTimeOffset.UtcNow;
+
+            if (!settings.HasSpotifyClientId)
+            {
+                string message =
+                    "Please enter and save your Spotify Client ID before updating the playlist.";
+                form.SetStatus("Spotify Client ID required");
+                form.SetUpdateAvailability(false, message);
+
+                if (showMessage)
+                {
+                    form.ShowInfo(message, "Spotify Client ID required");
+                }
+
+                return false;
+            }
 
             if (SpotifyRunPolicy.IsCooldownActive(settings, now))
             {
@@ -383,21 +420,6 @@ namespace SpotifyReleaseGui
                 return false;
             }
 
-            if (SpotifyRunPolicy.IsDailyLimitReached(settings, releaseClock.Today))
-            {
-                string message =
-                    "The shared Spotify app can be used once per day. Add your own Spotify Client ID to run again today.";
-                form.SetStatus("Shared app daily limit reached");
-                form.SetUpdateAvailability(false, message);
-
-                if (showMessage)
-                {
-                    form.ShowInfo(message, "Daily limit");
-                }
-
-                return false;
-            }
-
             form.SetUpdateAvailability(true, "Update playlist");
             return true;
         }
@@ -405,7 +427,21 @@ namespace SpotifyReleaseGui
         private void ApplyRunAvailability(bool updateStatus)
         {
             ReleaseSettings settings = settingsStore.Load().Normalize();
-            ApplySharedClientStatus(settings);
+            ApplyClientIdStatus(settings);
+
+            if (!settings.HasSpotifyClientId)
+            {
+                string message =
+                    "Enter and save your Spotify Client ID before updating the playlist.";
+                form.SetUpdateAvailability(false, message);
+
+                if (updateStatus)
+                {
+                    form.SetStatus("Spotify Client ID required");
+                }
+
+                return;
+            }
 
             if (SpotifyRunPolicy.IsCooldownActive(settings, DateTimeOffset.UtcNow))
             {
@@ -415,20 +451,6 @@ namespace SpotifyReleaseGui
                 if (updateStatus)
                 {
                     form.SetStatus("Spotify cooldown active");
-                }
-
-                return;
-            }
-
-            if (SpotifyRunPolicy.IsDailyLimitReached(settings, releaseClock.Today))
-            {
-                string message =
-                    "The shared Spotify app can be used once per day. Add your own Spotify Client ID to run again today.";
-                form.SetUpdateAvailability(false, message);
-
-                if (updateStatus)
-                {
-                    form.SetStatus("Shared app daily limit reached");
                 }
 
                 return;
@@ -451,24 +473,24 @@ namespace SpotifyReleaseGui
                 $"{FormatLocalTime(cooldownUntil)}.";
         }
 
-        private void ApplySharedClientStatus(ReleaseSettings settings)
+        private void ApplyClientIdStatus(ReleaseSettings settings)
         {
-            (string message, SharedClientStatusKind kind) =
-                CreateSharedClientStatus(settings);
+            (string message, ClientIdStatusKind kind) =
+                CreateClientIdStatus(settings);
 
-            form.SetSharedClientStatus(message, kind);
+            form.SetClientIdStatus(message, kind);
         }
 
-        private (string Message, SharedClientStatusKind Kind)
-            CreateSharedClientStatus(ReleaseSettings settings)
+        private (string Message, ClientIdStatusKind Kind)
+            CreateClientIdStatus(ReleaseSettings settings)
         {
             ReleaseSettings normalized = settings.Normalize();
 
-            if (IsLogicTestModeEnabled())
+            if (!normalized.HasSpotifyClientId)
             {
                 return (
-                    "Test mode: standard Client ID is used. Daily limit is ignored while testing.",
-                    SharedClientStatusKind.TestMode);
+                    "Spotify Client ID required. Click for setup help.",
+                    ClientIdStatusKind.Missing);
             }
 
             if (SpotifyRunPolicy.IsCooldownActive(
@@ -478,31 +500,19 @@ namespace SpotifyReleaseGui
             {
                 return (
                     CreateCooldownMessage(normalized),
-                    SharedClientStatusKind.Cooldown);
+                    ClientIdStatusKind.Cooldown);
             }
 
-            if (!normalized.UsesSharedSpotifyClientId)
+            if (IsLogicTestModeEnabled())
             {
                 return (
-                    "Custom Client ID active. The standard daily limit does not apply.",
-                    SharedClientStatusKind.Custom);
-            }
-
-            if (SpotifyRunPolicy.IsDailyLimitReached(
-                normalized,
-                releaseClock.Today,
-                ignoreSharedLimit: false))
-            {
-                DateOnly nextRunDate = releaseClock.Today.AddDays(1);
-                return (
-                    "Standard Client ID used today. Next shared run: " +
-                    $"{FormatDate(nextRunDate)}.",
-                    SharedClientStatusKind.Blocked);
+                    "Test mode active. Your configured Client ID will be used with limited requests.",
+                    ClientIdStatusKind.TestMode);
             }
 
             return (
-                "Standard Client ID available today. A custom Client ID removes the daily limit.",
-                SharedClientStatusKind.Available);
+                "Spotify Client ID configured. Click for setup help.",
+                ClientIdStatusKind.Configured);
         }
 
         private static string FormatDate(DateOnly value)
@@ -542,11 +552,17 @@ namespace SpotifyReleaseGui
                     StringComparison.Ordinal);
         }
 
-        private static bool IsLoginCancellation(Exception exception)
+        /// <summary>
+        /// Treats teardown exceptions (e.g. from stopping the loopback listener) as a
+        /// cancellation whenever the login token itself was cancelled, regardless of the
+        /// OS locale of the underlying exception message.
+        /// </summary>
+        private static bool IsLoginCancellation(
+            Exception exception,
+            CancellationToken cancellationToken)
         {
             return exception is OperationCanceledException ||
-                exception.Message.Contains("cancel", StringComparison.OrdinalIgnoreCase) ||
-                exception.Message.Contains("abgebrochen", StringComparison.OrdinalIgnoreCase);
+                cancellationToken.IsCancellationRequested;
         }
 
         private static bool IsLogicTestModeEnabled()

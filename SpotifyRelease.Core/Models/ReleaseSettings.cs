@@ -6,17 +6,14 @@ public sealed class ReleaseSettings
     public string PlaylistName { get; set; } = ReleaseDefaults.PlaylistName;
     public int ReleaseLookbackDays { get; set; } = ReleaseDefaults.ReleaseLookbackDays;
     public string? CustomSpotifyClientId { get; set; }
-    public DateOnly? SharedClientLastRunDate { get; set; }
     public DateTimeOffset? SpotifyCooldownUntilUtc { get; set; }
     public string? SpotifyCooldownClientId { get; set; }
 
-    public bool UsesSharedSpotifyClientId =>
-        string.IsNullOrWhiteSpace(CustomSpotifyClientId);
+    public bool HasSpotifyClientId =>
+        !string.IsNullOrWhiteSpace(CustomSpotifyClientId);
 
     public string EffectiveSpotifyClientId =>
-        UsesSharedSpotifyClientId
-            ? ReleaseDefaults.SharedSpotifyClientId
-            : CustomSpotifyClientId!;
+        CustomSpotifyClientId ?? string.Empty;
 
     public ReleaseSettings Normalize()
     {

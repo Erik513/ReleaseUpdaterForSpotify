@@ -142,12 +142,18 @@ public sealed class HtmlReportWriter : IReportWriter
     {
         html.AppendLine("    <div class=\"table-wrap\">");
         html.AppendLine("      <table data-sortable=\"true\">");
+        html.AppendLine("        <colgroup>");
+        html.AppendLine("          <col class=\"col-song\">");
+        html.AppendLine("          <col class=\"col-album\">");
+        html.AppendLine("          <col class=\"col-date\">");
+        html.AppendLine("          <col class=\"col-source\">");
+        html.AppendLine("          <col class=\"col-spotify\">");
+        html.AppendLine("        </colgroup>");
         html.AppendLine("        <thead>");
         html.AppendLine("          <tr>");
-        html.AppendLine("            <th>Date</th>");
-        html.AppendLine("            <th>Artists</th>");
         html.AppendLine("            <th>Song</th>");
         html.AppendLine("            <th>Album</th>");
+        html.AppendLine("            <th>Date</th>");
         html.AppendLine("            <th>Source</th>");
         html.AppendLine("            <th data-sort=\"none\">Spotify</th>");
         html.AppendLine("          </tr>");
@@ -185,30 +191,62 @@ public sealed class HtmlReportWriter : IReportWriter
             sourceText);
 
         html.AppendLine($"          <tr data-search=\"{EncodeAttribute(searchText)}\">");
-        html.AppendLine($"            <td data-sort=\"{sortDate}\">{displayDate}</td>");
-        html.AppendLine($"            <td data-sort=\"{EncodeAttribute(track.Artists)}\">{Encode(track.Artists)}</td>");
-        html.AppendLine($"            <td data-sort=\"{EncodeAttribute(track.Title)}\"><strong>{Encode(track.Title)}</strong></td>");
+        html.AppendLine($"            <td class=\"song-cell\" data-sort=\"{EncodeAttribute(track.Title)}\">");
+        html.AppendLine("              <div class=\"song\">");
+        html.AppendLine(BuildCoverMarkup(track.AlbumImageUrl, track.Title));
+        html.AppendLine("                <div class=\"song-info\">");
+        html.AppendLine($"                  <div class=\"song-title\">{Encode(track.Title)}</div>");
+        html.AppendLine($"                  <div class=\"song-artists\">{Encode(track.Artists)}</div>");
+        html.AppendLine("                </div>");
+        html.AppendLine("              </div>");
+        html.AppendLine("            </td>");
         html.AppendLine($"            <td data-sort=\"{EncodeAttribute(track.Album)}\">{Encode(track.Album)}</td>");
+        html.AppendLine($"            <td data-sort=\"{sortDate}\">{displayDate}</td>");
         html.AppendLine($"            <td data-sort=\"{sourceText}\"><span class=\"source-badge {sourceCssClass}\">{sourceText}</span></td>");
         html.AppendLine($"            <td><a class=\"spotify-link\" href=\"{EncodeAttribute(track.SpotifyUrl)}\" target=\"_blank\" rel=\"noopener\">Open</a></td>");
         html.AppendLine("          </tr>");
+    }
+
+    /// <summary>
+    /// Renders an album cover thumbnail with a note-icon fallback for missing or broken images.
+    /// </summary>
+    private static string BuildCoverMarkup(string? albumImageUrl, string title)
+    {
+        const string FallbackIcon =
+            "<svg class=\"cover-fallback\" viewBox=\"0 0 24 24\" aria-hidden=\"true\">" +
+            "<path d=\"M9 18V5l12-2v13\"></path><circle cx=\"6\" cy=\"18\" r=\"3\"></circle>" +
+            "<circle cx=\"18\" cy=\"16\" r=\"3\"></circle></svg>";
+
+        if (string.IsNullOrWhiteSpace(albumImageUrl))
+        {
+            return "                <div class=\"cover\">" + FallbackIcon + "</div>";
+        }
+
+        string img =
+            $"<img src=\"{EncodeAttribute(albumImageUrl)}\" alt=\"\" loading=\"lazy\" " +
+            "onerror=\"this.style.display='none'\">";
+
+        return "                <div class=\"cover\">" + img + FallbackIcon + "</div>";
     }
 
     private static string GetStyles() =>
         """
           <style>
             :root {
-              color-scheme: light;
-              --bg: #f4f6f5;
-              --panel: #ffffff;
-              --panel-soft: #f8faf9;
-              --text: #17201b;
-              --muted: #63706a;
-              --border: #dce3df;
+              color-scheme: dark;
+              --bg: #121212;
+              --panel: #181818;
+              --panel-soft: #202020;
+              --row-hover: #282828;
+              --text: #ffffff;
+              --muted: #b3b3b3;
+              --border: #2a2a2a;
               --accent: #1db954;
-              --accent-dark: #117a39;
-              --warning: #b45f06;
-              --shadow: 0 16px 36px rgba(16, 24, 20, 0.08);
+              --accent-dark: #169c46;
+              --accent-soft: rgba(29, 185, 84, 0.16);
+              --warning: #ffb020;
+              --warning-soft: rgba(255, 176, 32, 0.16);
+              --shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
             }
 
             * {
@@ -240,7 +278,7 @@ public sealed class HtmlReportWriter : IReportWriter
 
             .eyebrow {
               margin: 0 0 6px;
-              color: var(--accent-dark);
+              color: var(--accent);
               font-size: 12px;
               font-weight: 700;
               letter-spacing: 0;
@@ -363,16 +401,40 @@ public sealed class HtmlReportWriter : IReportWriter
 
             table {
               width: 100%;
-              min-width: 820px;
+              min-width: 800px;
+              table-layout: fixed;
               border-collapse: collapse;
+            }
+
+            .col-song {
+              width: 40%;
+            }
+
+            .col-album {
+              width: 26%;
+            }
+
+            .col-date {
+              width: 12%;
+            }
+
+            .col-source {
+              width: 14%;
+            }
+
+            .col-spotify {
+              width: 8%;
             }
 
             th,
             td {
-              padding: 11px 12px;
+              padding: 10px 12px;
               border-bottom: 1px solid var(--border);
               text-align: left;
               vertical-align: middle;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
 
             th {
@@ -394,26 +456,85 @@ public sealed class HtmlReportWriter : IReportWriter
 
             th.sort-asc::after {
               content: " asc";
-              color: var(--accent-dark);
+              color: var(--accent);
               text-transform: none;
             }
 
             th.sort-desc::after {
               content: " desc";
-              color: var(--accent-dark);
+              color: var(--accent);
               text-transform: none;
             }
 
-            tr:nth-child(even) td {
-              background: #fbfcfb;
-            }
-
             tr:hover td {
-              background: #eef8f2;
+              background: var(--row-hover);
             }
 
             tr.is-hidden {
               display: none;
+            }
+
+            .song-cell {
+              min-width: 320px;
+            }
+
+            .song {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+
+            .cover {
+              position: relative;
+              flex-shrink: 0;
+              width: 44px;
+              height: 44px;
+              border-radius: 4px;
+              overflow: hidden;
+              background: var(--panel-soft);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            .cover img {
+              position: absolute;
+              inset: 0;
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+            }
+
+            .cover-fallback {
+              width: 18px;
+              height: 18px;
+              fill: none;
+              stroke: var(--muted);
+              stroke-width: 1.8;
+              stroke-linecap: round;
+              stroke-linejoin: round;
+            }
+
+            .song-info {
+              min-width: 0;
+            }
+
+            .song-title {
+              color: var(--text);
+              font-weight: 600;
+              font-size: 14px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }
+
+            .song-artists {
+              margin-top: 2px;
+              color: var(--muted);
+              font-size: 13px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
             }
 
             .source-badge {
@@ -428,12 +549,12 @@ public sealed class HtmlReportWriter : IReportWriter
             }
 
             .source-release {
-              background: #e7f7ed;
-              color: var(--accent-dark);
+              background: var(--accent-soft);
+              color: var(--accent);
             }
 
             .source-search {
-              background: #fff2df;
+              background: var(--warning-soft);
               color: var(--warning);
             }
 
@@ -442,16 +563,16 @@ public sealed class HtmlReportWriter : IReportWriter
               align-items: center;
               justify-content: center;
               min-height: 30px;
-              padding: 5px 10px;
-              border-radius: 8px;
+              padding: 5px 12px;
+              border-radius: 999px;
               background: var(--accent);
-              color: #ffffff;
+              color: #061a0e;
               font-weight: 700;
               text-decoration: none;
             }
 
             .spotify-link:hover {
-              background: var(--accent-dark);
+              background: #22d365;
             }
 
             @media (max-width: 760px) {

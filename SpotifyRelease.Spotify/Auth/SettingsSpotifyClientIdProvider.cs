@@ -1,30 +1,20 @@
 using SpotifyRelease.Core.Abstractions;
-using SpotifyRelease.Core.Models;
 
 namespace SpotifyRelease.Spotify.Auth;
 
 public sealed class SettingsSpotifyClientIdProvider : ISpotifyClientIdProvider
 {
     private readonly ISettingsStore settingsStore;
-    private readonly bool useSharedClientInTestMode;
 
-    public SettingsSpotifyClientIdProvider(
-        ISettingsStore settingsStore,
-        bool useSharedClientInTestMode = ReleaseDefaults.LogicTestModeEnabled)
+    public SettingsSpotifyClientIdProvider(ISettingsStore settingsStore)
     {
         this.settingsStore = settingsStore;
-        this.useSharedClientInTestMode = useSharedClientInTestMode;
     }
 
     public string CurrentClientId
     {
         get
         {
-            if (useSharedClientInTestMode)
-            {
-                return ReleaseDefaults.SharedSpotifyClientId;
-            }
-
             string clientId = settingsStore
                 .Load()
                 .Normalize()
@@ -32,14 +22,11 @@ public sealed class SettingsSpotifyClientIdProvider : ISpotifyClientIdProvider
 
             if (string.IsNullOrWhiteSpace(clientId))
             {
-                throw new InvalidOperationException("Spotify client ID is missing.");
+                throw new InvalidOperationException(
+                    "Please enter and save your Spotify Client ID first.");
             }
 
             return clientId;
         }
     }
-
-    public bool UsesSharedClientId =>
-        useSharedClientInTestMode ||
-        settingsStore.Load().Normalize().UsesSharedSpotifyClientId;
 }

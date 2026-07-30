@@ -8,52 +8,43 @@ public sealed class SettingsSpotifyClientIdProviderTests
 {
     private const string CustomClientId = "0123456789abcdef0123456789abcdef";
 
-    // Verifies that test mode always uses the bundled shared Spotify Client ID.
+    // Verifies that the saved Spotify Client ID is used for OAuth.
     [Fact]
-    public void CurrentClientId_UsesSharedClientIdWhenTestModeForcesSharedClient()
+    public void CurrentClientId_UsesConfiguredClientId()
     {
         FakeSettingsStore settingsStore = new(new ReleaseSettings
         {
             CustomSpotifyClientId = CustomClientId
         });
-        SettingsSpotifyClientIdProvider provider = new(
-            settingsStore,
-            useSharedClientInTestMode: true);
-
-        Assert.Equal(ReleaseDefaults.SharedSpotifyClientId, provider.CurrentClientId);
-        Assert.True(provider.UsesSharedClientId);
-    }
-
-    // Verifies that normal mode still uses a saved custom Spotify Client ID.
-    [Fact]
-    public void CurrentClientId_UsesConfiguredClientIdWhenTestModeDoesNotForceSharedClient()
-    {
-        FakeSettingsStore settingsStore = new(new ReleaseSettings
-        {
-            CustomSpotifyClientId = CustomClientId
-        });
-        SettingsSpotifyClientIdProvider provider = new(
-            settingsStore,
-            useSharedClientInTestMode: false);
+        SettingsSpotifyClientIdProvider provider = new(settingsStore);
 
         Assert.Equal(CustomClientId, provider.CurrentClientId);
-        Assert.False(provider.UsesSharedClientId);
     }
 
-    // Verifies that a saved custom value matching the bundled Client ID still disables the local shared limit.
+    // Verifies that the provider trims and normalizes the saved Client ID before use.
     [Fact]
-    public void UsesSharedClientId_IsFalseWhenCustomClientIdMatchesBundledClientId()
+    public void CurrentClientId_NormalizesConfiguredClientId()
     {
         FakeSettingsStore settingsStore = new(new ReleaseSettings
         {
-            CustomSpotifyClientId = ReleaseDefaults.SharedSpotifyClientId
+            CustomSpotifyClientId = "  0123456789ABCDEF0123456789ABCDEF  "
         });
-        SettingsSpotifyClientIdProvider provider = new(
-            settingsStore,
-            useSharedClientInTestMode: false);
+        SettingsSpotifyClientIdProvider provider = new(settingsStore);
 
-        Assert.Equal(ReleaseDefaults.SharedSpotifyClientId, provider.CurrentClientId);
-        Assert.False(provider.UsesSharedClientId);
+        Assert.Equal(CustomClientId, provider.CurrentClientId);
+    }
+
+    // Verifies that OAuth cannot start until the user has configured a Spotify Client ID.
+    [Fact]
+    public void CurrentClientId_ThrowsWhenClientIdIsMissing()
+    {
+        FakeSettingsStore settingsStore = new(new ReleaseSettings());
+        SettingsSpotifyClientIdProvider provider = new(settingsStore);
+
+        InvalidOperationException exception =
+            Assert.Throws<InvalidOperationException>(() => provider.CurrentClientId);
+
+        Assert.Contains("Spotify Client ID", exception.Message);
     }
 
     private sealed class FakeSettingsStore : ISettingsStore

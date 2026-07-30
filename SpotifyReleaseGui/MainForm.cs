@@ -36,7 +36,7 @@ namespace SpotifyReleaseGui
         private Label lblStatus = null!;
         private Label lblProgress = null!;
         private Label lblLoginStatus = null!;
-        private Button btnSharedClientStatus = null!;
+        private Button btnClientIdStatus = null!;
         private ProgressBar progressBar = null!;
 
         private TextBox txtPlaylistName = null!;
@@ -89,7 +89,7 @@ namespace SpotifyReleaseGui
 
         public MainForm() : base(
             StyledFormOptions.CreateStandard(
-                title: "Spotify Release Updater",
+                title: "Release Updater for Spotify",
                 titleTextAlign: ContentAlignment.MiddleCenter,
                 backColor: UIStyles.Colors.BackgroundDarkElevated,
                 icon: LoadTitleImage(),
@@ -123,8 +123,7 @@ namespace SpotifyReleaseGui
                 settingsStore,
                 reportWriter,
                 authService,
-                releaseUpdater,
-                releaseClock);
+                releaseUpdater);
 
             Size = MinimumSize;
             MinimumSize = new Size(520, 740);
@@ -183,20 +182,20 @@ namespace SpotifyReleaseGui
             lblLoginStatus.Text = status;
         }
 
-        public void SetSharedClientStatus(
+        public void SetClientIdStatus(
             string status,
-            SharedClientStatusKind statusKind)
+            ClientIdStatusKind statusKind)
         {
-            Color backColor = GetSharedClientStatusColor(statusKind);
+            Color backColor = GetClientIdStatusColor(statusKind);
 
-            btnSharedClientStatus.BackColor = backColor;
-            btnSharedClientStatus.ForeColor = Color.White;
-            btnSharedClientStatus.AccessibleName = status;
-            btnSharedClientStatus.FlatAppearance.MouseOverBackColor =
+            btnClientIdStatus.BackColor = backColor;
+            btnClientIdStatus.ForeColor = Color.White;
+            btnClientIdStatus.AccessibleName = status;
+            btnClientIdStatus.FlatAppearance.MouseOverBackColor =
                 ControlPaint.Light(backColor);
-            btnSharedClientStatus.FlatAppearance.MouseDownBackColor =
+            btnClientIdStatus.FlatAppearance.MouseDownBackColor =
                 ControlPaint.Dark(backColor);
-            spotifyAuthToolTip?.SetToolTip(btnSharedClientStatus, status);
+            spotifyAuthToolTip?.SetToolTip(btnClientIdStatus, status);
         }
 
         public void SetAuthenticationBusy()
@@ -454,19 +453,19 @@ namespace SpotifyReleaseGui
                 "Click to open Spotify login in your browser.");
             btnLogin.Click += BtnLogin_Click;
 
-            btnSharedClientStatus = UIStyles.Buttons.CreateStandard(
+            btnClientIdStatus = UIStyles.Buttons.CreateStandard(
                 string.Empty,
                 string.Empty,
                 PropertyIconButtonSize,
                 true);
             SetButtonSymbol(
-                btnSharedClientStatus,
+                btnClientIdStatus,
                 ButtonSymbolKind.Status,
-                "Standard Client ID status");
-            SetSharedClientStatus(
-                "Standard Client ID status will appear here.",
-                SharedClientStatusKind.Info);
-            btnSharedClientStatus.Click += BtnClientIdHelp_Click;
+                "Spotify Client ID status");
+            SetClientIdStatus(
+                "Spotify Client ID status will appear here.",
+                ClientIdStatusKind.Info);
+            btnClientIdStatus.Click += BtnClientIdHelp_Click;
 
             txtPlaylistName = UIStyles.TextBoxes.CreateBorderstyleNone(
                 ReleaseDefaults.PlaylistName);
@@ -492,11 +491,11 @@ namespace SpotifyReleaseGui
 
             txtSpotifyClientId = UIStyles.TextBoxes.CreateBorderstyleNone(
                 string.Empty);
-            txtSpotifyClientId.PlaceholderText = "Shared app (once per day)";
+            txtSpotifyClientId.PlaceholderText = "Required Spotify Client ID";
             txtSpotifyClientId.ReadOnly = true;
             spotifyAuthToolTip.SetToolTip(
                 txtSpotifyClientId,
-                "Optional. The standard Client ID can be used once per day. Add your own Client ID to remove that limit.");
+                "Required. Create a Spotify app and enter its Client ID. Do not enter a Client Secret.");
 
             btnEditSpotifyClientId = UIStyles.Buttons.CreateStandard(
                 string.Empty,
@@ -513,7 +512,7 @@ namespace SpotifyReleaseGui
                 "Status",
                 PropertyRowHeight,
                 UIColumn.Percent(lblStatus, 100),
-                UIColumn.Absolute(btnSharedClientStatus, PropertyIconColumnWidth));
+                UIColumn.Absolute(btnClientIdStatus, PropertyIconColumnWidth));
             propertyTable.AddRow(
                 "Progress",
                 PropertyRowHeight,
@@ -802,16 +801,15 @@ namespace SpotifyReleaseGui
             };
         }
 
-        private static Color GetSharedClientStatusColor(
-            SharedClientStatusKind statusKind)
+        private static Color GetClientIdStatusColor(
+            ClientIdStatusKind statusKind)
         {
             return statusKind switch
             {
-                SharedClientStatusKind.Available => Color.FromArgb(33, 150, 83),
-                SharedClientStatusKind.Blocked => Color.FromArgb(190, 55, 55),
-                SharedClientStatusKind.Custom => Color.FromArgb(40, 115, 180),
-                SharedClientStatusKind.TestMode => Color.FromArgb(33, 150, 83),
-                SharedClientStatusKind.Cooldown => Color.FromArgb(190, 55, 55),
+                ClientIdStatusKind.Missing => Color.FromArgb(190, 55, 55),
+                ClientIdStatusKind.Configured => Color.FromArgb(40, 115, 180),
+                ClientIdStatusKind.TestMode => Color.FromArgb(33, 150, 83),
+                ClientIdStatusKind.Cooldown => Color.FromArgb(190, 55, 55),
                 _ => Color.FromArgb(90, 100, 110)
             };
         }
@@ -829,12 +827,11 @@ namespace SpotifyReleaseGui
         }
     }
 
-    public enum SharedClientStatusKind
+    public enum ClientIdStatusKind
     {
         Info,
-        Available,
-        Blocked,
-        Custom,
+        Missing,
+        Configured,
         TestMode,
         Cooldown
     }

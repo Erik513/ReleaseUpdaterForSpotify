@@ -20,7 +20,8 @@ public sealed class ReleaseSettingsTests
         Assert.Equal("playlist-1", settings.PlaylistId);
         Assert.Equal("My playlist", settings.PlaylistName);
         Assert.Equal(ReleaseDefaults.MaxReleaseLookbackDays, settings.ReleaseLookbackDays);
-        Assert.True(settings.UsesSharedSpotifyClientId);
+        Assert.False(settings.HasSpotifyClientId);
+        Assert.Equal(string.Empty, settings.EffectiveSpotifyClientId);
     }
 
     // Verifies that empty settings fall back to safe defaults.
@@ -53,23 +54,23 @@ public sealed class ReleaseSettingsTests
         settings.Normalize();
 
         Assert.Equal("0123456789abcdef0123456789abcdef", settings.CustomSpotifyClientId);
-        Assert.False(settings.UsesSharedSpotifyClientId);
+        Assert.True(settings.HasSpotifyClientId);
         Assert.Equal("0123456789abcdef0123456789abcdef", settings.EffectiveSpotifyClientId);
     }
 
-    // Verifies that the app owner can enter the bundled Client ID as a saved custom value.
+    // Verifies that empty Client ID text is removed instead of becoming an invalid configured value.
     [Fact]
-    public void Normalize_KeepsCustomClientIdWhenItMatchesSharedClientId()
+    public void Normalize_RemovesEmptySpotifyClientId()
     {
         ReleaseSettings settings = new()
         {
-            CustomSpotifyClientId = ReleaseDefaults.SharedSpotifyClientId.ToUpperInvariant()
+            CustomSpotifyClientId = "   "
         };
 
         settings.Normalize();
 
-        Assert.Equal(ReleaseDefaults.SharedSpotifyClientId, settings.CustomSpotifyClientId);
-        Assert.False(settings.UsesSharedSpotifyClientId);
-        Assert.Equal(ReleaseDefaults.SharedSpotifyClientId, settings.EffectiveSpotifyClientId);
+        Assert.Null(settings.CustomSpotifyClientId);
+        Assert.False(settings.HasSpotifyClientId);
+        Assert.Equal(string.Empty, settings.EffectiveSpotifyClientId);
     }
 }

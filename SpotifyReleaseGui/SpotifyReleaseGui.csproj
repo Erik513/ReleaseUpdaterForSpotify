@@ -6,12 +6,12 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>Spotify Release Updater</AssemblyName>
+    <AssemblyName>Release Updater for Spotify</AssemblyName>
     <RootNamespace>SpotifyReleaseGui</RootNamespace>
     <ApplicationIcon>Assets\Icons\SpotifyReleaseUpdater_48px.ico</ApplicationIcon>
-    <Title>Spotify Release Updater</Title>
+    <Title>Release Updater for Spotify</Title>
     <Authors>Erik Wink</Authors>
-    <Product>Spotify Release Updater</Product>
+    <Product>Release Updater for Spotify</Product>
     <Description>Automatically creates a Spotify playlist with new releases from followed artists.</Description>
     <Copyright>© 2026 Erik Wink</Copyright>
     <PackageIcon>SpotifyReleaseUpdater_48px.ico</PackageIcon>
@@ -33,7 +33,7 @@
 
   <ItemGroup>
     <Reference Include="CustomWFUI">
-      <HintPath>..\..\CustomWFUI\CustomWFUI\bin\Debug\CustomWFUI.dll</HintPath>
+      <HintPath>..\lib\CustomWFUI\CustomWFUI.dll</HintPath>
     </Reference>
   </ItemGroup>
 

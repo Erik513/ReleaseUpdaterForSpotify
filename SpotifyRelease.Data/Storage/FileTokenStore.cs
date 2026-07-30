@@ -20,7 +20,7 @@ public sealed class FileTokenStore : ISpotifyTokenStore
     }
 
     /// <summary>
-    /// Laedt den OAuth-Token, damit Nutzer sich nicht bei jedem Start neu anmelden muessen.
+    /// Loads the cached OAuth token so users don't have to sign in again on every start.
     /// </summary>
     public SpotifyToken? Load()
     {

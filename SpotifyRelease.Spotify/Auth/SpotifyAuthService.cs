@@ -346,10 +346,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
         if (string.IsNullOrWhiteSpace(token.ClientId))
         {
-            return string.Equals(
-                clientId,
-                ReleaseDefaults.SharedSpotifyClientId,
-                StringComparison.OrdinalIgnoreCase);
+            return false;
         }
 
         return string.Equals(

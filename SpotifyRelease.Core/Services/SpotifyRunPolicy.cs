@@ -4,20 +4,6 @@ namespace SpotifyRelease.Core.Services;
 
 public static class SpotifyRunPolicy
 {
-    public static bool IsDailyLimitReached(
-        ReleaseSettings settings,
-        DateOnly today,
-        bool ignoreSharedLimit = ReleaseDefaults.LogicTestModeEnabled)
-    {
-        if (ignoreSharedLimit)
-        {
-            return false;
-        }
-
-        return settings.Normalize().UsesSharedSpotifyClientId &&
-            settings.SharedClientLastRunDate == today;
-    }
-
     public static bool IsCooldownActive(
         ReleaseSettings settings,
         DateTimeOffset now,
@@ -29,6 +15,11 @@ public static class SpotifyRunPolicy
         }
 
         ReleaseSettings normalized = settings.Normalize();
+
+        if (!normalized.HasSpotifyClientId)
+        {
+            return false;
+        }
 
         return normalized.SpotifyCooldownUntilUtc is DateTimeOffset cooldownUntil &&
             cooldownUntil > now.ToUniversalTime() &&
@@ -52,22 +43,6 @@ public static class SpotifyRunPolicy
         return now.ToUniversalTime().Add(cooldown);
     }
 
-    public static void MarkSuccessfulSharedClientRun(
-        ReleaseSettings settings,
-        DateOnly today,
-        bool ignoreSharedLimit = ReleaseDefaults.LogicTestModeEnabled)
-    {
-        if (ignoreSharedLimit)
-        {
-            return;
-        }
-
-        if (settings.Normalize().UsesSharedSpotifyClientId)
-        {
-            settings.SharedClientLastRunDate = today;
-        }
-    }
-
     public static void MarkRateLimitCooldown(
         ReleaseSettings settings,
         DateTimeOffset now,
@@ -80,6 +55,12 @@ public static class SpotifyRunPolicy
         }
 
         ReleaseSettings normalized = settings.Normalize();
+
+        if (!normalized.HasSpotifyClientId)
+        {
+            return;
+        }
+
         normalized.SpotifyCooldownClientId = normalized.EffectiveSpotifyClientId;
         normalized.SpotifyCooldownUntilUtc = GetCooldownUntil(
             normalized,

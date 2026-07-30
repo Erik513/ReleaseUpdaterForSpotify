@@ -10,7 +10,8 @@ public sealed record ReleaseCandidate(
     string ArtistName,
     string AlbumName,
     DateOnly ReleaseDate,
-    string AlbumId);
+    string AlbumId,
+    string? AlbumImageUrl = null);
 
 public sealed record ReleaseTrack(
     string Title,
@@ -20,7 +21,8 @@ public sealed record ReleaseTrack(
     DateOnly ReleaseDate,
     string Album,
     ReleaseTrackSource Source,
-    bool IsFollowedArtistTrack);
+    bool IsFollowedArtistTrack,
+    string? AlbumImageUrl = null);
 
 public sealed record ReleaseProgress(
     string Status,

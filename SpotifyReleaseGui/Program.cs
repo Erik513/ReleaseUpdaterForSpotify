@@ -18,7 +18,7 @@
             {
                 MessageBox.Show(
                     "The application is already running.",
-                    "Spotify Release Updater");
+                    "Release Updater for Spotify");
 
                 mutex.Dispose();
                 return;

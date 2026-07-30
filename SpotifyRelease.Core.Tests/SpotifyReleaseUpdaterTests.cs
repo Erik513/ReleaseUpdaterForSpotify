@@ -605,7 +605,6 @@ public sealed class SpotifyReleaseUpdaterTests
                 PlaylistName = settings.PlaylistName,
                 ReleaseLookbackDays = settings.ReleaseLookbackDays,
                 CustomSpotifyClientId = settings.CustomSpotifyClientId,
-                SharedClientLastRunDate = settings.SharedClientLastRunDate,
                 SpotifyCooldownUntilUtc = settings.SpotifyCooldownUntilUtc,
                 SpotifyCooldownClientId = settings.SpotifyCooldownClientId
             };

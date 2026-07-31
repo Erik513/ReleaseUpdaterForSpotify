@@ -340,6 +340,9 @@ namespace ReleaseUpdaterGui
                 btnEditPlaylistName,
                 ButtonSymbolKind.Edit,
                 "Edit playlist name");
+
+            txtPlaylistName.SelectionLength = 0;
+            btnEditPlaylistName.Focus();
         }
 
         public void FocusPlaylistName()
@@ -368,6 +371,9 @@ namespace ReleaseUpdaterGui
                 btnEditSpotifyClientId,
                 ButtonSymbolKind.Edit,
                 "Edit Spotify Client ID");
+
+            txtSpotifyClientId.SelectionLength = 0;
+            btnEditSpotifyClientId.Focus();
         }
 
         public void FocusSpotifyClientId()
@@ -666,6 +672,12 @@ namespace ReleaseUpdaterGui
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            if (controller.IsRunInProgress && !controller.ConfirmCloseWhileRunning())
+            {
+                e.Cancel = true;
+                return;
+            }
+
             controller.CancelUpdate();
             spotifyAuthToolTip?.Dispose();
             runAvailabilityTimer?.Stop();

@@ -34,7 +34,7 @@ public sealed class HtmlReportWriter : IReportWriter
             releaseLookbackDays,
             DateTime.Now);
 
-        File.WriteAllText(paths.ReportPath, html, Encoding.UTF8);
+        AtomicFile.WriteAllText(paths.ReportPath, html);
 
         return paths.ReportPath;
     }

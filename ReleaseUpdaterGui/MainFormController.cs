@@ -176,6 +176,8 @@ namespace ReleaseUpdaterGui
             }
         }
 
+        public bool IsRunInProgress => runCancellation is not null;
+
         public void CancelUpdate()
         {
             if (runCancellation is null)
@@ -186,6 +188,24 @@ namespace ReleaseUpdaterGui
             runCancellation?.Cancel();
             form.SetStatus("Cancelling...");
             ToastForm.ShowToast("Cancelling update...", form);
+        }
+
+        /// <summary>
+        /// Asks the user before the app closes mid-run, since the playlist may be left
+        /// only partially updated if the run is interrupted now.
+        /// </summary>
+        public bool ConfirmCloseWhileRunning()
+        {
+            DialogResult result = CustomMessageBox.Show(
+                "An update is still running. The playlist may end up only partially " +
+                "updated if you close now.\n\nClose anyway?",
+                "Update in progress",
+                CustomMessageBoxButtons.YesNo,
+                CustomMessageBoxIcon.Warning,
+                form,
+                CustomMessageBoxSize.Small);
+
+            return result == DialogResult.Yes;
         }
 
         public void OpenReport()

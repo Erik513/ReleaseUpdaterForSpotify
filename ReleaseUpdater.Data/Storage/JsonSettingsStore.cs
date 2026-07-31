@@ -62,7 +62,7 @@ public sealed class JsonSettingsStore : ISettingsStore
 
         ReleaseSettings normalized = settings.Normalize();
         string json = JsonSerializer.Serialize(normalized, JsonOptions);
-        File.WriteAllText(paths.SettingsPath, json);
+        AtomicFile.WriteAllText(paths.SettingsPath, json);
     }
 
     private static ReleaseSettings CreateDefaultSettings()

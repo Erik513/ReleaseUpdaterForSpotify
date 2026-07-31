@@ -47,7 +47,7 @@ public sealed class FileTokenStore : ISpotifyTokenStore
         paths.EnsureDirectory();
 
         string json = JsonSerializer.Serialize(token, JsonOptions);
-        File.WriteAllText(paths.TokenPath, json);
+        AtomicFile.WriteAllText(paths.TokenPath, json);
     }
 
     public void Clear()

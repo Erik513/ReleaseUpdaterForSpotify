@@ -21,6 +21,9 @@ public static class ReleaseDefaults
     public const int LogicTestArtistLimit = 10;
     public const int LogicTestReleaseLimit = 5;
 
+    // Both playlist scopes are requested because changing an existing playlist's
+    // details (including flipping it to private) requires the scope matching its
+    // current visibility, not just the target one.
     public const string SpotifyScope =
-        "user-follow-read playlist-modify-private";
+        "user-follow-read playlist-modify-public playlist-modify-private";
 }

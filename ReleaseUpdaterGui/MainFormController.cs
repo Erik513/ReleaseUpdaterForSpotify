@@ -4,18 +4,21 @@ using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 
 namespace ReleaseUpdaterGui
 {
     public class MainFormController
     {
         private static readonly TimeSpan LoginTimeout = TimeSpan.FromMinutes(5);
+        private static readonly TimeSpan UpdateCheckTimeout = TimeSpan.FromSeconds(8);
 
         private readonly MainForm form;
         private readonly ISettingsStore settingsStore;
         private readonly IReportWriter reportWriter;
         private readonly ISpotifyAuthService authService;
         private readonly SpotifyReleaseUpdater releaseUpdater;
+        private readonly GitHubUpdateChecker updateChecker;
 
         private CancellationTokenSource? runCancellation;
 
@@ -24,13 +27,15 @@ namespace ReleaseUpdaterGui
             ISettingsStore settingsStore,
             IReportWriter reportWriter,
             ISpotifyAuthService authService,
-            SpotifyReleaseUpdater releaseUpdater)
+            SpotifyReleaseUpdater releaseUpdater,
+            GitHubUpdateChecker updateChecker)
         {
             this.form = form;
             this.settingsStore = settingsStore;
             this.reportWriter = reportWriter;
             this.authService = authService;
             this.releaseUpdater = releaseUpdater;
+            this.updateChecker = updateChecker;
         }
 
         public async Task LoadSettingsAsync()
@@ -40,6 +45,60 @@ namespace ReleaseUpdaterGui
             await RefreshLoginStatusAsync();
             form.SetStatus("Ready to run");
             ApplyRunAvailability(updateStatus: true);
+
+            _ = CheckForUpdateAsync();
+        }
+
+        /// <summary>
+        /// Best-effort, non-blocking check against GitHub's latest release. Never
+        /// surfaces errors to the user; a failed or slow check just means no prompt.
+        /// </summary>
+        private async Task CheckForUpdateAsync()
+        {
+            try
+            {
+                using CancellationTokenSource timeout = new(UpdateCheckTimeout);
+
+                Version currentVersion =
+                    Assembly.GetExecutingAssembly().GetName().Version
+                        ?? new Version(0, 0, 0);
+
+                UpdateCheckResult? result = await updateChecker.CheckForUpdateAsync(
+                    currentVersion,
+                    timeout.Token);
+
+                if (result is null)
+                {
+                    return;
+                }
+
+                if (ConfirmOpenUpdate(result.LatestVersion))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = result.ReleaseUrl,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private bool ConfirmOpenUpdate(Version latestVersion)
+        {
+            DialogResult result = CustomMessageBox.Show(
+                $"A new version (v{latestVersion}) is available.\n\n" +
+                "Open the download page? You can also ignore this for now " +
+                "and update later.",
+                "Update available",
+                CustomMessageBoxButtons.YesNo,
+                CustomMessageBoxIcon.Info,
+                form,
+                CustomMessageBoxSize.Small);
+
+            return result == DialogResult.Yes;
         }
 
         public async Task LoginAsync()

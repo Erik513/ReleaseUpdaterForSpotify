@@ -262,7 +262,7 @@ public sealed class SpotifyApiClientTests
             handler.Requests.Select(request => request.Method));
         Assert.All(
             handler.Requests,
-            request => Assert.Equal("/v1/playlists/playlist-1/tracks", request.PathAndQuery));
+            request => Assert.Equal("/v1/playlists/playlist-1/items", request.PathAndQuery));
         Assert.Equal(new[] { 100, 100, 5 }, handler.Requests.Select(GetUriCount));
         Assert.Equal("Bearer token", handler.Requests[0].Authorization);
     }

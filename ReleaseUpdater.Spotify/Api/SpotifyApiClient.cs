@@ -316,7 +316,7 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
 
         await SendWithoutBodyAsync(
             HttpMethod.Put,
-            $"playlists/{Uri.EscapeDataString(playlistId)}/tracks",
+            $"playlists/{Uri.EscapeDataString(playlistId)}/items",
             body,
             cancellationToken);
 
@@ -357,7 +357,7 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
 
             await SendWithoutBodyAsync(
                 HttpMethod.Post,
-                $"playlists/{Uri.EscapeDataString(playlistId)}/tracks",
+                $"playlists/{Uri.EscapeDataString(playlistId)}/items",
                 body,
                 cancellationToken);
         }

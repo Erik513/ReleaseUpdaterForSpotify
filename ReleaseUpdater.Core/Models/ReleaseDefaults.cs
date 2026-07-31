@@ -10,7 +10,7 @@ public static class ReleaseDefaults
     public const int ArtistPageSize = 50;
     public const int AlbumPageSize = 50;
     public const int TrackPageSize = 50;
-    public const int SearchResultLimit = 20;
+    public const int SearchResultLimit = 10;
     public const int PlaylistBatchSize = 100;
     public const int PlaylistPageSize = 50;
     public const int SpotifyRobustRequestBudget = 90;

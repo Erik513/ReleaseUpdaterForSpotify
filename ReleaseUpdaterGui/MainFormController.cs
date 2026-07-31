@@ -72,7 +72,13 @@ namespace ReleaseUpdaterGui
                     return;
                 }
 
-                if (ConfirmOpenUpdate(result.LatestVersion))
+                string displayedCurrentVersion =
+                    $"{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
+
+                if (UpdatePrompt.ShowUpdateAvailable(
+                    displayedCurrentVersion,
+                    result.LatestVersion.ToString(),
+                    form))
                 {
                     Process.Start(new ProcessStartInfo
                     {
@@ -84,21 +90,6 @@ namespace ReleaseUpdaterGui
             catch
             {
             }
-        }
-
-        private bool ConfirmOpenUpdate(Version latestVersion)
-        {
-            DialogResult result = CustomMessageBox.Show(
-                $"A new version (v{latestVersion}) is available.\n\n" +
-                "Open the download page? You can also ignore this for now " +
-                "and update later.",
-                "Update available",
-                CustomMessageBoxButtons.YesNo,
-                CustomMessageBoxIcon.Info,
-                form,
-                CustomMessageBoxSize.Small);
-
-            return result == DialogResult.Yes;
         }
 
         public async Task LoginAsync()

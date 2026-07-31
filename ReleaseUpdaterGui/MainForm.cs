@@ -323,6 +323,7 @@ namespace ReleaseUpdaterGui
         public void EnablePlaylistNameEditing()
         {
             txtPlaylistName.ReadOnly = false;
+            txtPlaylistName.TabStop = true;
             SetButtonSymbol(
                 btnEditPlaylistName,
                 ButtonSymbolKind.Check,
@@ -336,6 +337,7 @@ namespace ReleaseUpdaterGui
         public void DisablePlaylistNameEditing()
         {
             txtPlaylistName.ReadOnly = true;
+            txtPlaylistName.TabStop = false;
             SetButtonSymbol(
                 btnEditPlaylistName,
                 ButtonSymbolKind.Edit,
@@ -354,6 +356,7 @@ namespace ReleaseUpdaterGui
         public void EnableSpotifyClientIdEditing()
         {
             txtSpotifyClientId.ReadOnly = false;
+            txtSpotifyClientId.TabStop = true;
             SetButtonSymbol(
                 btnEditSpotifyClientId,
                 ButtonSymbolKind.Check,
@@ -367,6 +370,7 @@ namespace ReleaseUpdaterGui
         public void DisableSpotifyClientIdEditing()
         {
             txtSpotifyClientId.ReadOnly = true;
+            txtSpotifyClientId.TabStop = false;
             SetButtonSymbol(
                 btnEditSpotifyClientId,
                 ButtonSymbolKind.Edit,
@@ -476,6 +480,7 @@ namespace ReleaseUpdaterGui
             txtPlaylistName = UIStyles.TextBoxes.CreateBorderstyleNone(
                 ReleaseDefaults.PlaylistName);
             txtPlaylistName.ReadOnly = true;
+            txtPlaylistName.TabStop = false;
 
             btnEditPlaylistName = UIStyles.Buttons.CreateStandard(
                 string.Empty,
@@ -499,6 +504,7 @@ namespace ReleaseUpdaterGui
                 string.Empty);
             txtSpotifyClientId.PlaceholderText = "Required Spotify Client ID";
             txtSpotifyClientId.ReadOnly = true;
+            txtSpotifyClientId.TabStop = false;
             spotifyAuthToolTip.SetToolTip(
                 txtSpotifyClientId,
                 "Required. Create a Spotify app and enter its Client ID. Do not enter a Client Secret.");
@@ -803,7 +809,7 @@ namespace ReleaseUpdaterGui
             {
                 ButtonSymbolKind.Play => "\u25B6",
                 ButtonSymbolKind.Stop => "\u25A0",
-                ButtonSymbolKind.Report => "\u25A4",
+                ButtonSymbolKind.Report => "\U0001F4C4",
                 ButtonSymbolKind.Login => "\u21AA",
                 ButtonSymbolKind.Logout => "\u21A9",
                 ButtonSymbolKind.Edit => "\u270E",

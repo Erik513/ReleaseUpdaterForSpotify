@@ -1,0 +1,53 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Release Updater for Spotify</AssemblyName>
+    <RootNamespace>ReleaseUpdaterGui</RootNamespace>
+    <ApplicationIcon>Assets\Icons\SpotifyReleaseUpdater_48px.ico</ApplicationIcon>
+    <Title>Release Updater for Spotify</Title>
+    <Authors>Erik Wink</Authors>
+    <Product>Release Updater for Spotify</Product>
+    <Description>Automatically creates a Spotify playlist with new releases from followed artists.</Description>
+    <Copyright>© 2026 Erik Wink</Copyright>
+    <PackageIcon>SpotifyReleaseUpdater_48px.ico</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\Pictures\SpotifyReleaseUpdater.png" />
+    <None Remove="Assets\SpotifyReleaseUpdater.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\Icons\SpotifyReleaseUpdater_48px.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Pictures\SpotifyReleaseUpdater.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="CustomWFUI">
+      <HintPath>..\lib\CustomWFUI\CustomWFUI.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\Icons\SpotifyReleaseUpdater_48px.ico">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReleaseUpdater.Core\ReleaseUpdater.Core.csproj" />
+    <ProjectReference Include="..\ReleaseUpdater.Data\ReleaseUpdater.Data.csproj" />
+    <ProjectReference Include="..\ReleaseUpdater.Spotify\ReleaseUpdater.Spotify.csproj" />
+  </ItemGroup>
+
+</Project>

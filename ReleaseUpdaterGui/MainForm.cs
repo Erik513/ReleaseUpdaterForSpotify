@@ -498,6 +498,7 @@ namespace ReleaseUpdaterGui
                 ReleaseDefaults.MaxReleaseLookbackDays,
                 1,
                 ReleaseDefaults.ReleaseLookbackDays);
+            numLookbackDays.TabStop = false;
             numLookbackDays.ValueChanged += SettingsControl_Changed;
 
             txtSpotifyClientId = UIStyles.TextBoxes.CreateBorderstyleNone(
@@ -606,6 +607,7 @@ namespace ReleaseUpdaterGui
             txtOutput.ScrollBars = ScrollBars.Vertical;
             txtOutput.WordWrap = true;
             txtOutput.ReadOnly = true;
+            txtOutput.TabStop = true;
             txtOutput.Font = UIStyles.Fonts.Monospace;
 
             mainPanel.Controls.Add(txtOutput);

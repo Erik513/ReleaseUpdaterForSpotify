@@ -8,7 +8,7 @@ public static class ReleaseDefaults
     public const int MaxReleaseLookbackDays = 20;
 
     public const int ArtistPageSize = 50;
-    public const int AlbumPageSize = 50;
+    public const int AlbumPageSize = 10;
     public const int TrackPageSize = 50;
     public const int SearchResultLimit = 10;
     public const int PlaylistBatchSize = 100;

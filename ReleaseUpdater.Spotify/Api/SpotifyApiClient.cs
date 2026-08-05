@@ -492,7 +492,8 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
                 response.Dispose();
 
                 throw new InvalidOperationException(
-                    "Spotify denied access for this account. Make sure this Spotify account is allowlisted in your Spotify Developer Dashboard app, or request extended quota mode from Spotify.");
+                    $"Spotify denied access for this account on {method.Method} /{path}. " +
+                    "Make sure this Spotify account is allowlisted in your Spotify Developer Dashboard app, or request extended quota mode from Spotify.");
             }
 
             response.Dispose();

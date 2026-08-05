@@ -193,6 +193,28 @@ public sealed class SpotifyApiClientTests
         Assert.Equal("me", exception.Path);
     }
 
+    // Verifies that a long Retry-After surfaces as a cooldown immediately instead of
+    // silently retrying for minutes with no feedback.
+    [Fact]
+    public async Task GetCurrentUserAsync_ThrowsRateLimitExceptionImmediately_WhenRetryAfterIsLong()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+        TimeSpan longRetryAfter = TimeSpan.FromSeconds(45);
+
+        handler.EnqueueJson(
+            """{ "error": { "status": 429, "message": "Too many requests" } }""",
+            HttpStatusCode.TooManyRequests,
+            retryAfter: longRetryAfter);
+
+        SpotifyRateLimitException exception =
+            await Assert.ThrowsAsync<SpotifyRateLimitException>(
+                () => client.GetCurrentUserAsync(CancellationToken.None));
+
+        Assert.Single(handler.Requests);
+        Assert.Equal(longRetryAfter, exception.RetryAfter);
+    }
+
     // Verifies that repeated temporary Spotify errors switch to robust mode before retrying again.
     [Fact]
     public async Task GetCurrentUserAsync_RetriesRepeatedServerErrorsAndReportsRobustMode()

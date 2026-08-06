@@ -32,6 +32,9 @@
     <Reference Include="CustomWFUI">
       <HintPath>..\lib\CustomWFUI\CustomWFUI.dll</HintPath>
     </Reference>
+    <Reference Include="GitHubSelfUpdater">
+      <HintPath>..\lib\GitHubSelfUpdater\GitHubSelfUpdater.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

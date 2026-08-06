@@ -1,4 +1,5 @@
 using CustomWFUI.Forms;
+using GitHubSelfUpdater;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;

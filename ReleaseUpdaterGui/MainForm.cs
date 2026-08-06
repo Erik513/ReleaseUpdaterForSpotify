@@ -1,6 +1,7 @@
 using CustomWFUI;
 using CustomWFUI.Controls;
 using CustomWFUI.Forms;
+using GitHubSelfUpdater;
 using ReleaseUpdater.Data;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
@@ -125,7 +126,10 @@ namespace ReleaseUpdaterGui
                 reportWriter,
                 releaseClock);
 
-            updateChecker = new GitHubUpdateChecker(updateCheckHttpClient);
+            updateChecker = new GitHubUpdateChecker(
+                "Erik513",
+                "ReleaseUpdaterGui",
+                updateCheckHttpClient);
             selfUpdater = new SelfUpdater(selfUpdateHttpClient);
 
             controller = new MainFormController(

@@ -14,6 +14,10 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     private static readonly Uri ApiBaseUri = new("https://api.spotify.com/v1/");
     private const int MaxRetryAttempts = 5;
 
+    // A 429 asking for a longer wait than this means we're genuinely rate limited, not
+    // hitting a brief blip, so it's surfaced as a cooldown instead of a silent retry.
+    private static readonly TimeSpan MaxSilentRetryDelay = TimeSpan.FromSeconds(10);
+
     private readonly ISpotifyAccessTokenProvider accessTokenProvider;
     private readonly HttpClient httpClient;
     private readonly SpotifyApiRateLimiter rateLimiter;
@@ -457,6 +461,21 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             {
                 EnableRobustModeWhenNeeded(response.StatusCode, attempt);
                 TimeSpan retryDelay = GetRetryDelay(response, attempt);
+
+                if (response.StatusCode == HttpStatusCode.TooManyRequests &&
+                    retryDelay > MaxSilentRetryDelay)
+                {
+                    string rateLimitResponseText =
+                        await response.Content.ReadAsStringAsync(cancellationToken);
+                    response.Dispose();
+
+                    throw new SpotifyRateLimitException(
+                        method.Method,
+                        path,
+                        retryDelay,
+                        rateLimitResponseText);
+                }
+
                 response.Dispose();
                 await Task.Delay(retryDelay, cancellationToken);
                 continue;
@@ -492,7 +511,8 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
                 response.Dispose();
 
                 throw new InvalidOperationException(
-                    "Spotify denied access for this account. Make sure this Spotify account is allowlisted in your Spotify Developer Dashboard app, or request extended quota mode from Spotify.");
+                    $"Spotify denied access for this account on {method.Method} /{path}. " +
+                    "Make sure this Spotify account is allowlisted in your Spotify Developer Dashboard app, or request extended quota mode from Spotify.");
             }
 
             response.Dispose();

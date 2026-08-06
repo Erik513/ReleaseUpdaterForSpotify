@@ -1,7 +1,6 @@
 using CustomWFUI;
 using CustomWFUI.Controls;
 using CustomWFUI.Forms;
-using GitHubSelfUpdater;
 using ReleaseUpdater.Data;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
@@ -27,8 +26,7 @@ namespace ReleaseUpdaterGui
         private readonly SpotifyAuthService authService;
         private readonly SpotifyApiClient spotifyApiClient;
         private readonly SpotifyReleaseUpdater releaseUpdater;
-        private readonly GitHubUpdateChecker updateChecker;
-        private readonly SelfUpdater selfUpdater;
+        private readonly AppUpdater appUpdater;
         private readonly SystemReleaseClock releaseClock = new();
         private readonly HttpClient spotifyAccountsHttpClient = new();
         private readonly HttpClient spotifyApiHttpClient = new();
@@ -126,11 +124,11 @@ namespace ReleaseUpdaterGui
                 reportWriter,
                 releaseClock);
 
-            updateChecker = new GitHubUpdateChecker(
+            appUpdater = new AppUpdater(
                 "Erik513",
                 "ReleaseUpdaterGui",
-                updateCheckHttpClient);
-            selfUpdater = new SelfUpdater(selfUpdateHttpClient);
+                updateCheckHttpClient,
+                selfUpdateHttpClient);
 
             controller = new MainFormController(
                 this,
@@ -138,8 +136,7 @@ namespace ReleaseUpdaterGui
                 reportWriter,
                 authService,
                 releaseUpdater,
-                updateChecker,
-                selfUpdater);
+                appUpdater);
 
             Size = MinimumSize;
             MinimumSize = new Size(520, 740);

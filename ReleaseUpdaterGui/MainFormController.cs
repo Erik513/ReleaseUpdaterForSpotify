@@ -1,5 +1,4 @@
 using CustomWFUI.Forms;
-using GitHubSelfUpdater;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
@@ -19,8 +18,7 @@ namespace ReleaseUpdaterGui
         private readonly IReportWriter reportWriter;
         private readonly ISpotifyAuthService authService;
         private readonly SpotifyReleaseUpdater releaseUpdater;
-        private readonly GitHubUpdateChecker updateChecker;
-        private readonly SelfUpdater selfUpdater;
+        private readonly AppUpdater appUpdater;
 
         private CancellationTokenSource? runCancellation;
 
@@ -30,16 +28,14 @@ namespace ReleaseUpdaterGui
             IReportWriter reportWriter,
             ISpotifyAuthService authService,
             SpotifyReleaseUpdater releaseUpdater,
-            GitHubUpdateChecker updateChecker,
-            SelfUpdater selfUpdater)
+            AppUpdater appUpdater)
         {
             this.form = form;
             this.settingsStore = settingsStore;
             this.reportWriter = reportWriter;
             this.authService = authService;
             this.releaseUpdater = releaseUpdater;
-            this.updateChecker = updateChecker;
-            this.selfUpdater = selfUpdater;
+            this.appUpdater = appUpdater;
         }
 
         public async Task LoadSettingsAsync()
@@ -50,94 +46,11 @@ namespace ReleaseUpdaterGui
             form.SetStatus("Ready to run");
             ApplyRunAvailability(updateStatus: true);
 
-            _ = CheckForUpdateAsync();
-        }
+            Version currentVersion =
+                Assembly.GetExecutingAssembly().GetName().Version
+                    ?? new Version(0, 0, 0);
 
-        /// <summary>
-        /// Best-effort, non-blocking check against GitHub's latest release. Never
-        /// surfaces errors to the user; a failed or slow check just means no prompt.
-        /// </summary>
-        private async Task CheckForUpdateAsync()
-        {
-            try
-            {
-                using CancellationTokenSource timeout = new(UpdateCheckTimeout);
-
-                Version currentVersion =
-                    Assembly.GetExecutingAssembly().GetName().Version
-                        ?? new Version(0, 0, 0);
-
-                UpdateCheckResult? result = await updateChecker.CheckForUpdateAsync(
-                    currentVersion,
-                    timeout.Token);
-
-                if (result is null)
-                {
-                    return;
-                }
-
-                string displayedCurrentVersion =
-                    $"{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
-
-                bool wantsUpdate = UpdatePrompt.ShowUpdateAvailable(
-                    displayedCurrentVersion,
-                    result.LatestVersion.ToString(),
-                    form);
-
-                if (!wantsUpdate)
-                {
-                    return;
-                }
-
-                await ApplyUpdateAsync(result);
-            }
-            catch
-            {
-            }
-        }
-
-        /// <summary>
-        /// Downloads the new build and, on success, exits so the swap helper can
-        /// replace this exe and relaunch it. Falls back to just opening the release
-        /// page if there's no attached exe or the download fails.
-        /// </summary>
-        private async Task ApplyUpdateAsync(UpdateCheckResult result)
-        {
-            if (string.IsNullOrWhiteSpace(result.DownloadUrl))
-            {
-                OpenReleasePage(result.ReleaseUrl);
-                return;
-            }
-
-            form.SetStatus("Downloading update...");
-
-            Progress<int> downloadProgress = new(
-                percent => form.SetStatus($"Downloading update... {percent}%"));
-
-            bool prepared = await selfUpdater.DownloadAndPrepareUpdateAsync(
-                result.DownloadUrl,
-                downloadProgress,
-                CancellationToken.None);
-
-            if (!prepared)
-            {
-                form.ShowWarning(
-                    "The update download failed. Opening the release page instead.",
-                    "Update");
-                OpenReleasePage(result.ReleaseUrl);
-                return;
-            }
-
-            Application.Exit();
-        }
-
-        private static void OpenReleasePage(string releaseUrl)
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = releaseUrl,
-                UseShellExecute = true
-            });
+            _ = appUpdater.CheckForUpdateAsync(currentVersion, UpdateCheckTimeout, form);
         }
 
         public async Task LoginAsync()

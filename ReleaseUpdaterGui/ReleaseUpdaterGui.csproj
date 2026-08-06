@@ -32,9 +32,15 @@
     <Reference Include="CustomWFUI">
       <HintPath>..\lib\CustomWFUI\CustomWFUI.dll</HintPath>
     </Reference>
-    <Reference Include="GitHubSelfUpdater">
-      <HintPath>..\lib\GitHubSelfUpdater\GitHubSelfUpdater.dll</HintPath>
-    </Reference>
+  </ItemGroup>
+
+  <!--
+    CustomWFUI.AppUpdater depends on GitHubSelfUpdater (and its net48 System.Text.Json
+    polyfills) internally. Nothing in this project references those types directly, but
+    they still need to ship next to CustomWFUI.dll for it to load at runtime.
+  -->
+  <ItemGroup>
+    <None Include="..\lib\GitHubSelfUpdater\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

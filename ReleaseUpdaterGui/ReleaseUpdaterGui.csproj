@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>Release Updater for Spotify</AssemblyName>
+    <AssemblyName>ReleaseUpdaterForSpotify</AssemblyName>
     <RootNamespace>ReleaseUpdaterGui</RootNamespace>
     <Version>1.1.0</Version>
     <ApplicationIcon>Assets\Icons\SpotifyReleaseUpdater_48px.ico</ApplicationIcon>

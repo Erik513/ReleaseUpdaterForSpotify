@@ -718,23 +718,22 @@ namespace ReleaseUpdaterGui
                 Math.Max(control.Minimum, value));
         }
 
+        // Embedded (not loose Content files) so the logo and window icon survive being
+        // distributed as a single self-contained exe with nothing copied alongside it.
         private static Image? LoadTitleImage()
         {
-            string path = Path.Combine(
-                Application.StartupPath,
-                "Assets",
-                "Pictures",
-                "SpotifyReleaseUpdater.png");
-
-            if (!File.Exists(path))
-            {
-                return null;
-            }
-
             try
             {
-                using Image image = Image.FromFile(path);
-                return new Bitmap(image);
+                using Stream? stream = typeof(MainForm).Assembly.GetManifestResourceStream(
+                    "ReleaseUpdaterGui.Assets.Pictures.SpotifyReleaseUpdater.png");
+
+                if (stream is null)
+                {
+                    return null;
+                }
+
+                using Bitmap loaded = new(stream);
+                return new Bitmap(loaded);
             }
             catch
             {
@@ -744,20 +743,18 @@ namespace ReleaseUpdaterGui
 
         private static Icon? LoadWindowIcon()
         {
-            string path = Path.Combine(
-                Application.StartupPath,
-                "Assets",
-                "Icons",
-                "SpotifyReleaseUpdater_48px.ico");
-
-            if (!File.Exists(path))
-            {
-                return null;
-            }
-
             try
             {
-                return new Icon(path);
+                using Stream? stream = typeof(MainForm).Assembly.GetManifestResourceStream(
+                    "ReleaseUpdaterGui.Assets.Icons.SpotifyReleaseUpdater_48px.ico");
+
+                if (stream is null)
+                {
+                    return null;
+                }
+
+                using Icon loaded = new(stream);
+                return new Icon(loaded, loaded.Size);
             }
             catch
             {

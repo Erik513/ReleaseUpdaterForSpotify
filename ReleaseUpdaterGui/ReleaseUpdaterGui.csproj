@@ -24,12 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Assets\Icons\SpotifyReleaseUpdater_48px.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Pictures\SpotifyReleaseUpdater.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <EmbeddedResource Include="Assets\Icons\SpotifyReleaseUpdater_48px.ico" />
+    <EmbeddedResource Include="Assets\Pictures\SpotifyReleaseUpdater.png" />
   </ItemGroup>
 
   <ItemGroup>

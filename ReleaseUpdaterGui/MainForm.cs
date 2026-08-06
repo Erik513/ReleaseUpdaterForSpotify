@@ -126,7 +126,7 @@ namespace ReleaseUpdaterGui
 
             appUpdater = new AppUpdater(
                 "Erik513",
-                "ReleaseUpdaterGui",
+                "ReleaseUpdaterForSpotify",
                 updateCheckHttpClient,
                 selfUpdateHttpClient);
 

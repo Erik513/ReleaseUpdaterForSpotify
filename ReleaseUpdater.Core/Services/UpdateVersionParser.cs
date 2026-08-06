@@ -11,6 +11,7 @@ public static class UpdateVersionParser
     public static UpdateCheckResult? TryParseNewerRelease(
         string? tagName,
         string? releaseUrl,
+        string? downloadUrl,
         Version currentVersion)
     {
         if (string.IsNullOrWhiteSpace(tagName) || string.IsNullOrWhiteSpace(releaseUrl))
@@ -29,7 +30,7 @@ public static class UpdateVersionParser
         Version normalizedLatest = Normalize(latestVersion);
 
         return normalizedLatest > normalizedCurrent
-            ? new UpdateCheckResult(normalizedLatest, releaseUrl)
+            ? new UpdateCheckResult(normalizedLatest, releaseUrl, downloadUrl)
             : null;
     }
 

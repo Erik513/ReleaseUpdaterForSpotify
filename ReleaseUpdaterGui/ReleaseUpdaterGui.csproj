@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Release Updater for Spotify</AssemblyName>
     <RootNamespace>ReleaseUpdaterGui</RootNamespace>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <ApplicationIcon>Assets\Icons\SpotifyReleaseUpdater_48px.ico</ApplicationIcon>
     <Title>Release Updater for Spotify</Title>
     <Authors>Erik Wink</Authors>

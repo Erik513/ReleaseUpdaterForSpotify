@@ -27,10 +27,15 @@ namespace ReleaseUpdaterGui
         private readonly SpotifyApiClient spotifyApiClient;
         private readonly SpotifyReleaseUpdater releaseUpdater;
         private readonly GitHubUpdateChecker updateChecker;
+        private readonly SelfUpdater selfUpdater;
         private readonly SystemReleaseClock releaseClock = new();
         private readonly HttpClient spotifyAccountsHttpClient = new();
         private readonly HttpClient spotifyApiHttpClient = new();
         private readonly HttpClient updateCheckHttpClient = new();
+        private readonly HttpClient selfUpdateHttpClient = new()
+        {
+            Timeout = TimeSpan.FromMinutes(10)
+        };
 
         private MainFormController controller;
         private string? currentPlaylistId;
@@ -121,6 +126,7 @@ namespace ReleaseUpdaterGui
                 releaseClock);
 
             updateChecker = new GitHubUpdateChecker(updateCheckHttpClient);
+            selfUpdater = new SelfUpdater(selfUpdateHttpClient);
 
             controller = new MainFormController(
                 this,
@@ -128,7 +134,8 @@ namespace ReleaseUpdaterGui
                 reportWriter,
                 authService,
                 releaseUpdater,
-                updateChecker);
+                updateChecker,
+                selfUpdater);
 
             Size = MinimumSize;
             MinimumSize = new Size(520, 740);
@@ -698,6 +705,7 @@ namespace ReleaseUpdaterGui
             spotifyAccountsHttpClient.Dispose();
             spotifyApiHttpClient.Dispose();
             updateCheckHttpClient.Dispose();
+            selfUpdateHttpClient.Dispose();
             base.OnFormClosing(e);
         }
 

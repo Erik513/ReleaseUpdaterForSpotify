@@ -19,6 +19,7 @@ namespace ReleaseUpdaterGui
         private readonly ISpotifyAuthService authService;
         private readonly SpotifyReleaseUpdater releaseUpdater;
         private readonly GitHubUpdateChecker updateChecker;
+        private readonly SelfUpdater selfUpdater;
 
         private CancellationTokenSource? runCancellation;
 
@@ -28,7 +29,8 @@ namespace ReleaseUpdaterGui
             IReportWriter reportWriter,
             ISpotifyAuthService authService,
             SpotifyReleaseUpdater releaseUpdater,
-            GitHubUpdateChecker updateChecker)
+            GitHubUpdateChecker updateChecker,
+            SelfUpdater selfUpdater)
         {
             this.form = form;
             this.settingsStore = settingsStore;
@@ -36,6 +38,7 @@ namespace ReleaseUpdaterGui
             this.authService = authService;
             this.releaseUpdater = releaseUpdater;
             this.updateChecker = updateChecker;
+            this.selfUpdater = selfUpdater;
         }
 
         public async Task LoadSettingsAsync()
@@ -75,21 +78,65 @@ namespace ReleaseUpdaterGui
                 string displayedCurrentVersion =
                     $"{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
 
-                if (UpdatePrompt.ShowUpdateAvailable(
+                bool wantsUpdate = UpdatePrompt.ShowUpdateAvailable(
                     displayedCurrentVersion,
                     result.LatestVersion.ToString(),
-                    form))
+                    form);
+
+                if (!wantsUpdate)
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = result.ReleaseUrl,
-                        UseShellExecute = true
-                    });
+                    return;
                 }
+
+                await ApplyUpdateAsync(result);
             }
             catch
             {
             }
+        }
+
+        /// <summary>
+        /// Downloads the new build and, on success, exits so the swap helper can
+        /// replace this exe and relaunch it. Falls back to just opening the release
+        /// page if there's no attached exe or the download fails.
+        /// </summary>
+        private async Task ApplyUpdateAsync(UpdateCheckResult result)
+        {
+            if (string.IsNullOrWhiteSpace(result.DownloadUrl))
+            {
+                OpenReleasePage(result.ReleaseUrl);
+                return;
+            }
+
+            form.SetStatus("Downloading update...");
+
+            Progress<int> downloadProgress = new(
+                percent => form.SetStatus($"Downloading update... {percent}%"));
+
+            bool prepared = await selfUpdater.DownloadAndPrepareUpdateAsync(
+                result.DownloadUrl,
+                downloadProgress,
+                CancellationToken.None);
+
+            if (!prepared)
+            {
+                form.ShowWarning(
+                    "The update download failed. Opening the release page instead.",
+                    "Update");
+                OpenReleasePage(result.ReleaseUrl);
+                return;
+            }
+
+            Application.Exit();
+        }
+
+        private static void OpenReleasePage(string releaseUrl)
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = releaseUrl,
+                UseShellExecute = true
+            });
         }
 
         public async Task LoginAsync()

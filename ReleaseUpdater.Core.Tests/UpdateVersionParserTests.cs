@@ -11,11 +11,26 @@ public sealed class UpdateVersionParserTests
         UpdateCheckResult? result = UpdateVersionParser.TryParseNewerRelease(
             "v1.2.0",
             "https://example.com/releases/v1.2.0",
+            "https://example.com/releases/v1.2.0/app.exe",
             new Version(1, 1, 0));
 
         Assert.NotNull(result);
         Assert.Equal(new Version(1, 2, 0), result!.LatestVersion);
         Assert.Equal("https://example.com/releases/v1.2.0", result.ReleaseUrl);
+        Assert.Equal("https://example.com/releases/v1.2.0/app.exe", result.DownloadUrl);
+    }
+
+    [Fact]
+    public void TryParseNewerRelease_AllowsMissingDownloadUrl()
+    {
+        UpdateCheckResult? result = UpdateVersionParser.TryParseNewerRelease(
+            "v1.2.0",
+            "https://example.com/releases/v1.2.0",
+            null,
+            new Version(1, 1, 0));
+
+        Assert.NotNull(result);
+        Assert.Null(result!.DownloadUrl);
     }
 
     [Fact]
@@ -24,6 +39,7 @@ public sealed class UpdateVersionParserTests
         UpdateCheckResult? result = UpdateVersionParser.TryParseNewerRelease(
             "V2.0.0",
             "https://example.com/releases/v2.0.0",
+            null,
             new Version(1, 0, 0));
 
         Assert.NotNull(result);
@@ -36,6 +52,7 @@ public sealed class UpdateVersionParserTests
         UpdateCheckResult? result = UpdateVersionParser.TryParseNewerRelease(
             "v1.0.0",
             "https://example.com/releases/v1.0.0",
+            null,
             new Version(1, 0, 0));
 
         Assert.Null(result);
@@ -49,6 +66,7 @@ public sealed class UpdateVersionParserTests
         UpdateCheckResult? result = UpdateVersionParser.TryParseNewerRelease(
             "v1.0.0",
             "https://example.com/releases/v1.0.0",
+            null,
             new Version(1, 0, 0, 0));
 
         Assert.Null(result);
@@ -60,6 +78,7 @@ public sealed class UpdateVersionParserTests
         UpdateCheckResult? result = UpdateVersionParser.TryParseNewerRelease(
             "v0.9.0",
             "https://example.com/releases/v0.9.0",
+            null,
             new Version(1, 0, 0));
 
         Assert.Null(result);
@@ -74,6 +93,7 @@ public sealed class UpdateVersionParserTests
         UpdateCheckResult? result = UpdateVersionParser.TryParseNewerRelease(
             tagName,
             "https://example.com/releases/latest",
+            null,
             new Version(1, 0, 0));
 
         Assert.Null(result);
@@ -84,6 +104,7 @@ public sealed class UpdateVersionParserTests
     {
         UpdateCheckResult? result = UpdateVersionParser.TryParseNewerRelease(
             "v2.0.0",
+            null,
             null,
             new Version(1, 0, 0));
 

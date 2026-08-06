@@ -54,16 +54,51 @@ namespace ReleaseUpdaterGui
                 string? releaseUrl = root.TryGetProperty("html_url", out JsonElement urlElement)
                     ? urlElement.GetString()
                     : null;
+                string? downloadUrl = GetExeAssetDownloadUrl(root);
 
                 return UpdateVersionParser.TryParseNewerRelease(
                     tagName,
                     releaseUrl,
+                    downloadUrl,
                     currentVersion);
             }
             catch
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Finds the .exe attached to the release, if any, so it can be downloaded and
+        /// swapped in automatically. Falls back to null (the caller then just links to
+        /// the release page) if no exe asset was attached.
+        /// </summary>
+        private static string? GetExeAssetDownloadUrl(JsonElement releaseRoot)
+        {
+            if (!releaseRoot.TryGetProperty("assets", out JsonElement assets) ||
+                assets.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            foreach (JsonElement asset in assets.EnumerateArray())
+            {
+                string? name = asset.TryGetProperty("name", out JsonElement nameElement)
+                    ? nameElement.GetString()
+                    : null;
+
+                if (name is null || !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (asset.TryGetProperty("browser_download_url", out JsonElement urlElement))
+                {
+                    return urlElement.GetString();
+                }
+            }
+
+            return null;
         }
     }
 }

@@ -18,7 +18,7 @@ namespace ReleaseUpdaterGui
         private readonly IReportWriter reportWriter;
         private readonly ISpotifyAuthService authService;
         private readonly SpotifyReleaseUpdater releaseUpdater;
-        private readonly GitHubUpdateChecker updateChecker;
+        private readonly AppUpdater appUpdater;
 
         private CancellationTokenSource? runCancellation;
 
@@ -28,14 +28,14 @@ namespace ReleaseUpdaterGui
             IReportWriter reportWriter,
             ISpotifyAuthService authService,
             SpotifyReleaseUpdater releaseUpdater,
-            GitHubUpdateChecker updateChecker)
+            AppUpdater appUpdater)
         {
             this.form = form;
             this.settingsStore = settingsStore;
             this.reportWriter = reportWriter;
             this.authService = authService;
             this.releaseUpdater = releaseUpdater;
-            this.updateChecker = updateChecker;
+            this.appUpdater = appUpdater;
         }
 
         public async Task LoadSettingsAsync()
@@ -46,50 +46,11 @@ namespace ReleaseUpdaterGui
             form.SetStatus("Ready to run");
             ApplyRunAvailability(updateStatus: true);
 
-            _ = CheckForUpdateAsync();
-        }
+            Version currentVersion =
+                Assembly.GetExecutingAssembly().GetName().Version
+                    ?? new Version(0, 0, 0);
 
-        /// <summary>
-        /// Best-effort, non-blocking check against GitHub's latest release. Never
-        /// surfaces errors to the user; a failed or slow check just means no prompt.
-        /// </summary>
-        private async Task CheckForUpdateAsync()
-        {
-            try
-            {
-                using CancellationTokenSource timeout = new(UpdateCheckTimeout);
-
-                Version currentVersion =
-                    Assembly.GetExecutingAssembly().GetName().Version
-                        ?? new Version(0, 0, 0);
-
-                UpdateCheckResult? result = await updateChecker.CheckForUpdateAsync(
-                    currentVersion,
-                    timeout.Token);
-
-                if (result is null)
-                {
-                    return;
-                }
-
-                string displayedCurrentVersion =
-                    $"{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}";
-
-                if (UpdatePrompt.ShowUpdateAvailable(
-                    displayedCurrentVersion,
-                    result.LatestVersion.ToString(),
-                    form))
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = result.ReleaseUrl,
-                        UseShellExecute = true
-                    });
-                }
-            }
-            catch
-            {
-            }
+            _ = appUpdater.CheckForUpdateAsync(currentVersion, UpdateCheckTimeout, form);
         }
 
         public async Task LoginAsync()

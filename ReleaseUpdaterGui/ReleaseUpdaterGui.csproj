@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>Release Updater for Spotify</AssemblyName>
+    <AssemblyName>ReleaseUpdaterForSpotify</AssemblyName>
     <RootNamespace>ReleaseUpdaterGui</RootNamespace>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <ApplicationIcon>Assets\Icons\SpotifyReleaseUpdater_48px.ico</ApplicationIcon>
     <Title>Release Updater for Spotify</Title>
     <Authors>Erik Wink</Authors>
@@ -32,6 +32,15 @@
     <Reference Include="CustomWFUI">
       <HintPath>..\lib\CustomWFUI\CustomWFUI.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <!--
+    CustomWFUI.AppUpdater depends on GitHubSelfUpdater (and its net48 System.Text.Json
+    polyfills) internally. Nothing in this project references those types directly, but
+    they still need to ship next to CustomWFUI.dll for it to load at runtime.
+  -->
+  <ItemGroup>
+    <None Include="..\lib\GitHubSelfUpdater\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

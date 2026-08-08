@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Models;
 
@@ -18,6 +19,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
     private readonly ISpotifyTokenStore tokenStore;
     private readonly ISpotifyClientIdProvider clientIdProvider;
     private readonly HttpClient httpClient;
+    private readonly SemaphoreSlim tokenRefreshGate = new(1, 1);
 
     public SpotifyAuthService(
         ISpotifyTokenStore tokenStore,
@@ -144,9 +146,50 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
     public async Task<string> GetAccessTokenAsync(
         CancellationToken cancellationToken)
     {
-        SpotifyToken? token = tokenStore.Load();
         string clientId = GetConfiguredClientId();
+        SpotifyToken token = ValidateToken(tokenStore.Load(), clientId);
 
+        if (token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
+        {
+            return token.AccessToken;
+        }
+
+        // Concurrent Spotify calls can all see an expiring token at once. Only one
+        // of them should refresh it; the rest wait, then re-check the now-current
+        // token instead of racing to refresh (and save) it themselves.
+        await tokenRefreshGate.WaitAsync(cancellationToken);
+
+        try
+        {
+            token = ValidateToken(tokenStore.Load(), clientId);
+
+            if (token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
+            {
+                return token.AccessToken;
+            }
+
+            SpotifyToken refreshedToken =
+                await RefreshTokenAsync(clientId, token, cancellationToken);
+
+            tokenStore.Save(refreshedToken);
+
+            if (!HasRequiredScopes(refreshedToken))
+            {
+                tokenStore.Clear();
+                throw new InvalidOperationException(
+                    "Spotify login is missing required permissions. Please sign in again.");
+            }
+
+            return refreshedToken.AccessToken;
+        }
+        finally
+        {
+            tokenRefreshGate.Release();
+        }
+    }
+
+    private SpotifyToken ValidateToken(SpotifyToken? token, string clientId)
+    {
         if (token is null)
         {
             throw new InvalidOperationException(
@@ -167,24 +210,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
                 "Spotify login is missing required permissions. Please sign in again.");
         }
 
-        if (token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
-        {
-            return token.AccessToken;
-        }
-
-        SpotifyToken refreshedToken =
-            await RefreshTokenAsync(clientId, token, cancellationToken);
-
-        tokenStore.Save(refreshedToken);
-
-        if (!HasRequiredScopes(refreshedToken))
-        {
-            tokenStore.Clear();
-            throw new InvalidOperationException(
-                "Spotify login is missing required permissions. Please sign in again.");
-        }
-
-        return refreshedToken.AccessToken;
+        return token;
     }
 
     private string GetConfiguredClientId()

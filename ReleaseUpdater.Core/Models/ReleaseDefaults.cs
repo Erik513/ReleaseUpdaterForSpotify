@@ -20,7 +20,7 @@ public static class ReleaseDefaults
     // Keep this enabled only while testing; disable it before distributing the app.
     public const bool LogicTestModeEnabled = false;
     public const int LogicTestArtistLimit = 10;
-    public const int LogicTestReleaseLimit = 5;
+    public const int LogicTestReleaseLimit = 10;
 
     // playlist-modify-public/private are both requested because changing an existing
     // playlist's details (including flipping it to private) requires the scope

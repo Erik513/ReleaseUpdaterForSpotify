@@ -93,21 +93,34 @@ public sealed class SpotifyReleaseUpdater
 
         if (uniqueTracks.Count == 0)
         {
-            ReportStatus(progress, "Checking playlist");
-            string? existingPlaylistId = await GetPlaylistIdAsync(
-                settings,
-                progress,
-                createIfMissing: false,
-                cancellationToken);
-
-            if (!string.IsNullOrWhiteSpace(existingPlaylistId))
+            // LogicTestModeEnabled is a compile-time toggle for local testing, so the
+            // compiler correctly (but harmlessly) flags whichever branch is currently
+            // dead as unreachable - the flip side lights back up the moment someone
+            // switches the constant to test the other path.
+#pragma warning disable CS0162
+            if (ReleaseDefaults.LogicTestModeEnabled)
             {
-                ReportStatus(progress, "Updating playlist");
-                await spotify.ReplacePlaylistTracksAsync(
-                    existingPlaylistId,
-                    Array.Empty<string>(),
-                    cancellationToken);
+                ReportMessage(progress, "Logic test mode: playlist was not modified.");
             }
+            else
+            {
+                ReportStatus(progress, "Checking playlist");
+                string? existingPlaylistId = await GetPlaylistIdAsync(
+                    settings,
+                    progress,
+                    createIfMissing: false,
+                    cancellationToken);
+
+                if (!string.IsNullOrWhiteSpace(existingPlaylistId))
+                {
+                    ReportStatus(progress, "Updating playlist");
+                    await spotify.ReplacePlaylistTracksAsync(
+                        existingPlaylistId,
+                        Array.Empty<string>(),
+                        cancellationToken);
+                }
+            }
+#pragma warning restore CS0162
 
             ReportStatus(progress, "No new songs");
             string reportPath = reportWriter.WriteReport(
@@ -124,17 +137,27 @@ public sealed class SpotifyReleaseUpdater
                 reportPath);
         }
 
-        ReportStatus(progress, "Checking playlist");
-        string playlistId = await GetOrCreatePlaylistIdAsync(
-            settings,
-            progress,
-            cancellationToken);
+        // See the comment above the equivalent branch earlier in this method.
+#pragma warning disable CS0162
+        if (ReleaseDefaults.LogicTestModeEnabled)
+        {
+            ReportMessage(progress, "Logic test mode: playlist was not modified.");
+        }
+        else
+        {
+            ReportStatus(progress, "Checking playlist");
+            string playlistId = await GetOrCreatePlaylistIdAsync(
+                settings,
+                progress,
+                cancellationToken);
 
-        ReportStatus(progress, "Updating playlist");
-        await spotify.ReplacePlaylistTracksAsync(
-            playlistId,
-            uniqueTracks.Select(track => track.Uri).ToList(),
-            cancellationToken);
+            ReportStatus(progress, "Updating playlist");
+            await spotify.ReplacePlaylistTracksAsync(
+                playlistId,
+                uniqueTracks.Select(track => track.Uri).ToList(),
+                cancellationToken);
+        }
+#pragma warning restore CS0162
 
         string finalReportPath = reportWriter.WriteReport(
             uniqueTracks,

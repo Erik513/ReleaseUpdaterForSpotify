@@ -182,10 +182,11 @@ public sealed class HtmlReportWriter : IReportWriter
             : "source-release";
         string displayDate = track.ReleaseDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
         string sortDate = track.ReleaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        string artistNames = JoinArtistNames(track.Artists);
         string searchText = string.Join(
             " ",
             displayDate,
-            track.Artists,
+            artistNames,
             track.Title,
             track.Album,
             sourceText);
@@ -196,7 +197,7 @@ public sealed class HtmlReportWriter : IReportWriter
         html.AppendLine(BuildCoverMarkup(track.AlbumImageUrl, track.Title));
         html.AppendLine("                <div class=\"song-info\">");
         html.AppendLine($"                  <div class=\"song-title\">{Encode(track.Title)}</div>");
-        html.AppendLine($"                  <div class=\"song-artists\">{Encode(track.Artists)}</div>");
+        html.AppendLine($"                  <div class=\"song-artists\">{BuildArtistLinksMarkup(track.Artists)}</div>");
         html.AppendLine("                </div>");
         html.AppendLine("              </div>");
         html.AppendLine("            </td>");
@@ -206,6 +207,21 @@ public sealed class HtmlReportWriter : IReportWriter
         html.AppendLine($"            <td><a class=\"spotify-link\" href=\"{EncodeAttribute(track.SpotifyUrl)}\" target=\"_blank\" rel=\"noopener\">Open</a></td>");
         html.AppendLine("          </tr>");
     }
+
+    private const string SpotifyArtistBaseUrl = "https://open.spotify.com/artist/";
+
+    private static string JoinArtistNames(IReadOnlyList<SpotifyArtist> artists) =>
+        string.Join(", ", artists.Select(artist => artist.Name));
+
+    /// <summary>
+    /// Renders each artist as its own link to their Spotify artist page, comma-separated.
+    /// </summary>
+    private static string BuildArtistLinksMarkup(IReadOnlyList<SpotifyArtist> artists) =>
+        string.Join(
+            ", ",
+            artists.Select(artist =>
+                $"<a class=\"artist-link\" href=\"{EncodeAttribute(SpotifyArtistBaseUrl + artist.Id)}\" " +
+                $"target=\"_blank\" rel=\"noopener\">{Encode(artist.Name)}</a>"));
 
     /// <summary>
     /// Renders an album cover thumbnail with a note-icon fallback for missing or broken images.
@@ -535,6 +551,16 @@ public sealed class HtmlReportWriter : IReportWriter
               overflow: hidden;
               text-overflow: ellipsis;
               white-space: nowrap;
+            }
+
+            .artist-link {
+              color: inherit;
+              text-decoration: none;
+            }
+
+            .artist-link:hover {
+              color: var(--text);
+              text-decoration: underline;
             }
 
             .source-badge {

@@ -278,7 +278,7 @@ public sealed class SpotifyReleaseUpdater
 
                 tracks.Add(new ReleaseTrack(
                     track.Title,
-                    JoinArtistNames(track.Artists),
+                    track.Artists,
                     track.Uri,
                     track.SpotifyUrl,
                     release.ReleaseDate,
@@ -333,7 +333,7 @@ public sealed class SpotifyReleaseUpdater
 
                 tracks.Add(new ReleaseTrack(
                     item.Title,
-                    JoinArtistNames(item.Artists),
+                    item.Artists,
                     item.Uri,
                     item.SpotifyUrl,
                     item.Album.ReleaseDate.Value,
@@ -481,7 +481,8 @@ public sealed class SpotifyReleaseUpdater
 
         foreach (ReleaseTrack track in tracks)
         {
-            string key = $"{track.Title.Trim().ToLowerInvariant()}|{track.Artists.Trim().ToLowerInvariant()}";
+            string artistsKey = JoinArtistNames(track.Artists).Trim().ToLowerInvariant();
+            string key = $"{track.Title.Trim().ToLowerInvariant()}|{artistsKey}";
 
             if (!seen.Add(key))
             {

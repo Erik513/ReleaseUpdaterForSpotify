@@ -17,7 +17,7 @@ public sealed class HtmlReportWriterTests
             HtmlReportWriter writer = new(new AppDataPaths(directory));
             ReleaseTrack track = Track(
                 "Release Song",
-                "Artist One",
+                new[] { new SpotifyArtist("artist-1", "Artist One") },
                 "Album One",
                 ReleaseTrackSource.ArtistAlbums,
                 new DateOnly(2026, 7, 11));
@@ -32,6 +32,7 @@ public sealed class HtmlReportWriterTests
             Assert.Contains("11/07/2026", html);
             Assert.Contains("data-sort=\"2026-07-11\"", html);
             Assert.Contains("Release", html);
+            Assert.Contains("https://open.spotify.com/artist/artist-1", html);
             Assert.DoesNotContain("Added from Releases", html);
             Assert.DoesNotContain("Added from song search", html);
         }
@@ -52,7 +53,7 @@ public sealed class HtmlReportWriterTests
             HtmlReportWriter writer = new(new AppDataPaths(directory));
             ReleaseTrack track = Track(
                 "<Song & Title>",
-                "Artist <One>",
+                new[] { new SpotifyArtist("artist-1", "Artist <One>") },
                 "Album & Friends",
                 ReleaseTrackSource.Search,
                 new DateOnly(2026, 7, 10));
@@ -78,7 +79,7 @@ public sealed class HtmlReportWriterTests
 
     private static ReleaseTrack Track(
         string title,
-        string artists,
+        IReadOnlyList<SpotifyArtist> artists,
         string album,
         ReleaseTrackSource source,
         DateOnly releaseDate) =>

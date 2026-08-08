@@ -59,6 +59,9 @@ namespace ReleaseUpdaterGui
         private TextBox txtOutput = null!;
         private ToolTip spotifyAuthToolTip = null!;
         private System.Windows.Forms.Timer runAvailabilityTimer = null!;
+        private Label lblElapsedTime = null!;
+        private System.Threading.Timer? elapsedTimeTimer;
+        private DateTime runStartTimeUtc;
         private bool isSpotifySignedIn;
         private bool isSpotifyAuthLocked;
         private bool isLoadingSettings;
@@ -281,6 +284,62 @@ namespace ReleaseUpdaterGui
             btnCancel.Enabled = true;
             SetSpotifyAuthToolTip(
                 "Spotify sign-in is disabled while the playlist update is running.");
+
+            runStartTimeUtc = DateTime.UtcNow;
+            lblElapsedTime.Visible = true;
+            UpdateElapsedTimeLabel();
+
+            elapsedTimeTimer?.Dispose();
+            elapsedTimeTimer = new System.Threading.Timer(
+                _ => RequestElapsedTimeLabelUpdate(),
+                null,
+                1000,
+                1000);
+        }
+
+        /// <summary>
+        /// Stops the elapsed-time display, hides it, and logs the final duration -
+        /// the timer itself is only meant to be visible while a run is in progress.
+        /// </summary>
+        public void StopElapsedTimer()
+        {
+            elapsedTimeTimer?.Dispose();
+            elapsedTimeTimer = null;
+
+            TimeSpan elapsed = DateTime.UtcNow - runStartTimeUtc;
+            lblElapsedTime.Visible = false;
+            txtOutput.AppendText("Finished in " + elapsed.ToString(@"hh\:mm\:ss") + "." + Environment.NewLine);
+        }
+
+        /// <summary>
+        /// Runs on a threadpool thread (not the UI message queue), so the elapsed
+        /// display keeps ticking on time even while the UI thread is busy handling a
+        /// burst of progress updates - unlike a WinForms Timer, which relies on the
+        /// low-priority WM_TIMER message and can visibly stall under that load.
+        /// </summary>
+        private void RequestElapsedTimeLabelUpdate()
+        {
+            if (IsDisposed || !IsHandleCreated)
+            {
+                return;
+            }
+
+            try
+            {
+                BeginInvoke(UpdateElapsedTimeLabel);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private void UpdateElapsedTimeLabel()
+        {
+            TimeSpan elapsed = DateTime.UtcNow - runStartTimeUtc;
+            lblElapsedTime.Text = "Elapsed: " + elapsed.ToString(@"hh\:mm\:ss");
         }
 
         public void ShowCompleted(PlaylistUpdateResult result)
@@ -567,14 +626,38 @@ namespace ReleaseUpdaterGui
 
             CenterPropertyTableText(propertyTable);
 
-            FlowLayoutPanel buttonPanel = new FlowLayoutPanel
+            TableLayoutPanel bottomPanel = new TableLayoutPanel
             {
                 Dock = DockStyle.Bottom,
                 Height = 48,
+                ColumnCount = 2,
+                RowCount = 1,
+                BackColor = Color.Transparent
+            };
+            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 3 * ActionIconButtonSize.Width + 16));
+            bottomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            FlowLayoutPanel buttonPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                WrapContents = false,
                 FlowDirection = FlowDirection.RightToLeft,
                 Padding = new Padding(0, 8, 0, 0),
                 BackColor = Color.Transparent
             };
+
+            lblElapsedTime = UIStyles.Labels.CreateNormal(string.Empty);
+            lblElapsedTime.Dock = DockStyle.Fill;
+            lblElapsedTime.TextAlign = ContentAlignment.MiddleLeft;
+            lblElapsedTime.Padding = new Padding(4, 0, 0, 0);
+            lblElapsedTime.Visible = false;
+
+            // Transparent flickers here: repainting this label every second (while a
+            // run is in progress) forces it to redraw its parent's background first,
+            // then the text, which is visible as a brief flash. A solid color matching
+            // the panel behind it paints in a single pass instead.
+            lblElapsedTime.BackColor = UIStyles.Colors.BackgroundLight;
 
             btnUpdatePlaylist = UIStyles.Buttons.CreateGreen(
                 string.Empty,
@@ -614,6 +697,9 @@ namespace ReleaseUpdaterGui
             buttonPanel.Controls.Add(btnOpenReport);
             buttonPanel.Controls.Add(btnCancel);
 
+            bottomPanel.Controls.Add(lblElapsedTime, 0, 0);
+            bottomPanel.Controls.Add(buttonPanel, 1, 0);
+
             txtOutput = UIStyles.TextBoxes.CreateStandard();
             txtOutput.Dock = DockStyle.Fill;
             txtOutput.Multiline = true;
@@ -624,7 +710,7 @@ namespace ReleaseUpdaterGui
             txtOutput.Font = UIStyles.Fonts.Monospace;
 
             mainPanel.Controls.Add(txtOutput);
-            mainPanel.Controls.Add(buttonPanel);
+            mainPanel.Controls.Add(bottomPanel);
             mainPanel.Controls.Add(propertyTable);
 
             ContentPanel.Controls.Add(mainPanel);
@@ -703,6 +789,7 @@ namespace ReleaseUpdaterGui
             spotifyAuthToolTip?.Dispose();
             runAvailabilityTimer?.Stop();
             runAvailabilityTimer?.Dispose();
+            elapsedTimeTimer?.Dispose();
             spotifyAccountsHttpClient.Dispose();
             spotifyApiHttpClient.Dispose();
             updateCheckHttpClient.Dispose();

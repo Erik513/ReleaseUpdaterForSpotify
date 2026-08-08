@@ -182,6 +182,7 @@ namespace ReleaseUpdaterGui
             {
                 runCancellation?.Dispose();
                 runCancellation = null;
+                form.StopElapsedTimer();
                 await RefreshLoginStatusAsync();
                 ApplyRunAvailability(updateStatus: false);
             }
@@ -561,12 +562,13 @@ namespace ReleaseUpdaterGui
         private bool ConfirmStart()
         {
             DialogResult result = CustomMessageBox.Show(
-                "The playlist will be replaced with the found songs.\n\nContinue?",
+                "The playlist will be replaced with the found songs.\n\n" +
+                "This can take a few minutes depending on how many artists you follow.\n\nContinue?",
                 "Update playlist",
                 CustomMessageBoxButtons.YesNo,
                 CustomMessageBoxIcon.Question,
                 form,
-                CustomMessageBoxSize.Small);
+                CustomMessageBoxSize.Medium);
 
             return result == DialogResult.Yes;
         }

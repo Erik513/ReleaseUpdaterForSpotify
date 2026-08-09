@@ -20,6 +20,7 @@ public sealed record ReleaseTrack(
     string SpotifyUrl,
     DateOnly ReleaseDate,
     string Album,
+    string AlbumId,
     ReleaseTrackSource Source,
     bool IsFollowedArtistTrack,
     string? AlbumImageUrl = null);

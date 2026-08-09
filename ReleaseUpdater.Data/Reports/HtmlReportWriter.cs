@@ -147,7 +147,6 @@ public sealed class HtmlReportWriter : IReportWriter
         html.AppendLine("          <col class=\"col-album\">");
         html.AppendLine("          <col class=\"col-date\">");
         html.AppendLine("          <col class=\"col-source\">");
-        html.AppendLine("          <col class=\"col-spotify\">");
         html.AppendLine("        </colgroup>");
         html.AppendLine("        <thead>");
         html.AppendLine("          <tr>");
@@ -155,7 +154,6 @@ public sealed class HtmlReportWriter : IReportWriter
         html.AppendLine("            <th>Album</th>");
         html.AppendLine("            <th>Date</th>");
         html.AppendLine("            <th>Source</th>");
-        html.AppendLine("            <th data-sort=\"none\">Spotify</th>");
         html.AppendLine("          </tr>");
         html.AppendLine("        </thead>");
         html.AppendLine("        <tbody>");
@@ -191,20 +189,23 @@ public sealed class HtmlReportWriter : IReportWriter
             track.Album,
             sourceText);
 
+        string albumUrl = "https://open.spotify.com/album/" + track.AlbumId;
+
         html.AppendLine($"          <tr data-search=\"{EncodeAttribute(searchText)}\">");
         html.AppendLine($"            <td class=\"song-cell\" data-sort=\"{EncodeAttribute(track.Title)}\">");
         html.AppendLine("              <div class=\"song\">");
         html.AppendLine(BuildCoverMarkup(track.AlbumImageUrl, track.Title));
         html.AppendLine("                <div class=\"song-info\">");
-        html.AppendLine($"                  <div class=\"song-title\">{Encode(track.Title)}</div>");
+        html.AppendLine(
+            $"                  <div class=\"song-title\"><a class=\"track-link\" href=\"{EncodeAttribute(track.SpotifyUrl)}\" target=\"_blank\" rel=\"noopener\">{Encode(track.Title)}</a></div>");
         html.AppendLine($"                  <div class=\"song-artists\">{BuildArtistLinksMarkup(track.Artists)}</div>");
         html.AppendLine("                </div>");
         html.AppendLine("              </div>");
         html.AppendLine("            </td>");
-        html.AppendLine($"            <td data-sort=\"{EncodeAttribute(track.Album)}\">{Encode(track.Album)}</td>");
+        html.AppendLine(
+            $"            <td data-sort=\"{EncodeAttribute(track.Album)}\"><a class=\"artist-link\" href=\"{EncodeAttribute(albumUrl)}\" target=\"_blank\" rel=\"noopener\">{Encode(track.Album)}</a></td>");
         html.AppendLine($"            <td data-sort=\"{sortDate}\">{displayDate}</td>");
         html.AppendLine($"            <td data-sort=\"{sourceText}\"><span class=\"source-badge {sourceCssClass}\">{sourceText}</span></td>");
-        html.AppendLine($"            <td><a class=\"spotify-link\" href=\"{EncodeAttribute(track.SpotifyUrl)}\" target=\"_blank\" rel=\"noopener\">Open</a></td>");
         html.AppendLine("          </tr>");
     }
 
@@ -423,23 +424,19 @@ public sealed class HtmlReportWriter : IReportWriter
             }
 
             .col-song {
-              width: 40%;
+              width: 44%;
             }
 
             .col-album {
-              width: 26%;
+              width: 28%;
             }
 
             .col-date {
-              width: 12%;
+              width: 13%;
             }
 
             .col-source {
-              width: 14%;
-            }
-
-            .col-spotify {
-              width: 8%;
+              width: 15%;
             }
 
             th,
@@ -544,6 +541,15 @@ public sealed class HtmlReportWriter : IReportWriter
               white-space: nowrap;
             }
 
+            .track-link {
+              color: inherit;
+              text-decoration: none;
+            }
+
+            .track-link:hover {
+              text-decoration: underline;
+            }
+
             .song-artists {
               margin-top: 2px;
               color: var(--muted);
@@ -582,23 +588,6 @@ public sealed class HtmlReportWriter : IReportWriter
             .source-search {
               background: var(--warning-soft);
               color: var(--warning);
-            }
-
-            .spotify-link {
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 30px;
-              padding: 5px 12px;
-              border-radius: 999px;
-              background: var(--accent);
-              color: #061a0e;
-              font-weight: 700;
-              text-decoration: none;
-            }
-
-            .spotify-link:hover {
-              background: #22d365;
             }
 
             @media (max-width: 760px) {

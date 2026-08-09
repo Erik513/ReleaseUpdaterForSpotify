@@ -306,6 +306,7 @@ public sealed class SpotifyReleaseUpdater
                     track.SpotifyUrl,
                     release.ReleaseDate,
                     release.AlbumName,
+                    release.AlbumId,
                     ReleaseTrackSource.ArtistAlbums,
                     isFollowedArtistTrack,
                     release.AlbumImageUrl));
@@ -361,6 +362,7 @@ public sealed class SpotifyReleaseUpdater
                     item.SpotifyUrl,
                     item.Album.ReleaseDate.Value,
                     item.Album.Name,
+                    item.Album.Id,
                     ReleaseTrackSource.Search,
                     true,
                     item.Album.ImageUrl));

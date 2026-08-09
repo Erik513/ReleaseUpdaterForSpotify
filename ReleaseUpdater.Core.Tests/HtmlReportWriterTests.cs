@@ -33,6 +33,14 @@ public sealed class HtmlReportWriterTests
             Assert.Contains("data-sort=\"2026-07-11\"", html);
             Assert.Contains("Release", html);
             Assert.Contains("https://open.spotify.com/artist/artist-1", html);
+            Assert.Contains(
+                "<a class=\"track-link\" href=\"https://open.spotify.com/track/1\" target=\"_blank\" rel=\"noopener\">Release Song</a>",
+                html);
+            Assert.Contains(
+                "<a class=\"artist-link\" href=\"https://open.spotify.com/album/album-1\" target=\"_blank\" rel=\"noopener\">Album One</a>",
+                html);
+            Assert.DoesNotContain("col-spotify", html);
+            Assert.DoesNotContain(">Spotify</th>", html);
             Assert.DoesNotContain("Added from Releases", html);
             Assert.DoesNotContain("Added from song search", html);
         }
@@ -90,6 +98,7 @@ public sealed class HtmlReportWriterTests
             "https://open.spotify.com/track/1",
             releaseDate,
             album,
+            "album-1",
             source,
             true);
 

@@ -675,7 +675,7 @@ namespace ReleaseUpdaterGui
                 "Open last HTML report");
             btnOpenReport.Click += BtnOpenReport_Click;
 
-            btnCancel = UIStyles.Buttons.CreateDanger(
+            btnCancel = UIStyles.Buttons.CreateRed(
                 string.Empty,
                 "Cancel running update",
                 ActionIconButtonSize);

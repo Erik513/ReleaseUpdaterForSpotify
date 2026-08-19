@@ -511,14 +511,11 @@ namespace ReleaseUpdaterGui
             lblProgress = UIStyles.Labels.CreateNormal("0 / 0");
             lblLoginStatus = UIStyles.Labels.CreateNormal("Not signed in");
 
-            progressBar = new ProgressBar
-            {
-                Dock = DockStyle.Top,
-                Height = 24,
-                Minimum = 0,
-                Maximum = 100,
-                Value = 0
-            };
+            progressBar = UIStyles.ProgressBars.CreateStandard();
+            progressBar.Dock = DockStyle.Top;
+            progressBar.Height = 24;
+            progressBar.Maximum = 100;
+            progressBar.Value = 0;
 
             spotifyAuthToolTip = UIStyles.ToolTips.CreateToolTip();
 
@@ -638,14 +635,10 @@ namespace ReleaseUpdaterGui
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 3 * ActionIconButtonSize.Width + 16));
             bottomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            FlowLayoutPanel buttonPanel = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                WrapContents = false,
-                FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(0, 8, 0, 0),
-                BackColor = Color.Transparent
-            };
+            FlowLayoutPanel buttonPanel = UIStyles.FlowLayoutPanels.CreateStandard();
+            buttonPanel.Dock = DockStyle.Fill;
+            buttonPanel.FlowDirection = FlowDirection.RightToLeft;
+            buttonPanel.Padding = new Padding(0, 8, 0, 0);
 
             lblElapsedTime = UIStyles.Labels.CreateNormal(string.Empty);
             lblElapsedTime.Dock = DockStyle.Fill;

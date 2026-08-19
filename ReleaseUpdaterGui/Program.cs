@@ -1,4 +1,6 @@
-﻿namespace ReleaseUpdaterGui
+﻿using CustomWFUI.Forms;
+
+namespace ReleaseUpdaterGui
 {
     internal static class Program
     {
@@ -7,6 +9,11 @@
         [STAThread]
         static void Main()
         {
+            // Initialize before the mutex check too, so the "already running"
+            // dialog below gets the same visual styles/DPI setup as the main
+            // form instead of rendering unstyled.
+            ApplicationConfiguration.Initialize();
+
             bool createdNew;
 
             mutex = new Mutex(
@@ -16,9 +23,10 @@
 
             if (!createdNew)
             {
-                MessageBox.Show(
+                CustomMessageBox.Show(
                     "The application is already running.",
-                    "Release Updater for Spotify");
+                    "Release Updater for Spotify",
+                    icon: CustomMessageBoxIcon.Info);
 
                 mutex.Dispose();
                 return;
@@ -26,7 +34,6 @@
 
             try
             {
-                ApplicationConfiguration.Initialize();
                 Application.Run(new MainForm());
             }
             finally

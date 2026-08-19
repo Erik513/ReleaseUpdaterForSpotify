@@ -1,4 +1,5 @@
 ﻿using CustomWFUI.Forms;
+using CustomWFUI.Styles;
 
 namespace ReleaseUpdaterGui
 {
@@ -13,6 +14,9 @@ namespace ReleaseUpdaterGui
             // dialog below gets the same visual styles/DPI setup as the main
             // form instead of rendering unstyled.
             ApplicationConfiguration.Initialize();
+
+            // Spotify green, since this app is Spotify-flavored.
+            UIColors.SetAccent(UIAccentColors.Green);
 
             bool createdNew;
 

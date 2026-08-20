@@ -511,7 +511,7 @@ namespace ReleaseUpdaterGui
             lblProgress = UIStyles.Labels.CreateNormal("0 / 0");
             lblLoginStatus = UIStyles.Labels.CreateNormal("Not signed in");
 
-            progressBar = UIStyles.ProgressBars.CreateStandard();
+            progressBar = UIStyles.ProgressBars.CreateGreen();
             progressBar.Dock = DockStyle.Top;
             progressBar.Height = 24;
             progressBar.Maximum = 100;

@@ -46,6 +46,22 @@ public sealed class SpotifyApiClientTests
             handler.Requests[1].PathAndQuery);
     }
 
+    // Verifies that artist albums are requested including "appears_on", so releases
+    // where the artist is only a featured (non-primary) credit aren't missed.
+    [Fact]
+    public async Task GetArtistAlbumsAsync_RequestsAppearsOnGroupToo()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+        handler.EnqueueJson("""{ "items": [], "total": 0 }""");
+
+        await client.GetArtistAlbumsAsync("artist-1", CancellationToken.None);
+
+        Assert.Equal(
+            "/v1/artists/artist-1/albums?include_groups=album,single,appears_on&limit=10&offset=0",
+            handler.Requests.Single().PathAndQuery);
+    }
+
     // Verifies that album tracks are loaded page by page until Spotify's total count is reached.
     [Fact]
     public async Task GetAlbumTracksAsync_LoadsAllOffsetPages()
@@ -287,6 +303,46 @@ public sealed class SpotifyApiClientTests
             request => Assert.Equal("/v1/playlists/playlist-1/items", request.PathAndQuery));
         Assert.Equal(new[] { 100, 100, 5 }, handler.Requests.Select(GetUriCount));
         Assert.Equal("Bearer token", handler.Requests[0].Authorization);
+    }
+
+    // Verifies the search query is restricted to the lookback window's release
+    // year(s), so an artist's older, more popular tracks can't crowd a recent
+    // collaboration credit out of Spotify's relevance-ranked top results.
+    [Fact]
+    public async Task SearchTracksByArtistAsync_FiltersBySingleYear()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+        handler.EnqueueJson("""{ "tracks": { "items": [] } }""");
+
+        await client.SearchTracksByArtistAsync(
+            "Test Artist",
+            2026,
+            2026,
+            CancellationToken.None);
+
+        Assert.Equal(
+            "/v1/search?q=artist%3A%22Test%20Artist%22%20year%3A2026&type=track&limit=10",
+            handler.Requests.Single().PathAndQuery);
+    }
+
+    // Verifies a lookback window spanning a year boundary produces a Spotify year range.
+    [Fact]
+    public async Task SearchTracksByArtistAsync_FiltersByYearRangeAcrossYearBoundary()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+        handler.EnqueueJson("""{ "tracks": { "items": [] } }""");
+
+        await client.SearchTracksByArtistAsync(
+            "Test Artist",
+            2025,
+            2026,
+            CancellationToken.None);
+
+        Assert.Equal(
+            "/v1/search?q=artist%3A%22Test%20Artist%22%20year%3A2025-2026&type=track&limit=10",
+            handler.Requests.Single().PathAndQuery);
     }
 
     private static SpotifyApiClient CreateClient(StubHttpMessageHandler handler) =>

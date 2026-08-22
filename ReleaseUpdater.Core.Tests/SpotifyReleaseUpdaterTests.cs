@@ -283,6 +283,43 @@ public sealed class SpotifyReleaseUpdaterTests
         Assert.Equal(0, spotify.CreatePlaylistCalls);
     }
 
+    // Verifies that an "appears_on" release's other tracks - by artists the user
+    // doesn't follow - don't get pulled in alongside the one that actually features
+    // the followed artist.
+    [Fact]
+    public async Task RunAsync_OnlyIncludesTracksThatActuallyFeatureTheFollowedArtist()
+    {
+        SpotifyArtist followedArtist = Artist("artist-1", "Followed Artist");
+        SpotifyArtist otherArtist = Artist("artist-2", "Unrelated Artist");
+        SpotifyAlbum compilation = Album("compilation-1", "Various Artists Compilation", Today.AddDays(-1));
+        FakeSpotifyGateway spotify = new();
+        SpotifyReleaseUpdater updater = CreateUpdater(
+            spotify,
+            Settings(new ReleaseSettings
+            {
+                PlaylistName = "Target Playlist",
+                ReleaseLookbackDays = 10
+            }),
+            new FakeReportWriter());
+
+        spotify.FollowedArtists.Add(followedArtist);
+        spotify.AlbumsByArtistId[followedArtist.Id] = new List<SpotifyAlbum> { compilation };
+        spotify.TracksByAlbumId[compilation.Id] = new List<SpotifyTrackItem>
+        {
+            Track("track-feature", "Featured Song", "spotify:track:feature", null, followedArtist),
+            Track("track-unrelated", "Unrelated Song", "spotify:track:unrelated", null, otherArtist)
+        };
+
+        PlaylistUpdateResult result = await updater.RunAsync(
+            new ProgressRecorder(),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.UniqueTrackCount);
+        Assert.Equal(
+            new[] { "spotify:track:feature" },
+            spotify.ReplacedTrackUris.Single());
+    }
+
     // Verifies that duplicate track detection survives casing and whitespace differences.
     [Fact]
     public async Task RunAsync_DeduplicatesTracksCaseInsensitivelyAndTrimsText()
@@ -510,6 +547,8 @@ public sealed class SpotifyReleaseUpdaterTests
 
         public Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksByArtistAsync(
             string artistName,
+            int fromYear,
+            int toYear,
             CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(

@@ -299,6 +299,15 @@ public sealed class SpotifyReleaseUpdater
                 bool isFollowedArtistTrack = trackArtistIds
                     .Any(followedArtistIds.Contains);
 
+                // An "appears_on" release can be someone else's album or a
+                // various-artists compilation with many tracks that don't involve
+                // the followed artist at all - only the ones that actually credit
+                // them belong in the playlist.
+                if (!isFollowedArtistTrack)
+                {
+                    continue;
+                }
+
                 tracks.Add(new ReleaseTrack(
                     track.Title,
                     track.Artists,
@@ -327,6 +336,8 @@ public sealed class SpotifyReleaseUpdater
     {
         List<ReleaseTrack> tracks = new();
         DateOnly cutoffDate = clock.Today.AddDays(-days);
+        int fromYear = cutoffDate.Year;
+        int toYear = clock.Today.Year;
 
         ReportStatus(progress, "Searching songs");
 
@@ -338,7 +349,11 @@ public sealed class SpotifyReleaseUpdater
             ReportProgress(progress, "Searching songs", index + 1, artists.Count);
 
             IReadOnlyList<SpotifyTrackItem> searchResults =
-                await spotify.SearchTracksByArtistAsync(artist.Name, cancellationToken);
+                await spotify.SearchTracksByArtistAsync(
+                    artist.Name,
+                    fromYear,
+                    toYear,
+                    cancellationToken);
 
             foreach (SpotifyTrackItem item in searchResults)
             {

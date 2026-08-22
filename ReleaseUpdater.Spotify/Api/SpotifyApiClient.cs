@@ -93,7 +93,12 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     }
 
     /// <summary>
-    /// Loads albums and singles for one artist using the same limit as the Python version.
+    /// Loads albums, singles, and guest-feature appearances for one artist. Spotify's
+    /// "album"/"single" groups only include releases where the artist is credited at
+    /// the release level; a feature that's only credited on the track (someone else's
+    /// single or compilation) shows up solely under "appears_on" - without it, tracks
+    /// where the followed artist is a featured, non-primary credit are missed
+    /// entirely, regardless of search-query tuning.
     /// </summary>
     public async Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
         string artistId,
@@ -102,11 +107,18 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         List<SpotifyAlbum> albums = new();
         int offset = 0;
 
+        // In logic test mode, only look at appears_on so a test run can verify that
+        // path cheaply without also re-scanning every artist's full album/single
+        // catalog.
+        string includeGroups = ReleaseDefaults.LogicTestModeEnabled
+            ? "appears_on"
+            : "album,single,appears_on";
+
         while (true)
         {
             string path =
                 $"artists/{Uri.EscapeDataString(artistId)}/albums" +
-                $"?include_groups=album,single&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
+                $"?include_groups={includeGroups}&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
 
             using JsonDocument json =
                 await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
@@ -173,13 +185,25 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     }
 
     /// <summary>
-    /// Searches tracks by artist name to catch additional songs from Spotify search.
+    /// Searches tracks by artist name to catch additional songs from Spotify search,
+    /// restricted to the lookback window's release years. Spotify ranks search
+    /// results by its own relevance/popularity, not by date, so an unfiltered query
+    /// can easily push a recent track where the followed artist is only a featured
+    /// (non-primary) credit past the first page - most likely exactly when it
+    /// matters, since a prolific followed artist's own older, more popular tracks
+    /// outrank it. Narrowing to the relevant years removes that competition instead
+    /// of just outranking it.
     /// </summary>
     public async Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksByArtistAsync(
         string artistName,
+        int fromYear,
+        int toYear,
         CancellationToken cancellationToken)
     {
-        string query = Uri.EscapeDataString($"artist:\"{artistName}\"");
+        string yearFilter = fromYear == toYear
+            ? fromYear.ToString(CultureInfo.InvariantCulture)
+            : $"{fromYear}-{toYear}";
+        string query = Uri.EscapeDataString($"artist:\"{artistName}\" year:{yearFilter}");
         string path =
             $"search?q={query}&type=track&limit={ReleaseDefaults.SearchResultLimit}";
 

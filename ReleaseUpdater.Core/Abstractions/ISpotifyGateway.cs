@@ -19,6 +19,8 @@ public interface ISpotifyGateway
 
     Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksByArtistAsync(
         string artistName,
+        int fromYear,
+        int toYear,
         CancellationToken cancellationToken);
 
     Task<SpotifyPlaylist?> TryGetPlaylistAsync(

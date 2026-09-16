@@ -176,6 +176,12 @@ namespace ReleaseUpdaterGui
                 Resizable = DataGridViewTriState.False
             });
             dataGridView.DataSource = rows;
+
+            // Cast needed since UIStyles.DataGridViews.CreateStandard()
+            // hands back the plain System.Windows.Forms.DataGridView type -
+            // ShowDeleteRowColumn only exists on ErikwnkWFUI's own subclass.
+            ((ErikwnkWFUI.Controls.DataGridView)dataGridView).ShowDeleteRowColumn = true;
+
             dataGridView.Resize += (_, _) => ApplyFixedColumnWidths();
             ApplyFixedColumnWidths();
 
@@ -265,7 +271,12 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            int availableWidth = dataGridView.ClientSize.Width;
+            // The delete-row column manages its own fixed width - only the
+            // Title/Artist split below needs to leave room for it.
+            int reservedWidth = ((ErikwnkWFUI.Controls.DataGridView)dataGridView).ShowDeleteRowColumn
+                ? ErikwnkWFUI.Controls.DataGridView.DeleteRowColumnWidth
+                : 0;
+            int availableWidth = dataGridView.ClientSize.Width - reservedWidth;
 
             if (availableWidth <= 0)
             {

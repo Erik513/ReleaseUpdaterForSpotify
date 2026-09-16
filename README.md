@@ -34,9 +34,16 @@ Spotify requires every app to authenticate through its own registered applicatio
 
 ## Building from source
 
+The app references [ErikwnkWFUI](https://github.com/Erik513/ErikwnkWFUI) and
+[ErikwnkCore](https://github.com/Erik513/ErikwnkCore) as sibling
+checkouts (`../ErikwnkWFUI` and `../ErikwnkCore` relative to this repo),
+so clone all three next to each other first:
+
 ```bash
-git clone https://github.com/Erik513/ReleaseUpdaterGui.git
-cd ReleaseUpdaterGui
+git clone https://github.com/Erik513/ErikwnkWFUI.git
+git clone https://github.com/Erik513/ErikwnkCore.git
+git clone https://github.com/Erik513/ReleaseUpdaterForSpotify.git
+cd ReleaseUpdaterForSpotify
 dotnet build ReleaseUpdaterApp.sln
 ```
 

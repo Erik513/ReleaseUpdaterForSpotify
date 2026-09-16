@@ -1,6 +1,6 @@
-using CustomWFUI;
-using CustomWFUI.Controls;
-using CustomWFUI.Forms;
+using ErikwnkWFUI;
+using ErikwnkWFUI.Controls;
+using ErikwnkWFUI.Forms;
 using ReleaseUpdater.Data;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
@@ -461,37 +461,37 @@ namespace ReleaseUpdaterGui
         public void ShowInfo(
             string message,
             string title,
-            CustomMessageBoxSize size = CustomMessageBoxSize.Small)
+            MessageBoxSize size = MessageBoxSize.Small)
         {
-            CustomMessageBox.Show(
+            MessageBox.Show(
                 message,
                 title,
-                CustomMessageBoxButtons.OK,
-                CustomMessageBoxIcon.Info,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Info,
                 this,
                 size);
         }
 
         public void ShowWarning(string message, string title)
         {
-            CustomMessageBox.Show(
+            MessageBox.Show(
                 message,
                 title,
-                CustomMessageBoxButtons.OK,
-                CustomMessageBoxIcon.Warning,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning,
                 this,
-                CustomMessageBoxSize.Small);
+                MessageBoxSize.Small);
         }
 
         public void ShowError(string message, string title)
         {
-            CustomMessageBox.Show(
+            MessageBox.Show(
                 message,
                 title,
-                CustomMessageBoxButtons.OK,
-                CustomMessageBoxIcon.Error,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error,
                 this,
-                CustomMessageBoxSize.Small);
+                MessageBoxSize.Small);
         }
 
         private void BuildUi()
@@ -501,7 +501,7 @@ namespace ReleaseUpdaterGui
             mainPanel.Dock = DockStyle.Fill;
             mainPanel.Padding = new Padding(16);
 
-            StyledPropertyTable propertyTable = new()
+            PropertyTable propertyTable = new()
             {
                 Dock = DockStyle.Top,
                 Padding = new Padding(5)

@@ -1,4 +1,4 @@
-using CustomWFUI.Forms;
+using ErikwnkWFUI.Forms;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
@@ -208,14 +208,14 @@ namespace ReleaseUpdaterGui
         /// </summary>
         public bool ConfirmCloseWhileRunning()
         {
-            DialogResult result = CustomMessageBox.Show(
+            DialogResult result = MessageBox.Show(
                 "An update is still running. The playlist may end up only partially " +
                 "updated if you close now.\n\nClose anyway?",
                 "Update in progress",
-                CustomMessageBoxButtons.YesNo,
-                CustomMessageBoxIcon.Warning,
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
                 form,
-                CustomMessageBoxSize.Small);
+                MessageBoxSize.Small);
 
             return result == DialogResult.Yes;
         }
@@ -561,14 +561,14 @@ namespace ReleaseUpdaterGui
 
         private bool ConfirmStart()
         {
-            DialogResult result = CustomMessageBox.Show(
+            DialogResult result = MessageBox.Show(
                 "The playlist will be replaced with the found songs.\n\n" +
                 "This can take a few minutes depending on how many artists you follow.\n\nContinue?",
                 "Update playlist",
-                CustomMessageBoxButtons.YesNo,
-                CustomMessageBoxIcon.Question,
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question,
                 form,
-                CustomMessageBoxSize.Medium);
+                MessageBoxSize.Medium);
 
             return result == DialogResult.Yes;
         }

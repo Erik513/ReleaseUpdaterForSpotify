@@ -1,5 +1,5 @@
-using CustomWFUI;
-using CustomWFUI.Forms;
+using ErikwnkWFUI;
+using ErikwnkWFUI.Forms;
 using ReleaseUpdater.Spotify.Auth;
 using System.Diagnostics;
 
@@ -166,13 +166,13 @@ namespace ReleaseUpdaterGui
 
         private void ShowError(string message)
         {
-            CustomMessageBox.Show(
+            MessageBox.Show(
                 message,
                 "Spotify Client ID",
-                CustomMessageBoxButtons.OK,
-                CustomMessageBoxIcon.Error,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error,
                 this,
-                CustomMessageBoxSize.Small);
+                MessageBoxSize.Small);
         }
     }
 }

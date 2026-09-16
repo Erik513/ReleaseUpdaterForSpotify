@@ -1,12 +1,11 @@
-﻿using CustomWFUI.Forms;
-using CustomWFUI.Styles;
+﻿using ErikwnkCore;
+using ErikwnkWFUI.Forms;
+using ErikwnkWFUI.Styles;
 
 namespace ReleaseUpdaterGui
 {
     internal static class Program
     {
-        private static Mutex? mutex;
-
         [STAThread]
         static void Main()
         {
@@ -18,32 +17,19 @@ namespace ReleaseUpdaterGui
             // Spotify green, since this app is Spotify-flavored.
             UIColors.SetAccent(UIAccentColors.Green);
 
-            bool createdNew;
-
-            mutex = new Mutex(
-                true,
-                "SpotifyReleaseUpdater_SingleInstance",
-                out createdNew);
-
-            if (!createdNew)
+            using (var guard = new SingleInstanceGuard("SpotifyReleaseUpdater_SingleInstance"))
             {
-                CustomMessageBox.Show(
-                    "The application is already running.",
-                    "Release Updater for Spotify",
-                    icon: CustomMessageBoxIcon.Info);
+                if (!guard.IsFirstInstance)
+                {
+                    MessageBox.Show(
+                        "The application is already running.",
+                        "Release Updater for Spotify",
+                        icon: MessageBoxIcon.Info);
 
-                mutex.Dispose();
-                return;
-            }
+                    return;
+                }
 
-            try
-            {
                 Application.Run(new MainForm());
-            }
-            finally
-            {
-                mutex.ReleaseMutex();
-                mutex.Dispose();
             }
         }
     }

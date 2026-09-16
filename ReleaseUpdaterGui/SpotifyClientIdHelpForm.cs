@@ -1,5 +1,7 @@
+using ErikwnkCore;
 using ErikwnkWFUI;
 using ErikwnkWFUI.Forms;
+using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Spotify.Auth;
 using System.Diagnostics;
 
@@ -16,7 +18,7 @@ namespace ReleaseUpdaterGui
 
         public SpotifyClientIdHelpForm() : base(
             StyledFormOptions.CreateDialog(
-                title: "Spotify Client ID",
+                title: AppLocalization.Get(AppStrings.HelpFormTitle),
                 titleTextAlign: ContentAlignment.MiddleCenter,
                 backColor: UIStyles.Colors.BackgroundDarkElevated))
         {
@@ -77,16 +79,16 @@ namespace ReleaseUpdaterGui
             };
 
             closeButton = UIStyles.Buttons.CreateStandard(
-                "Close",
-                "Close Spotify Client ID help",
+                AppLocalization.Get(AppStrings.HelpFormClose),
+                AppLocalization.Get(AppStrings.HelpFormCloseAccessibleName),
                 new Size(96, 32),
                 true);
             closeButton.Margin = new Padding(8, 4, 0, 4);
             closeButton.Click += (_, _) => Close();
 
             Button dashboardButton = UIStyles.Buttons.CreateStandard(
-                "Copy URI and open dashboard",
-                "Copy redirect URI and open Spotify Developer Dashboard",
+                AppLocalization.Get(AppStrings.HelpFormDashboardButton),
+                AppLocalization.Get(AppStrings.HelpFormDashboardAccessibleName),
                 new Size(220, 32),
                 true);
             dashboardButton.Margin = new Padding(0, 4, 0, 4);
@@ -110,22 +112,21 @@ namespace ReleaseUpdaterGui
         private static string CreateInstructionText()
         {
             return
-                "Release Updater for Spotify does not include a shared Spotify Client ID. " +
-                "Each user must create and enter their own Client ID." +
+                AppLocalization.Get(AppStrings.HelpFormInstructionsIntro) +
                 Environment.NewLine +
                 Environment.NewLine +
-                "To create your Spotify Client ID:" + Environment.NewLine +
+                AppLocalization.Get(AppStrings.HelpFormInstructionsHeading) + Environment.NewLine +
                 Environment.NewLine +
-                "1. Click the button below to copy the redirect URI and open the Spotify Developer Dashboard." +
+                AppLocalization.Get(AppStrings.HelpFormInstructionsStep1) +
                 Environment.NewLine +
-                "2. Create a new Spotify app." + Environment.NewLine +
-                "3. Add this redirect URI in the Spotify app settings:" + Environment.NewLine +
+                AppLocalization.Get(AppStrings.HelpFormInstructionsStep2) + Environment.NewLine +
+                AppLocalization.Get(AppStrings.HelpFormInstructionsStep3) + Environment.NewLine +
                 RedirectUri + Environment.NewLine +
-                "4. Copy the Client ID from the Spotify app settings." + Environment.NewLine +
-                "5. Paste the Client ID into this app and save it with the check button." +
+                AppLocalization.Get(AppStrings.HelpFormInstructionsStep4) + Environment.NewLine +
+                AppLocalization.Get(AppStrings.HelpFormInstructionsStep5) +
                 Environment.NewLine +
                 Environment.NewLine +
-                "Do not enter or share a Client Secret.";
+                AppLocalization.Get(AppStrings.HelpFormInstructionsClosingNote);
         }
 
         private void CopyRedirectUriAndOpenDashboard()
@@ -147,7 +148,7 @@ namespace ReleaseUpdaterGui
             catch (Exception ex)
             {
                 ShowError(
-                    $"Could not open the Spotify Developer Dashboard: {ex.Message}");
+                    AppLocalization.Get(AppStrings.HelpFormCouldNotOpenDashboardFormat, ex.Message));
             }
         }
 
@@ -156,11 +157,11 @@ namespace ReleaseUpdaterGui
             try
             {
                 Clipboard.SetText(text);
-                ToastForm.ShowToast("Redirect URI copied.", this);
+                ToastForm.ShowToast(AppLocalization.Get(AppStrings.HelpFormToastRedirectUriCopied), this);
             }
             catch (Exception ex)
             {
-                ShowError($"Could not copy the redirect URI: {ex.Message}");
+                ShowError(AppLocalization.Get(AppStrings.HelpFormCouldNotCopyUriFormat, ex.Message));
             }
         }
 
@@ -168,7 +169,7 @@ namespace ReleaseUpdaterGui
         {
             MessageBox.Show(
                 message,
-                "Spotify Client ID",
+                AppLocalization.Get(AppStrings.HelpFormTitle),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
                 this,

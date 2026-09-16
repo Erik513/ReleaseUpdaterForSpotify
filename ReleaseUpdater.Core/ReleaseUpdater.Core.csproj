@@ -6,4 +6,14 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!--
+    ErikwnkCore.AppLocalization is plain dictionary-based string lookup with
+    no WinForms/UI dependency (it's explicitly designed to be usable outside
+    a WinForms app too), so referencing it here to localize this layer's own
+    status/log text doesn't pull any UI dependency into Core.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ErikwnkCore\ErikwnkCore\ErikwnkCore.csproj" />
+  </ItemGroup>
+
 </Project>

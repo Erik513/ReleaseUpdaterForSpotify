@@ -73,4 +73,24 @@ public sealed class ReleaseSettingsTests
         Assert.False(settings.HasSpotifyClientId);
         Assert.Equal(string.Empty, settings.EffectiveSpotifyClientId);
     }
+
+    // Verifies that "German" survives case-insensitively and anything else falls back to English.
+    [Theory]
+    [InlineData("German", "German")]
+    [InlineData("german", "German")]
+    [InlineData("English", "English")]
+    [InlineData("", "English")]
+    [InlineData("French", "English")]
+    [InlineData(null, "English")]
+    public void Normalize_OnlyAcceptsGermanOrFallsBackToEnglish(string? input, string expected)
+    {
+        ReleaseSettings settings = new()
+        {
+            Language = input!
+        };
+
+        settings.Normalize();
+
+        Assert.Equal(expected, settings.Language);
+    }
 }

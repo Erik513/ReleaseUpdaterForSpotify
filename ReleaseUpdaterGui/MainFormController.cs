@@ -1,5 +1,7 @@
+using ErikwnkCore;
 using ErikwnkWFUI.Forms;
 using ReleaseUpdater.Core.Abstractions;
+using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
 using System.Diagnostics;
@@ -43,7 +45,7 @@ namespace ReleaseUpdaterGui
             ReleaseSettings settings = settingsStore.Load();
             form.SetSettings(settings);
             await RefreshLoginStatusAsync();
-            form.SetStatus("Ready to run");
+            form.SetStatus(AppLocalization.Get(AppStrings.ReadyToRun));
             ApplyRunAvailability(updateStatus: true);
 
             Version currentVersion =
@@ -70,29 +72,29 @@ namespace ReleaseUpdaterGui
             try
             {
                 form.SetAuthenticationBusy();
-                form.SetStatus("Waiting for Spotify login...");
-                form.SetLoginStatus("Browser login in progress...");
+                form.SetStatus(AppLocalization.Get(AppStrings.ControllerWaitingForLogin));
+                form.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerBrowserLoginInProgress));
 
                 SpotifyUser user = await authService.LoginAsync(
                     loginCancellation.Token);
 
-                form.SetLoginStatus($"Signed in: {user.DisplayName}");
+                form.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerSignedInFormat, user.DisplayName));
                 form.SetAuthenticationState(isLoggedIn: true);
-                form.SetStatus("Signed in");
+                form.SetStatus(AppLocalization.Get(AppStrings.ControllerSignedIn));
 
-                ToastForm.ShowToast("Spotify login successful.", form);
+                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastLoginSuccess), form);
             }
             catch (Exception ex) when (IsLoginCancellation(ex, loginCancellation.Token))
             {
                 await RefreshLoginStatusAsync();
-                form.SetStatus("Login cancelled or timed out");
-                ToastForm.ShowToast("Spotify login cancelled or timed out.", form);
+                form.SetStatus(AppLocalization.Get(AppStrings.ControllerLoginCancelledStatus));
+                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastLoginCancelled), form);
             }
             catch (Exception ex)
             {
                 await RefreshLoginStatusAsync();
-                form.SetStatus("Login failed");
-                form.ShowError(ex.Message, "Spotify Login");
+                form.SetStatus(AppLocalization.Get(AppStrings.ControllerLoginFailed));
+                form.ShowError(ex.Message, AppLocalization.Get(AppStrings.ControllerSpotifyLoginTitle));
             }
         }
 
@@ -102,16 +104,16 @@ namespace ReleaseUpdaterGui
             {
                 form.SetAuthenticationBusy();
                 await authService.LogoutAsync(CancellationToken.None);
-                form.SetLoginStatus("Not signed in");
+                form.SetLoginStatus(AppLocalization.Get(AppStrings.NotSignedIn));
                 form.SetAuthenticationState(isLoggedIn: false);
-                form.SetStatus("Signed out");
-                ToastForm.ShowToast("Signed out from Spotify.", form);
+                form.SetStatus(AppLocalization.Get(AppStrings.ControllerSignedOut));
+                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastSignedOut), form);
             }
             catch (Exception ex)
             {
                 await RefreshLoginStatusAsync();
-                form.SetStatus("Logout failed");
-                form.ShowError(ex.Message, "Spotify Logout");
+                form.SetStatus(AppLocalization.Get(AppStrings.ControllerLogoutFailed));
+                form.ShowError(ex.Message, AppLocalization.Get(AppStrings.ControllerSpotifyLogoutTitle));
             }
         }
 
@@ -155,7 +157,7 @@ namespace ReleaseUpdaterGui
                 if (IsLogicTestModeEnabled())
                 {
                     form.ShowRunFailed(
-                        "Spotify request limit reached. Test mode ignores saved cooldowns, so you can try again later without changing settings.");
+                        AppLocalization.Get(AppStrings.ControllerTestModeRateLimit));
                     return;
                 }
 
@@ -198,8 +200,8 @@ namespace ReleaseUpdaterGui
             }
 
             runCancellation?.Cancel();
-            form.SetStatus("Cancelling...");
-            ToastForm.ShowToast("Cancelling update...", form);
+            form.SetStatus(AppLocalization.Get(AppStrings.ControllerCancelling));
+            ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastCancelling), form);
         }
 
         /// <summary>
@@ -209,9 +211,8 @@ namespace ReleaseUpdaterGui
         public bool ConfirmCloseWhileRunning()
         {
             DialogResult result = MessageBox.Show(
-                "An update is still running. The playlist may end up only partially " +
-                "updated if you close now.\n\nClose anyway?",
-                "Update in progress",
+                AppLocalization.Get(AppStrings.ControllerConfirmCloseMessage),
+                AppLocalization.Get(AppStrings.ControllerConfirmCloseTitle),
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning,
                 form,
@@ -222,11 +223,13 @@ namespace ReleaseUpdaterGui
 
         public void OpenReport()
         {
+            string reportTitle = AppLocalization.Get(AppStrings.Report);
+
             if (!File.Exists(reportWriter.ReportPath))
             {
                 form.ShowInfo(
-                    "No report is available yet.",
-                    "Report");
+                    AppLocalization.Get(AppStrings.ControllerNoReportAvailable),
+                    reportTitle);
 
                 return;
             }
@@ -238,13 +241,13 @@ namespace ReleaseUpdaterGui
                     FileName = reportWriter.ReportPath,
                     UseShellExecute = true
                 });
-                ToastForm.ShowToast("Opening HTML report.", form);
+                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastOpeningReport), form);
             }
             catch (Exception ex)
             {
                 form.ShowError(
-                    $"Could not open the report: {ex.Message}",
-                    "Report");
+                    AppLocalization.Get(AppStrings.ControllerCouldNotOpenReportFormat, ex.Message),
+                    reportTitle);
             }
         }
 
@@ -272,7 +275,7 @@ namespace ReleaseUpdaterGui
             if (SaveSettings(showValidationMessage: false))
             {
                 ApplyRunAvailability(updateStatus: false);
-                ToastForm.ShowToast("Playlist name saved.", form);
+                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastPlaylistNameSaved), form);
             }
         }
 
@@ -294,7 +297,7 @@ namespace ReleaseUpdaterGui
             if (SaveSettings(showValidationMessage: false))
             {
                 ApplyRunAvailability(updateStatus: false);
-                ToastForm.ShowToast("Spotify Client ID saved.", form);
+                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastClientIdSaved), form);
             }
         }
 
@@ -316,6 +319,18 @@ namespace ReleaseUpdaterGui
             ApplyRunAvailability(updateStatus: false);
         }
 
+        /// <summary>
+        /// Re-derives every piece of dynamic UI text this controller owns
+        /// (login status, client ID status, run availability) in the newly
+        /// selected language - called by MainForm after a language switch,
+        /// alongside its own refresh of static labels/tooltips.
+        /// </summary>
+        public async Task RefreshLocalizedUiAsync()
+        {
+            await RefreshLoginStatusAsync();
+            ApplyRunAvailability(updateStatus: runCancellation is null);
+        }
+
         private async Task RefreshLoginStatusAsync()
         {
             SpotifyUser? user = await authService.TryGetCurrentUserAsync(
@@ -323,8 +338,8 @@ namespace ReleaseUpdaterGui
 
             form.SetLoginStatus(
                 user is null
-                    ? "Not signed in"
-                    : $"Signed in: {user.DisplayName}");
+                    ? AppLocalization.Get(AppStrings.NotSignedIn)
+                    : AppLocalization.Get(AppStrings.ControllerSignedInFormat, user.DisplayName));
             form.SetAuthenticationState(user is not null);
         }
 
@@ -353,7 +368,7 @@ namespace ReleaseUpdaterGui
             settings.SpotifyCooldownClientId = savedSettings.SpotifyCooldownClientId;
 
             settingsStore.Save(settings);
-            form.SetStatus("Settings saved");
+            form.SetStatus(AppLocalization.Get(AppStrings.ControllerSettingsSaved));
 
             return true;
         }
@@ -366,7 +381,7 @@ namespace ReleaseUpdaterGui
 
             if (!isValid && showMessage)
             {
-                form.ShowWarning(errorMessage, "Invalid playlist name");
+                form.ShowWarning(errorMessage, AppLocalization.Get(AppStrings.ControllerInvalidPlaylistNameTitle));
             }
 
             return isValid;
@@ -387,8 +402,8 @@ namespace ReleaseUpdaterGui
             if (!isValid && showMessage)
             {
                 form.ShowWarning(
-                    "Spotify Client ID must be 32 hexadecimal characters. Do not enter a Client Secret.",
-                    "Invalid Spotify Client ID");
+                    AppLocalization.Get(AppStrings.ControllerInvalidClientIdMessage),
+                    AppLocalization.Get(AppStrings.ControllerInvalidClientIdTitle));
             }
 
             return isValid;
@@ -403,15 +418,15 @@ namespace ReleaseUpdaterGui
                 return true;
             }
 
-            string message =
-                "Please enter and save your Spotify Client ID before signing in or updating the playlist.";
-            form.SetStatus("Spotify Client ID required");
+            string message = AppLocalization.Get(AppStrings.ControllerClientIdRequiredForLoginMessage);
+            string title = AppLocalization.Get(AppStrings.SpotifyClientIdRequired);
+            form.SetStatus(title);
             form.SetUpdateAvailability(false, message);
             ApplyClientIdStatus(settings);
 
             if (showMessage)
             {
-                form.ShowInfo(message, "Spotify Client ID required");
+                form.ShowInfo(message, title);
             }
 
             return false;
@@ -425,14 +440,14 @@ namespace ReleaseUpdaterGui
 
             if (!settings.HasSpotifyClientId)
             {
-                string message =
-                    "Please enter and save your Spotify Client ID before updating the playlist.";
-                form.SetStatus("Spotify Client ID required");
+                string message = AppLocalization.Get(AppStrings.ControllerClientIdRequiredForUpdateMessage);
+                string title = AppLocalization.Get(AppStrings.SpotifyClientIdRequired);
+                form.SetStatus(title);
                 form.SetUpdateAvailability(false, message);
 
                 if (showMessage)
                 {
-                    form.ShowInfo(message, "Spotify Client ID required");
+                    form.ShowInfo(message, title);
                 }
 
                 return false;
@@ -441,18 +456,18 @@ namespace ReleaseUpdaterGui
             if (SpotifyRunPolicy.IsCooldownActive(settings, now))
             {
                 string message = CreateCooldownMessage(settings);
-                form.SetStatus("Spotify cooldown active");
+                form.SetStatus(AppLocalization.Get(AppStrings.ControllerCooldownActive));
                 form.SetUpdateAvailability(false, message);
 
                 if (showMessage)
                 {
-                    form.ShowInfo(message, "Spotify cooldown");
+                    form.ShowInfo(message, AppLocalization.Get(AppStrings.ControllerCooldownTitle));
                 }
 
                 return false;
             }
 
-            form.SetUpdateAvailability(true, "Update playlist");
+            form.SetUpdateAvailability(true, AppLocalization.Get(AppStrings.UpdatePlaylist));
             return true;
         }
 
@@ -463,13 +478,12 @@ namespace ReleaseUpdaterGui
 
             if (!settings.HasSpotifyClientId)
             {
-                string message =
-                    "Enter and save your Spotify Client ID before updating the playlist.";
+                string message = AppLocalization.Get(AppStrings.ControllerClientIdRequiredTooltip);
                 form.SetUpdateAvailability(false, message);
 
                 if (updateStatus)
                 {
-                    form.SetStatus("Spotify Client ID required");
+                    form.SetStatus(AppLocalization.Get(AppStrings.SpotifyClientIdRequired));
                 }
 
                 return;
@@ -482,17 +496,17 @@ namespace ReleaseUpdaterGui
 
                 if (updateStatus)
                 {
-                    form.SetStatus("Spotify cooldown active");
+                    form.SetStatus(AppLocalization.Get(AppStrings.ControllerCooldownActive));
                 }
 
                 return;
             }
 
-            form.SetUpdateAvailability(true, "Update playlist");
+            form.SetUpdateAvailability(true, AppLocalization.Get(AppStrings.UpdatePlaylist));
 
             if (updateStatus)
             {
-                form.SetStatus("Ready to run");
+                form.SetStatus(AppLocalization.Get(AppStrings.ReadyToRun));
             }
         }
 
@@ -501,8 +515,9 @@ namespace ReleaseUpdaterGui
             DateTimeOffset cooldownUntil =
                 settings.SpotifyCooldownUntilUtc ?? DateTimeOffset.UtcNow;
 
-            return "Spotify request limit reached. Updates are paused until " +
-                $"{FormatLocalTime(cooldownUntil)}.";
+            return AppLocalization.Get(
+                AppStrings.ControllerCooldownMessageFormat,
+                FormatLocalTime(cooldownUntil));
         }
 
         private void ApplyClientIdStatus(ReleaseSettings settings)
@@ -521,7 +536,7 @@ namespace ReleaseUpdaterGui
             if (!normalized.HasSpotifyClientId)
             {
                 return (
-                    "Spotify Client ID required. Click for setup help.",
+                    AppLocalization.Get(AppStrings.ControllerClientIdStatusMissing),
                     ClientIdStatusKind.Missing);
             }
 
@@ -538,12 +553,12 @@ namespace ReleaseUpdaterGui
             if (IsLogicTestModeEnabled())
             {
                 return (
-                    "Test mode active. Your configured Client ID will be used with limited requests.",
+                    AppLocalization.Get(AppStrings.ControllerClientIdStatusTestMode),
                     ClientIdStatusKind.TestMode);
             }
 
             return (
-                "Spotify Client ID configured. Click for setup help.",
+                AppLocalization.Get(AppStrings.ControllerClientIdStatusConfigured),
                 ClientIdStatusKind.Configured);
         }
 
@@ -562,9 +577,8 @@ namespace ReleaseUpdaterGui
         private bool ConfirmStart()
         {
             DialogResult result = MessageBox.Show(
-                "The playlist will be replaced with the found songs.\n\n" +
-                "This can take a few minutes depending on how many artists you follow.\n\nContinue?",
-                "Update playlist",
+                AppLocalization.Get(AppStrings.ControllerConfirmStartMessage),
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question,
                 form,

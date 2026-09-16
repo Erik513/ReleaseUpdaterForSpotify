@@ -1,4 +1,7 @@
-﻿namespace ReleaseUpdaterGui
+using ErikwnkCore;
+using ReleaseUpdater.Core.Localization;
+
+namespace ReleaseUpdaterGui
 {
     public static class PlaylistValidator
     {
@@ -10,19 +13,19 @@
 
             if (string.IsNullOrWhiteSpace(playlistName))
             {
-                errorMessage = "Please enter a playlist name.";
+                errorMessage = AppLocalization.Get(AppStrings.ValidatorPlaylistNameRequired);
                 return false;
             }
 
             if (playlistName.Trim().Length > 100)
             {
-                errorMessage = "The playlist name can be up to 100 characters long.";
+                errorMessage = AppLocalization.Get(AppStrings.ValidatorPlaylistNameTooLong);
                 return false;
             }
 
             if (playlistName.Any(char.IsControl))
             {
-                errorMessage = "The playlist name contains invalid characters.";
+                errorMessage = AppLocalization.Get(AppStrings.ValidatorPlaylistNameInvalidChars);
                 return false;
             }
 

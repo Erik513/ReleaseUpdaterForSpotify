@@ -9,6 +9,12 @@ public sealed class ReleaseSettings
     public DateTimeOffset? SpotifyCooldownUntilUtc { get; set; }
     public string? SpotifyCooldownClientId { get; set; }
 
+    // Plain string, not ErikwnkCore.AppLanguage - Core has no UI/library
+    // dependency, and this is the only two values MainForm's language
+    // picker ever writes here, so a stray/unrecognized value (an old
+    // settings file, manual edit) just falls back to English in Normalize.
+    public string Language { get; set; } = "English";
+
     public bool HasSpotifyClientId =>
         !string.IsNullOrWhiteSpace(CustomSpotifyClientId);
 
@@ -50,6 +56,10 @@ public sealed class ReleaseSettings
         {
             SpotifyCooldownClientId = null;
         }
+
+        Language = string.Equals(Language, "German", StringComparison.OrdinalIgnoreCase)
+            ? "German"
+            : "English";
 
         return this;
     }

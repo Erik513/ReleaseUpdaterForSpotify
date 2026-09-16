@@ -32,8 +32,8 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         IReadOnlyList<SongMatchResult> results,
         DateTime generatedAt)
     {
-        List<SongMatchResult> found = results.Where(result => result.IsConfidentMatch).ToList();
-        List<SongMatchResult> notFound = results.Where(result => !result.IsConfidentMatch).ToList();
+        List<SongMatchResult> found = results.Where(result => result.IsFound).ToList();
+        List<SongMatchResult> notFound = results.Where(result => !result.IsFound).ToList();
 
         StringBuilder html = new();
 
@@ -124,12 +124,14 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         html.AppendLine("          <col class=\"col-song\">");
         html.AppendLine("          <col class=\"col-album\">");
         html.AppendLine("          <col class=\"col-date\">");
+        html.AppendLine("          <col class=\"col-match\">");
         html.AppendLine("        </colgroup>");
         html.AppendLine("        <thead>");
         html.AppendLine("          <tr>");
         html.AppendLine("            <th>Song</th>");
         html.AppendLine("            <th>Album</th>");
         html.AppendLine("            <th>Release date</th>");
+        html.AppendLine("            <th>Match</th>");
         html.AppendLine("          </tr>");
         html.AppendLine("        </thead>");
         html.AppendLine("        <tbody>");
@@ -173,6 +175,12 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         html.AppendLine("            </td>");
         html.AppendLine($"            <td data-sort=\"{ReportTheme.EncodeAttribute(albumName)}\">{ReportTheme.Encode(albumName)}</td>");
         html.AppendLine($"            <td data-sort=\"{sortDate}\">{displayDate}</td>");
+
+        bool isConfident = result.Confidence == MatchConfidence.Confident;
+        string confidenceText = isConfident ? "Confident" : "Similar";
+        string confidenceCssClass = isConfident ? "confidence-confident" : "confidence-similar";
+        html.AppendLine(
+            $"            <td data-sort=\"{confidenceText}\"><span class=\"source-badge {confidenceCssClass}\">{confidenceText}</span></td>");
         html.AppendLine("          </tr>");
     }
 

@@ -33,8 +33,68 @@ public sealed class UnreleasedSongCheckerTests
         Assert.Equal(1, result.CheckedCount);
         Assert.Equal(1, result.FoundCount);
         Assert.Single(reportWriter.LastResults);
-        Assert.True(reportWriter.LastResults[0].IsConfidentMatch);
+        Assert.Equal(MatchConfidence.Confident, reportWriter.LastResults[0].Confidence);
         Assert.Equal("track-1", reportWriter.LastResults[0].Match?.Id);
+    }
+
+    // Verifies that a typo in the tracked title/artist still surfaces a
+    // match - just as "Similar" rather than "Confident" - instead of being
+    // discarded the way an exact-match-only policy would.
+    [Fact]
+    public async Task RunAsync_MatchesDespiteTyposAsSimilar()
+    {
+        FakeGateway gateway = new();
+        gateway.AddResult(
+            "Blinding Lightz",
+            "The Weeknf",
+            new SpotifyTrackItem(
+                "track-typo",
+                "Blinding Lights",
+                new[] { new SpotifyArtist("artist-1", "The Weeknd") },
+                "spotify:track:typo",
+                "https://open.spotify.com/track/typo",
+                null));
+
+        FakeReportWriter reportWriter = new();
+        UnreleasedSongChecker checker = new(gateway, reportWriter);
+
+        UnreleasedSongsCheckResult result = await checker.RunAsync(
+            new[] { new TrackedSong("Blinding Lightz", "The Weeknf") },
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(1, result.FoundCount);
+        Assert.Equal(MatchConfidence.Similar, reportWriter.LastResults[0].Confidence);
+        Assert.Equal("track-typo", reportWriter.LastResults[0].Match?.Id);
+    }
+
+    // Verifies that a title/artist too different from any candidate still
+    // isn't matched - fuzzy tolerance has a limit.
+    [Fact]
+    public async Task RunAsync_StillRejectsUnrelatedTitles()
+    {
+        FakeGateway gateway = new();
+        gateway.AddResult(
+            "Completely Different Song",
+            "Totally Different Artist",
+            new SpotifyTrackItem(
+                "track-unrelated",
+                "Blinding Lights",
+                new[] { new SpotifyArtist("artist-1", "The Weeknd") },
+                "spotify:track:unrelated",
+                "https://open.spotify.com/track/unrelated",
+                null));
+
+        FakeReportWriter reportWriter = new();
+        UnreleasedSongChecker checker = new(gateway, reportWriter);
+
+        UnreleasedSongsCheckResult result = await checker.RunAsync(
+            new[] { new TrackedSong("Completely Different Song", "Totally Different Artist") },
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(0, result.FoundCount);
+        Assert.Equal(MatchConfidence.None, reportWriter.LastResults[0].Confidence);
     }
 
     // Verifies that punctuation/casing differences don't block an otherwise-correct match.
@@ -90,7 +150,7 @@ public sealed class UnreleasedSongCheckerTests
             CancellationToken.None);
 
         Assert.Equal(0, result.FoundCount);
-        Assert.False(reportWriter.LastResults[0].IsConfidentMatch);
+        Assert.Equal(MatchConfidence.None, reportWriter.LastResults[0].Confidence);
         Assert.Null(reportWriter.LastResults[0].Match);
     }
 

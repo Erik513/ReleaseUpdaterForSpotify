@@ -247,6 +247,10 @@ internal static class ReportTheme
               width: 15%;
             }
 
+            .col-match {
+              width: 15%;
+            }
+
             th,
             td {
               padding: 10px 12px;
@@ -394,6 +398,16 @@ internal static class ReportTheme
             }
 
             .source-search {
+              background: var(--warning-soft);
+              color: var(--warning);
+            }
+
+            .confidence-confident {
+              background: var(--accent-soft);
+              color: var(--accent);
+            }
+
+            .confidence-similar {
               background: var(--warning-soft);
               color: var(--warning);
             }

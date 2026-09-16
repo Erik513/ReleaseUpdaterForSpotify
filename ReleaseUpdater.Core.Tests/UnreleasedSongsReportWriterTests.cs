@@ -25,12 +25,12 @@ public sealed class UnreleasedSongsReportWriterTests
                     "spotify:track:1",
                     "https://open.spotify.com/track/1",
                     new SpotifyAlbum("album-1", "After Hours", new DateOnly(2020, 3, 20))),
-                true);
+                MatchConfidence.Confident);
 
             SongMatchResult notFound = new(
                 new TrackedSong("<Unreleased> & Song", "Some Artist"),
                 null,
-                false);
+                MatchConfidence.None);
 
             string reportPath = writer.WriteReport(new[] { found, notFound });
             string html = File.ReadAllText(reportPath);
@@ -42,6 +42,7 @@ public sealed class UnreleasedSongsReportWriterTests
                 html);
             Assert.Contains("&lt;Unreleased&gt; &amp; Song", html);
             Assert.DoesNotContain("<Unreleased> & Song", html);
+            Assert.Contains("<span class=\"source-badge confidence-confident\">Confident</span>", html);
         }
         finally
         {

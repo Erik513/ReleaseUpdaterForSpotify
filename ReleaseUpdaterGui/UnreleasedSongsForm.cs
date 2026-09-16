@@ -158,7 +158,6 @@ namespace ReleaseUpdaterGui
             dataGridView.Dock = DockStyle.Fill;
             dataGridView.AutoGenerateColumns = false;
             dataGridView.AllowUserToAddRows = true;
-            dataGridView.AllowUserToDeleteRows = false;
             dataGridView.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             dataGridView.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
             dataGridView.ColumnHeadersHeight = 32;

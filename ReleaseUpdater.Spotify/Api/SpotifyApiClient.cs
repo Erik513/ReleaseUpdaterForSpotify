@@ -224,6 +224,44 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         return tracks;
     }
 
+    /// <summary>
+    /// Searches for one specific track by title and artist, e.g. to check whether a
+    /// still-unreleased song has since appeared on Spotify. Unlike
+    /// <see cref="SearchTracksByArtistAsync"/>, this filters on the track title too, so
+    /// it can return zero results instead of just a large unrelated candidate list.
+    /// </summary>
+    public async Task<IReadOnlyList<SpotifyTrackItem>> SearchTrackByTitleArtistAsync(
+        string title,
+        string artist,
+        CancellationToken cancellationToken)
+    {
+        string query = Uri.EscapeDataString(
+            $"track:\"{EscapeQueryText(title)}\" artist:\"{EscapeQueryText(artist)}\"");
+        string path =
+            $"search?q={query}&type=track&limit={ReleaseDefaults.SearchResultLimit}";
+
+        using JsonDocument json =
+            await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
+
+        List<SpotifyTrackItem> tracks = new();
+
+        foreach (JsonElement item in json.RootElement
+            .GetProperty("tracks")
+            .GetProperty("items")
+            .EnumerateArray())
+        {
+            SpotifyAlbum album = ParseAlbum(item.GetProperty("album"));
+            tracks.Add(ParseTrack(item, album));
+        }
+
+        return tracks;
+    }
+
+    // Strips double quotes so free-text title/artist input can never break out of the
+    // quoted field:value search query Spotify expects.
+    private static string EscapeQueryText(string value) =>
+        value.Replace("\"", string.Empty);
+
     public async Task<SpotifyPlaylist?> TryGetPlaylistAsync(
         string playlistId,
         CancellationToken cancellationToken)

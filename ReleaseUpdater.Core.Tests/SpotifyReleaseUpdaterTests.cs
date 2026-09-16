@@ -492,6 +492,7 @@ public sealed class SpotifyReleaseUpdaterTests
         public Dictionary<string, List<SpotifyAlbum>> AlbumsByArtistId { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, List<SpotifyTrackItem>> TracksByAlbumId { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, List<SpotifyTrackItem>> SearchResultsByArtistName { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, List<SpotifyTrackItem>> SearchResultsByTitleArtist { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, SpotifyPlaylist> PlaylistsById { get; } = new(StringComparer.Ordinal);
         public List<SpotifyPlaylist> UserPlaylists { get; } = new();
         public List<string> AlbumTrackCalls { get; } = new();
@@ -553,6 +554,19 @@ public sealed class SpotifyReleaseUpdaterTests
         {
             return Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(
                 SearchResultsByArtistName.TryGetValue(artistName, out List<SpotifyTrackItem>? tracks)
+                    ? tracks
+                    : Array.Empty<SpotifyTrackItem>());
+        }
+
+        public Task<IReadOnlyList<SpotifyTrackItem>> SearchTrackByTitleArtistAsync(
+            string title,
+            string artist,
+            CancellationToken cancellationToken)
+        {
+            string key = title + "|" + artist;
+
+            return Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(
+                SearchResultsByTitleArtist.TryGetValue(key, out List<SpotifyTrackItem>? tracks)
                     ? tracks
                     : Array.Empty<SpotifyTrackItem>());
         }

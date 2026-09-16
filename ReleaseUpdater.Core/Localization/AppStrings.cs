@@ -155,6 +155,21 @@ public static class AppStrings
     public const string CoreExistingPlaylistReused = "Core.ExistingPlaylistReused";
     public const string CorePlaylistCouldNotBeCreated = "Core.PlaylistCouldNotBeCreated";
 
+    // MainForm - unreleased-songs entry point
+    public const string MainFormOpenUnreleasedSongs = "MainForm.OpenUnreleasedSongs";
+
+    // UnreleasedSongsForm / UnreleasedSongChecker
+    public const string UnreleasedFormTitle = "Unreleased.FormTitle";
+    public const string UnreleasedColumnTitle = "Unreleased.ColumnTitle";
+    public const string UnreleasedColumnArtist = "Unreleased.ColumnArtist";
+    public const string UnreleasedStart = "Unreleased.Start";
+    public const string UnreleasedCancel = "Unreleased.Cancel";
+    public const string UnreleasedOpenReport = "Unreleased.OpenReport";
+    public const string UnreleasedSearching = "Unreleased.Searching";
+    public const string UnreleasedStatusSearchingFormat = "Unreleased.StatusSearchingFormat";
+    public const string UnreleasedStatusDoneFormat = "Unreleased.StatusDoneFormat";
+    public const string UnreleasedNoSongsMessage = "Unreleased.NoSongsMessage";
+
     private static bool isRegistered;
 
     /// <summary>
@@ -309,6 +324,19 @@ public static class AppStrings
         [CoreSavedPlaylistNotFound] = "Saved playlist was not found in your Spotify library.",
         [CoreExistingPlaylistReused] = "Existing playlist with the selected name will be reused.",
         [CorePlaylistCouldNotBeCreated] = "Spotify playlist could not be created.",
+
+        [MainFormOpenUnreleasedSongs] = "Check unreleased songs",
+
+        [UnreleasedFormTitle] = "Unreleased Songs",
+        [UnreleasedColumnTitle] = "Title",
+        [UnreleasedColumnArtist] = "Artist",
+        [UnreleasedStart] = "Start search",
+        [UnreleasedCancel] = "Cancel running search",
+        [UnreleasedOpenReport] = "Open last song check report",
+        [UnreleasedSearching] = "Checking Spotify",
+        [UnreleasedStatusSearchingFormat] = "Checking {0} / {1}: {2}",
+        [UnreleasedStatusDoneFormat] = "Done. {0} of {1} songs found on Spotify.",
+        [UnreleasedNoSongsMessage] = "Add at least one song before starting the search.",
     };
 
     private static readonly Dictionary<string, string> German = new()
@@ -445,5 +473,18 @@ public static class AppStrings
         [CoreSavedPlaylistNotFound] = "Die gespeicherte Playlist wurde in deiner Spotify-Bibliothek nicht gefunden.",
         [CoreExistingPlaylistReused] = "Eine vorhandene Playlist mit dem gewählten Namen wird wiederverwendet.",
         [CorePlaylistCouldNotBeCreated] = "Die Spotify-Playlist konnte nicht erstellt werden.",
+
+        [MainFormOpenUnreleasedSongs] = "Nicht veröffentlichte Songs prüfen",
+
+        [UnreleasedFormTitle] = "Nicht veröffentlichte Songs",
+        [UnreleasedColumnTitle] = "Titel",
+        [UnreleasedColumnArtist] = "Interpret",
+        [UnreleasedStart] = "Suche starten",
+        [UnreleasedCancel] = "Laufende Suche abbrechen",
+        [UnreleasedOpenReport] = "Letzten Song-Check-Bericht öffnen",
+        [UnreleasedSearching] = "Spotify wird geprüft",
+        [UnreleasedStatusSearchingFormat] = "Prüfe {0} / {1}: {2}",
+        [UnreleasedStatusDoneFormat] = "Fertig. {0} von {1} Songs auf Spotify gefunden.",
+        [UnreleasedNoSongsMessage] = "Füge mindestens einen Song hinzu, bevor du die Suche startest.",
     };
 }

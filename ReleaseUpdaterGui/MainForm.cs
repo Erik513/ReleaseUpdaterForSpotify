@@ -29,6 +29,9 @@ namespace ReleaseUpdaterGui
         private readonly SpotifyApiClient spotifyApiClient;
         private readonly SpotifyReleaseUpdater releaseUpdater;
         private readonly AppUpdater appUpdater;
+        private readonly TrackedSongsStore trackedSongsStore;
+        private readonly UnreleasedSongsReportWriter unreleasedSongsReportWriter;
+        private readonly UnreleasedSongChecker unreleasedSongChecker;
         private readonly SystemReleaseClock releaseClock = new();
         private readonly HttpClient spotifyAccountsHttpClient = new();
         private readonly HttpClient spotifyApiHttpClient = new();
@@ -59,6 +62,7 @@ namespace ReleaseUpdaterGui
         private Button btnCancel = null!;
         private Button btnOpenReport = null!;
         private Button btnUpdatePlaylist = null!;
+        private Button btnUnreleasedSongs = null!;
 
         private TextBox txtOutput = null!;
         private ToolTip spotifyAuthToolTip = null!;
@@ -136,6 +140,12 @@ namespace ReleaseUpdaterGui
                 "ReleaseUpdaterForSpotify",
                 updateCheckHttpClient,
                 selfUpdateHttpClient);
+
+            trackedSongsStore = new TrackedSongsStore(dataPaths);
+            unreleasedSongsReportWriter = new UnreleasedSongsReportWriter(dataPaths);
+            unreleasedSongChecker = new UnreleasedSongChecker(
+                spotifyApiClient,
+                unreleasedSongsReportWriter);
 
             controller = new MainFormController(
                 this,
@@ -653,7 +663,7 @@ namespace ReleaseUpdaterGui
                 BackColor = Color.Transparent
             };
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 3 * ActionIconButtonSize.Width + 16));
+            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 4 * ActionIconButtonSize.Width + 16));
             bottomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             FlowLayoutPanel buttonPanel = UIStyles.FlowLayoutPanels.CreateStandard();
@@ -707,9 +717,20 @@ namespace ReleaseUpdaterGui
             btnCancel.Enabled = false;
             btnCancel.Click += BtnCancel_Click;
 
+            btnUnreleasedSongs = UIStyles.Buttons.CreateStandard(
+                string.Empty,
+                AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs),
+                ActionIconButtonSize);
+            SetButtonSymbol(
+                btnUnreleasedSongs,
+                ButtonSymbolKind.Search,
+                AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
+            btnUnreleasedSongs.Click += BtnUnreleasedSongs_Click;
+
             buttonPanel.Controls.Add(btnUpdatePlaylist);
             buttonPanel.Controls.Add(btnOpenReport);
             buttonPanel.Controls.Add(btnCancel);
+            buttonPanel.Controls.Add(btnUnreleasedSongs);
 
             bottomPanel.Controls.Add(lblElapsedTime, 0, 0);
             bottomPanel.Controls.Add(buttonPanel, 1, 0);
@@ -821,6 +842,13 @@ namespace ReleaseUpdaterGui
             spotifyAuthToolTip?.SetToolTip(
                 btnCancel,
                 AppLocalization.Get(AppStrings.MainFormCancelUpdate));
+            SetButtonSymbol(
+                btnUnreleasedSongs,
+                ButtonSymbolKind.Search,
+                AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
+            spotifyAuthToolTip?.SetToolTip(
+                btnUnreleasedSongs,
+                AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
 
             _ = controller.RefreshLocalizedUiAsync();
         }
@@ -900,6 +928,16 @@ namespace ReleaseUpdaterGui
         private void BtnClientIdHelp_Click(object? sender, EventArgs e)
         {
             controller.OpenSpotifyClientIdHelp();
+        }
+
+        private void BtnUnreleasedSongs_Click(object? sender, EventArgs e)
+        {
+            using UnreleasedSongsForm form = new(
+                trackedSongsStore,
+                unreleasedSongsReportWriter,
+                unreleasedSongChecker);
+
+            form.ShowDialog(this);
         }
 
         private void RunAvailabilityTimer_Tick(object? sender, EventArgs e)
@@ -1047,6 +1085,7 @@ namespace ReleaseUpdaterGui
                 ButtonSymbolKind.Edit => "\u270E",
                 ButtonSymbolKind.Check => "\u2713",
                 ButtonSymbolKind.Status => "\u25CF",
+                ButtonSymbolKind.Search => "\U0001F50D",
                 _ => string.Empty
             };
         }
@@ -1073,7 +1112,8 @@ namespace ReleaseUpdaterGui
             Logout,
             Edit,
             Check,
-            Status
+            Status,
+            Search
         }
 
         // Value is the stable, persisted setting ("English"/"German", matching

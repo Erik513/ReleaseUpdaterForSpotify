@@ -10,6 +10,7 @@ using ReleaseUpdater.Data.Reports;
 using ReleaseUpdater.Data.Storage;
 using ReleaseUpdater.Spotify.Api;
 using ReleaseUpdater.Spotify.Auth;
+using ComboBox = System.Windows.Forms.ComboBox;
 
 namespace ReleaseUpdaterGui
 {
@@ -562,9 +563,9 @@ namespace ReleaseUpdaterGui
                 Padding = new Padding(5)
             };
 
-            lblStatus = UIStyles.Labels.CreateNormal(AppLocalization.Get(AppStrings.ReadyToRun));
-            lblProgress = UIStyles.Labels.CreateNormal(AppLocalization.Get(AppStrings.MainFormInitialProgress));
-            lblLoginStatus = UIStyles.Labels.CreateNormal(AppLocalization.Get(AppStrings.NotSignedIn));
+            lblStatus = UIStyles.Labels.CreateStandard(AppLocalization.Get(AppStrings.ReadyToRun));
+            lblProgress = UIStyles.Labels.CreateStandard(AppLocalization.Get(AppStrings.MainFormInitialProgress));
+            lblLoginStatus = UIStyles.Labels.CreateStandard(AppLocalization.Get(AppStrings.NotSignedIn));
 
             progressBar = UIStyles.ProgressBars.CreateGreen();
             progressBar.Dock = DockStyle.Top;
@@ -671,7 +672,7 @@ namespace ReleaseUpdaterGui
             buttonPanel.FlowDirection = FlowDirection.RightToLeft;
             buttonPanel.Padding = new Padding(0, 8, 0, 0);
 
-            lblElapsedTime = UIStyles.Labels.CreateNormal(string.Empty);
+            lblElapsedTime = UIStyles.Labels.CreateStandard(string.Empty);
             lblElapsedTime.Dock = DockStyle.Fill;
             lblElapsedTime.TextAlign = ContentAlignment.MiddleLeft;
             lblElapsedTime.Padding = new Padding(4, 0, 0, 0);

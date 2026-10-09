@@ -203,7 +203,7 @@ namespace ReleaseUpdaterGui
                 Padding = new Padding(0, 4, 8, 4)
             };
 
-            lblStatus = UIStyles.Labels.CreateNormal(AppLocalization.Get(AppStrings.ReadyToRun));
+            lblStatus = UIStyles.Labels.CreateStandard(AppLocalization.Get(AppStrings.ReadyToRun));
             lblStatus.Dock = DockStyle.Top;
             lblStatus.Height = 20;
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;

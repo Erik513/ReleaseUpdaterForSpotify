@@ -217,7 +217,7 @@ namespace ReleaseUpdaterGui
             progressPanel.Controls.Add(progressBar);
             progressPanel.Controls.Add(lblStatus);
 
-            FlowLayoutPanel buttonPanel = UIStyles.FlowLayoutPanels.CreateStandard();
+            FlowLayoutPanel buttonPanel = UIStyles.FlowLayoutPanels.CreateTransparent();
             buttonPanel.Dock = DockStyle.Fill;
             buttonPanel.FlowDirection = FlowDirection.RightToLeft;
             buttonPanel.Padding = new Padding(0, 8, 0, 0);

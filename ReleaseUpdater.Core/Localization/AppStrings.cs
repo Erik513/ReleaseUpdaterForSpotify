@@ -172,6 +172,38 @@ public static class AppStrings
     public const string UnreleasedNoSongsMessage = "Unreleased.NoSongsMessage";
     public const string UnreleasedSaveFailedFormat = "Unreleased.SaveFailedFormat";
 
+    // Spotify sign-in and API errors (ReleaseUpdater.Spotify) - shown to the user as they are,
+    // so they follow the language like everything else.
+    public const string SpotifyClientIdNotSaved = "Spotify.ClientIdNotSaved";
+    public const string SpotifySignInFirst = "Spotify.SignInFirst";
+    public const string SpotifyLoginOtherClientId = "Spotify.LoginOtherClientId";
+    public const string SpotifyLoginMissingPermissions = "Spotify.LoginMissingPermissions";
+    public const string SpotifyPermissionsNotGranted = "Spotify.PermissionsNotGranted";
+    public const string SpotifyClientIdMissing = "Spotify.ClientIdMissing";
+    public const string SpotifyRefreshTokenMissing = "Spotify.RefreshTokenMissing";
+    public const string SpotifyLoginFailedFormat = "Spotify.LoginFailedFormat";
+    public const string SpotifyAccessTokenMissing = "Spotify.AccessTokenMissing";
+    public const string SpotifyCallbackEmpty = "Spotify.CallbackEmpty";
+    public const string SpotifyLoginCancelledFormat = "Spotify.LoginCancelledFormat";
+    public const string SpotifyCallbackStateInvalid = "Spotify.CallbackStateInvalid";
+    public const string SpotifyCallbackCodeMissing = "Spotify.CallbackCodeMissing";
+    public const string SpotifyCallbackInvalid = "Spotify.CallbackInvalid";
+    public const string SpotifyCallbackPathInvalid = "Spotify.CallbackPathInvalid";
+    public const string SpotifyPageLoginSuccessfulTitle = "Spotify.PageLoginSuccessfulTitle";
+    public const string SpotifyPageLoginSuccessfulMessage = "Spotify.PageLoginSuccessfulMessage";
+    public const string SpotifyPageLoginCancelledTitle = "Spotify.PageLoginCancelledTitle";
+    public const string SpotifyPageLoginCancelledMessage = "Spotify.PageLoginCancelledMessage";
+    public const string SpotifyPageLoginFailedTitle = "Spotify.PageLoginFailedTitle";
+    public const string SpotifyPageStateMismatchMessage = "Spotify.PageStateMismatchMessage";
+    public const string SpotifyPageCodeMissingMessage = "Spotify.PageCodeMissingMessage";
+    public const string SpotifyApiForbiddenFormat = "Spotify.ApiForbiddenFormat";
+    public const string SpotifyApiErrorFormat = "Spotify.ApiErrorFormat";
+    public const string SpotifyApiRetriesExhausted = "Spotify.ApiRetriesExhausted";
+    public const string SpotifyResponseMissingFieldFormat = "Spotify.ResponseMissingFieldFormat";
+    public const string SpotifyResponseMissingTextFormat = "Spotify.ResponseMissingTextFormat";
+    public const string SpotifyRequestLimitReached = "Spotify.RequestLimitReached";
+    public const string SpotifyRepeatedTemporaryErrors = "Spotify.RepeatedTemporaryErrors";
+
     private static bool isRegistered;
 
     /// <summary>
@@ -341,6 +373,36 @@ public static class AppStrings
         [UnreleasedStatusDoneFormat] = "Done. {0} of {1} songs found on Spotify.",
         [UnreleasedNoSongsMessage] = "Add at least one song before starting the search.",
         [UnreleasedSaveFailedFormat] = "The song list could not be saved: {0}",
+
+        [SpotifyClientIdNotSaved] = "Please enter and save your Spotify Client ID first.",
+        [SpotifySignInFirst] = "Please sign in to Spotify first.",
+        [SpotifyLoginOtherClientId] = "The saved Spotify login belongs to another Client ID. Please sign in again.",
+        [SpotifyLoginMissingPermissions] = "Spotify login is missing required permissions. Please sign in again.",
+        [SpotifyPermissionsNotGranted] = "Spotify did not grant the required permissions. Please sign in again and approve the requested access.",
+        [SpotifyClientIdMissing] = "Spotify client ID is missing.",
+        [SpotifyRefreshTokenMissing] = "Spotify refresh token is missing. Please sign in again.",
+        [SpotifyLoginFailedFormat] = "Spotify login failed: {0} {1}",
+        [SpotifyAccessTokenMissing] = "Spotify access token is missing.",
+        [SpotifyCallbackEmpty] = "Spotify callback was empty.",
+        [SpotifyLoginCancelledFormat] = "Spotify login cancelled: {0}",
+        [SpotifyCallbackStateInvalid] = "Spotify callback state is invalid.",
+        [SpotifyCallbackCodeMissing] = "Spotify authorization code is missing.",
+        [SpotifyCallbackInvalid] = "Spotify callback is invalid.",
+        [SpotifyCallbackPathInvalid] = "Spotify callback path is invalid.",
+        [SpotifyPageLoginSuccessfulTitle] = "Login successful",
+        [SpotifyPageLoginSuccessfulMessage] = "You can close this browser window now.",
+        [SpotifyPageLoginCancelledTitle] = "Login cancelled",
+        [SpotifyPageLoginCancelledMessage] = "Spotify cancelled the login.",
+        [SpotifyPageLoginFailedTitle] = "Login failed",
+        [SpotifyPageStateMismatchMessage] = "The login security state did not match.",
+        [SpotifyPageCodeMissingMessage] = "Spotify did not return an authorization code.",
+        [SpotifyApiForbiddenFormat] = "Spotify denied access for this account on {0} /{1}. Make sure this Spotify account is allowlisted in your Spotify Developer Dashboard app, or request extended quota mode from Spotify.",
+        [SpotifyApiErrorFormat] = "Spotify API error after {0} attempt(s) on {1} /{2}: {3} {4} {5}",
+        [SpotifyApiRetriesExhausted] = "Spotify API request failed after all retry attempts.",
+        [SpotifyResponseMissingFieldFormat] = "Spotify response does not contain '{0}'.",
+        [SpotifyResponseMissingTextFormat] = "Spotify response does not contain text for '{0}'.",
+        [SpotifyRequestLimitReached] = "Spotify request limit reached. Switching to robust request mode.",
+        [SpotifyRepeatedTemporaryErrors] = "Spotify returned repeated temporary errors. Switching to robust request mode.",
     };
 
     private static readonly Dictionary<string, string> German = new()
@@ -492,5 +554,35 @@ public static class AppStrings
         [UnreleasedStatusDoneFormat] = "Fertig. {0} von {1} Songs auf Spotify gefunden.",
         [UnreleasedNoSongsMessage] = "Füge mindestens einen Song hinzu, bevor du die Suche startest.",
         [UnreleasedSaveFailedFormat] = "Die Songliste konnte nicht gespeichert werden: {0}",
+
+        [SpotifyClientIdNotSaved] = "Bitte gib zuerst deine Spotify-Client-ID ein und speichere sie.",
+        [SpotifySignInFirst] = "Bitte melde dich zuerst bei Spotify an.",
+        [SpotifyLoginOtherClientId] = "Die gespeicherte Spotify-Anmeldung gehört zu einer anderen Client-ID. Bitte melde dich erneut an.",
+        [SpotifyLoginMissingPermissions] = "Der Spotify-Anmeldung fehlen erforderliche Berechtigungen. Bitte melde dich erneut an.",
+        [SpotifyPermissionsNotGranted] = "Spotify hat die erforderlichen Berechtigungen nicht erteilt. Bitte melde dich erneut an und bestätige den angeforderten Zugriff.",
+        [SpotifyClientIdMissing] = "Die Spotify-Client-ID fehlt.",
+        [SpotifyRefreshTokenMissing] = "Das Spotify-Refresh-Token fehlt. Bitte melde dich erneut an.",
+        [SpotifyLoginFailedFormat] = "Spotify-Anmeldung fehlgeschlagen: {0} {1}",
+        [SpotifyAccessTokenMissing] = "Das Spotify-Access-Token fehlt.",
+        [SpotifyCallbackEmpty] = "Der Spotify-Rückruf war leer.",
+        [SpotifyLoginCancelledFormat] = "Spotify-Anmeldung abgebrochen: {0}",
+        [SpotifyCallbackStateInvalid] = "Der State des Spotify-Rückrufs ist ungültig.",
+        [SpotifyCallbackCodeMissing] = "Der Spotify-Autorisierungscode fehlt.",
+        [SpotifyCallbackInvalid] = "Der Spotify-Rückruf ist ungültig.",
+        [SpotifyCallbackPathInvalid] = "Der Pfad des Spotify-Rückrufs ist ungültig.",
+        [SpotifyPageLoginSuccessfulTitle] = "Anmeldung erfolgreich",
+        [SpotifyPageLoginSuccessfulMessage] = "Du kannst dieses Browserfenster jetzt schließen.",
+        [SpotifyPageLoginCancelledTitle] = "Anmeldung abgebrochen",
+        [SpotifyPageLoginCancelledMessage] = "Spotify hat die Anmeldung abgebrochen.",
+        [SpotifyPageLoginFailedTitle] = "Anmeldung fehlgeschlagen",
+        [SpotifyPageStateMismatchMessage] = "Der Sicherheits-State der Anmeldung stimmte nicht überein.",
+        [SpotifyPageCodeMissingMessage] = "Spotify hat keinen Autorisierungscode zurückgegeben.",
+        [SpotifyApiForbiddenFormat] = "Spotify hat den Zugriff für dieses Konto bei {0} /{1} verweigert. Stelle sicher, dass dieses Spotify-Konto in deiner App im Spotify Developer Dashboard freigeschaltet ist, oder beantrage bei Spotify den erweiterten Kontingentmodus.",
+        [SpotifyApiErrorFormat] = "Spotify-API-Fehler nach {0} Versuch(en) bei {1} /{2}: {3} {4} {5}",
+        [SpotifyApiRetriesExhausted] = "Die Spotify-API-Anfrage ist nach allen Wiederholungen fehlgeschlagen.",
+        [SpotifyResponseMissingFieldFormat] = "Die Spotify-Antwort enthält '{0}' nicht.",
+        [SpotifyResponseMissingTextFormat] = "Die Spotify-Antwort enthält keinen Text für '{0}'.",
+        [SpotifyRequestLimitReached] = "Spotify-Anfragelimit erreicht. Wechsle in den robusten Anfragemodus.",
+        [SpotifyRepeatedTemporaryErrors] = "Spotify meldet wiederholt vorübergehende Fehler. Wechsle in den robusten Anfragemodus.",
     };
 }

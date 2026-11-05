@@ -3,7 +3,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using ErikwnkCore;
 using ReleaseUpdater.Core.Abstractions;
+using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Spotify.Auth;
 
@@ -573,17 +575,23 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
                 response.Dispose();
 
                 throw new InvalidOperationException(
-                    $"Spotify denied access for this account on {method.Method} /{path}. " +
-                    "Make sure this Spotify account is allowlisted in your Spotify Developer Dashboard app, or request extended quota mode from Spotify.");
+                    AppLocalization.Get(AppStrings.SpotifyApiForbiddenFormat, method.Method, path));
             }
 
             response.Dispose();
 
             throw new InvalidOperationException(
-                $"Spotify API error after {attempt} attempt(s) on {method.Method} /{path}: {(int)response.StatusCode} {response.StatusCode} {responseText}");
+                AppLocalization.Get(
+                    AppStrings.SpotifyApiErrorFormat,
+                    attempt,
+                    method.Method,
+                    path,
+                    (int)response.StatusCode,
+                    response.StatusCode,
+                    responseText));
         }
 
-        throw new InvalidOperationException("Spotify API request failed after all retry attempts.");
+        throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyApiRetriesExhausted));
     }
 
     private static bool IsRetryable(HttpStatusCode statusCode)
@@ -606,8 +614,8 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         }
 
         string message = statusCode == HttpStatusCode.TooManyRequests
-            ? "Spotify request limit reached. Switching to robust request mode."
-            : "Spotify returned repeated temporary errors. Switching to robust request mode.";
+            ? AppLocalization.Get(AppStrings.SpotifyRequestLimitReached)
+            : AppLocalization.Get(AppStrings.SpotifyRepeatedTemporaryErrors);
 
         Progress?.Report(new ReleaseProgress(string.Empty, Message: message));
     }
@@ -722,11 +730,11 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         if (!item.TryGetProperty(propertyName, out JsonElement element))
         {
             throw new InvalidOperationException(
-                $"Spotify response does not contain '{propertyName}'.");
+                AppLocalization.Get(AppStrings.SpotifyResponseMissingFieldFormat, propertyName));
         }
 
         return element.GetString()
             ?? throw new InvalidOperationException(
-                $"Spotify response does not contain text for '{propertyName}'.");
+                AppLocalization.Get(AppStrings.SpotifyResponseMissingTextFormat, propertyName));
     }
 }

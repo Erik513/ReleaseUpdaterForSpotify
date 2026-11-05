@@ -1,4 +1,6 @@
+using ErikwnkCore;
 using ReleaseUpdater.Core.Abstractions;
+using ReleaseUpdater.Core.Localization;
 
 namespace ReleaseUpdater.Spotify.Auth;
 
@@ -22,8 +24,7 @@ public sealed class SettingsSpotifyClientIdProvider : ISpotifyClientIdProvider
 
             if (string.IsNullOrWhiteSpace(clientId))
             {
-                throw new InvalidOperationException(
-                    "Please enter and save your Spotify Client ID first.");
+                throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyClientIdNotSaved));
             }
 
             return clientId;

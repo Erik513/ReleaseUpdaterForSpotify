@@ -216,7 +216,7 @@ namespace ReleaseUpdaterGui
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning,
                 form,
-                MessageBoxSize.Small);
+                FormSize.Small);
 
             return result == DialogResult.Yes;
         }
@@ -582,7 +582,7 @@ namespace ReleaseUpdaterGui
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question,
                 form,
-                MessageBoxSize.Medium);
+                FormSize.Medium);
 
             return result == DialogResult.Yes;
         }

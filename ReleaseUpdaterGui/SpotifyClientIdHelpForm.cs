@@ -7,7 +7,7 @@ using System.Diagnostics;
 
 namespace ReleaseUpdaterGui
 {
-    public sealed class SpotifyClientIdHelpForm : StyledForm
+    public sealed class SpotifyClientIdHelpForm : AppForm
     {
         private const string DashboardUrl = "https://developer.spotify.com/dashboard";
 
@@ -17,7 +17,7 @@ namespace ReleaseUpdaterGui
         private Button closeButton = null!;
 
         public SpotifyClientIdHelpForm() : base(
-            StyledFormOptions.CreateDialog(
+            FormOptions.CreateDialog(
                 title: AppLocalization.Get(AppStrings.HelpFormTitle),
                 titleTextAlign: ContentAlignment.MiddleCenter,
                 backColor: UIStyles.Colors.BackgroundDarkElevated))
@@ -35,14 +35,12 @@ namespace ReleaseUpdaterGui
 
         private Control CreateContent()
         {
-            TableLayoutPanel layout = new()
-            {
-                Dock = DockStyle.Fill,
-                BackColor = UIStyles.Colors.BackgroundLight,
-                Padding = new Padding(16),
-                ColumnCount = 1,
-                RowCount = 2
-            };
+            TableLayoutPanel layout = UIStyles.TableLayoutPanels.CreateStandard(
+                columnCount: 1,
+                rowCount: 2,
+                colors: UIStyles.Colors.BackgroundLight);
+            layout.Dock = DockStyle.Fill;
+            layout.Padding = new Padding(16);
 
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
@@ -68,15 +66,10 @@ namespace ReleaseUpdaterGui
 
         private FlowLayoutPanel CreateButtonRow()
         {
-            FlowLayoutPanel buttons = new()
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.RightToLeft,
-                WrapContents = false,
-                Margin = Padding.Empty,
-                Padding = Padding.Empty,
-                BackColor = Color.Transparent
-            };
+            FlowLayoutPanel buttons = UIStyles.FlowLayoutPanels.CreateTransparent();
+            buttons.Dock = DockStyle.Fill;
+            buttons.FlowDirection = FlowDirection.RightToLeft;
+            buttons.WrapContents = false;
 
             closeButton = UIStyles.Buttons.CreateStandard(
                 AppLocalization.Get(AppStrings.HelpFormClose),
@@ -173,7 +166,7 @@ namespace ReleaseUpdaterGui
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
                 this,
-                MessageBoxSize.Small);
+                FormSize.Small);
         }
     }
 }

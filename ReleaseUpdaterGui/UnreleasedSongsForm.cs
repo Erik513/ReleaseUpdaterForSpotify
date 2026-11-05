@@ -9,7 +9,7 @@ using ReleaseUpdater.Data.Storage;
 
 namespace ReleaseUpdaterGui
 {
-    public sealed class UnreleasedSongsForm : StyledForm
+    public sealed class UnreleasedSongsForm : AppForm
     {
         private static readonly Size ActionIconButtonSize = new(48, 34);
 
@@ -27,7 +27,7 @@ namespace ReleaseUpdaterGui
             TrackedSongsStore songsStore,
             IUnreleasedSongsReportWriter reportWriter,
             ReleaseUpdater.Core.Services.UnreleasedSongChecker checker) : base(
-            StyledFormOptions.CreateStandard(
+            FormOptions.CreateStandard(
                 title: AppLocalization.Get(AppStrings.UnreleasedFormTitle),
                 titleTextAlign: ContentAlignment.MiddleCenter,
                 backColor: UIStyles.Colors.BackgroundDarkElevated))
@@ -114,7 +114,7 @@ namespace ReleaseUpdaterGui
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Info,
                 this,
-                MessageBoxSize.Small);
+                FormSize.Small);
         }
 
         public void ShowError(string message, string title)
@@ -125,7 +125,7 @@ namespace ReleaseUpdaterGui
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
                 this,
-                MessageBoxSize.Small);
+                FormSize.Small);
         }
 
         private void LoadSongs()
@@ -165,43 +165,44 @@ namespace ReleaseUpdaterGui
             {
                 Name = "colTitle",
                 DataPropertyName = nameof(TrackedSongRow.Title),
-                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnTitle),
-                Resizable = DataGridViewTriState.False
+                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnTitle)
             });
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colArtist",
                 DataPropertyName = nameof(TrackedSongRow.Artist),
-                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnArtist),
-                Resizable = DataGridViewTriState.False
+                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnArtist)
             });
             dataGridView.DataSource = rows;
 
             // Cast needed since UIStyles.DataGridViews.CreateStandard()
             // hands back the plain System.Windows.Forms.DataGridView type -
             // ShowDeleteRowColumn only exists on ErikwnkWFUI's own subclass.
-            ((ErikwnkWFUI.Controls.DataGridView)dataGridView).ShowDeleteRowColumn = true;
+            ErikwnkWFUI.Controls.DataGridView libraryGrid = (ErikwnkWFUI.Controls.DataGridView)dataGridView;
+            libraryGrid.ShowDeleteRowColumn = true;
+
+            // The library grid resizes and reorders its columns itself and
+            // ignores the standard DataGridViewColumn.Resizable. This form
+            // sizes its two columns by hand to fill the width
+            // (ApplyFixedColumnWidths), so the user must not drag them.
+            libraryGrid.AllowColumnResizing = false;
+            libraryGrid.AllowColumnReordering = false;
 
             dataGridView.Resize += (_, _) => ApplyFixedColumnWidths();
             ApplyFixedColumnWidths();
 
-            TableLayoutPanel bottomPanel = new TableLayoutPanel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 56,
-                ColumnCount = 2,
-                RowCount = 1,
-                BackColor = Color.Transparent
-            };
+            TableLayoutPanel bottomPanel = UIStyles.TableLayoutPanels.CreateTransparent(
+                columnCount: 2,
+                rowCount: 1);
+            bottomPanel.Dock = DockStyle.Bottom;
+            bottomPanel.Height = 56;
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 3 * ActionIconButtonSize.Width + 16));
             bottomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            Panel progressPanel = new Panel
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(0, 4, 8, 4)
-            };
+            Panel progressPanel = UIStyles.Panels.CreateTransparent();
+            progressPanel.Dock = DockStyle.Fill;
+            progressPanel.Padding = new Padding(0, 4, 8, 4);
 
             lblStatus = UIStyles.Labels.CreateStandard(AppLocalization.Get(AppStrings.ReadyToRun));
             lblStatus.Dock = DockStyle.Top;

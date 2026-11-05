@@ -1,6 +1,5 @@
 using ErikwnkCore;
 using ErikwnkWFUI;
-using ErikwnkWFUI.Controls;
 using ErikwnkWFUI.Forms;
 using ReleaseUpdater.Data;
 using ReleaseUpdater.Core.Localization;
@@ -10,11 +9,15 @@ using ReleaseUpdater.Data.Reports;
 using ReleaseUpdater.Data.Storage;
 using ReleaseUpdater.Spotify.Api;
 using ReleaseUpdater.Spotify.Auth;
-using ComboBox = System.Windows.Forms.ComboBox;
+// Only these two come from ErikwnkWFUI.Controls: a "using" of the whole
+// namespace would make every standard control name used here (Panel,
+// ProgressBar, ...) ambiguous with the library's same-named controls.
+using PropertyColumn = ErikwnkWFUI.Controls.PropertyColumn;
+using PropertyTable = ErikwnkWFUI.Controls.PropertyTable;
 
 namespace ReleaseUpdaterGui
 {
-    public partial class MainForm : StyledForm
+    public partial class MainForm : AppForm
     {
         private static readonly Size PropertyIconButtonSize = new(36, 30);
         private static readonly Size ActionIconButtonSize = new(48, 34);
@@ -106,7 +109,7 @@ namespace ReleaseUpdaterGui
         }
 
         public MainForm() : base(
-            StyledFormOptions.CreateStandard(
+            FormOptions.CreateStandard(
                 title: AppLocalization.Get(AppStrings.MainFormWindowTitle),
                 titleTextAlign: ContentAlignment.MiddleCenter,
                 backColor: UIStyles.Colors.BackgroundDarkElevated,
@@ -517,7 +520,7 @@ namespace ReleaseUpdaterGui
         public void ShowInfo(
             string message,
             string title,
-            MessageBoxSize size = MessageBoxSize.Small)
+            FormSize size = FormSize.Small)
         {
             MessageBox.Show(
                 message,
@@ -536,7 +539,7 @@ namespace ReleaseUpdaterGui
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning,
                 this,
-                MessageBoxSize.Small);
+                FormSize.Small);
         }
 
         public void ShowError(string message, string title)
@@ -547,7 +550,7 @@ namespace ReleaseUpdaterGui
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
                 this,
-                MessageBoxSize.Small);
+                FormSize.Small);
         }
 
         private void BuildUi()
@@ -609,7 +612,7 @@ namespace ReleaseUpdaterGui
             cmbLanguage.TabStop = false;
             cmbLanguage.SelectedIndexChanged += CmbLanguage_SelectedIndexChanged;
 
-            txtPlaylistName = UIStyles.TextBoxes.CreateBorderstyleNone(
+            txtPlaylistName = UIStyles.TextBoxes.CreateBorderless(
                 ReleaseDefaults.PlaylistName);
             txtPlaylistName.ReadOnly = true;
             txtPlaylistName.TabStop = false;
@@ -633,7 +636,7 @@ namespace ReleaseUpdaterGui
             numLookbackDays.TabStop = false;
             numLookbackDays.ValueChanged += SettingsControl_Changed;
 
-            txtSpotifyClientId = UIStyles.TextBoxes.CreateBorderstyleNone(
+            txtSpotifyClientId = UIStyles.TextBoxes.CreateBorderless(
                 string.Empty);
             txtSpotifyClientId.PlaceholderText = AppLocalization.Get(AppStrings.MainFormClientIdPlaceholder);
             txtSpotifyClientId.ReadOnly = true;
@@ -655,14 +658,11 @@ namespace ReleaseUpdaterGui
 
             BuildPropertyTableRows();
 
-            TableLayoutPanel bottomPanel = new TableLayoutPanel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 48,
-                ColumnCount = 2,
-                RowCount = 1,
-                BackColor = Color.Transparent
-            };
+            TableLayoutPanel bottomPanel = UIStyles.TableLayoutPanels.CreateTransparent(
+                columnCount: 2,
+                rowCount: 1);
+            bottomPanel.Dock = DockStyle.Bottom;
+            bottomPanel.Height = 48;
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 4 * ActionIconButtonSize.Width + 16));
             bottomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -752,60 +752,60 @@ namespace ReleaseUpdaterGui
             ContentPanel.Controls.Add(mainPanel);
         }
 
-        // Split out from BuildUi so a language switch can rebuild just the
-        // row labels: PropertyTable.ClearRows() is documented as being
-        // exactly for this (re-adding the same editor controls under fresh
-        // labels without losing their state).
+        // Built once. The labels are given as functions, so the table follows a
+        // language switch by itself - rebuilding the rows on a switch
+        // (ClearRows + AddRow again) would take the language combo box out of
+        // the table while it is still handling its own selection, leaving it
+        // empty.
         private void BuildPropertyTableRows()
         {
             propertyTable.AddRow(
-                AppLocalization.Get(AppStrings.MainFormRowStatus),
+                () => AppLocalization.Get(AppStrings.MainFormRowStatus),
                 PropertyRowHeight,
-                UIColumn.Percent(lblStatus, 100),
-                UIColumn.Absolute(btnClientIdStatus, PropertyIconColumnWidth));
+                PropertyColumn.Percent(lblStatus, 100),
+                PropertyColumn.Absolute(btnClientIdStatus, PropertyIconColumnWidth));
             propertyTable.AddRow(
-                AppLocalization.Get(AppStrings.MainFormRowProgress),
+                () => AppLocalization.Get(AppStrings.MainFormRowProgress),
                 PropertyRowHeight,
-                UIColumn.Percent(lblProgress, 50),
-                UIColumn.Percent(progressBar, 50));
-            propertyTable.AddSection(AppLocalization.Get(AppStrings.MainFormSectionSettings));
+                PropertyColumn.Percent(lblProgress, 50),
+                PropertyColumn.Percent(progressBar, 50));
+            propertyTable.AddSection(() => AppLocalization.Get(AppStrings.MainFormSectionSettings));
             propertyTable.AddRow(
-                AppLocalization.Get(AppStrings.MainFormRowLanguage),
+                () => AppLocalization.Get(AppStrings.MainFormRowLanguage),
                 PropertyRowHeight,
-                UIColumn.Percent(cmbLanguage, 100));
+                PropertyColumn.Percent(cmbLanguage, 100));
             propertyTable.AddRow(
-                AppLocalization.Get(AppStrings.MainFormRowSpotify),
+                () => AppLocalization.Get(AppStrings.MainFormRowSpotify),
                 PropertyRowHeight,
-                UIColumn.Percent(lblLoginStatus, 100),
-                UIColumn.Absolute(btnLogin, PropertyIconColumnWidth));
+                PropertyColumn.Percent(lblLoginStatus, 100),
+                PropertyColumn.Absolute(btnLogin, PropertyIconColumnWidth));
             propertyTable.AddRow(
-                AppLocalization.Get(AppStrings.MainFormRowClientId),
+                () => AppLocalization.Get(AppStrings.MainFormRowClientId),
                 PropertyRowHeight,
-                UIColumn.Percent(txtSpotifyClientId, 100),
-                UIColumn.Absolute(btnEditSpotifyClientId, PropertyIconColumnWidth));
+                PropertyColumn.Percent(txtSpotifyClientId, 100),
+                PropertyColumn.Absolute(btnEditSpotifyClientId, PropertyIconColumnWidth));
             propertyTable.AddRow(
-                AppLocalization.Get(AppStrings.MainFormRowPlaylistName),
+                () => AppLocalization.Get(AppStrings.MainFormRowPlaylistName),
                 PropertyRowHeight,
-                UIColumn.Percent(txtPlaylistName, 100),
-                UIColumn.Absolute(btnEditPlaylistName, PropertyIconColumnWidth));
+                PropertyColumn.Percent(txtPlaylistName, 100),
+                PropertyColumn.Absolute(btnEditPlaylistName, PropertyIconColumnWidth));
             propertyTable.AddRow(
-                AppLocalization.Get(AppStrings.MainFormRowLookbackDays),
+                () => AppLocalization.Get(AppStrings.MainFormRowLookbackDays),
                 PropertyRowHeight,
-                UIColumn.Auto(numLookbackDays));
+                PropertyColumn.Auto(numLookbackDays));
 
             CenterPropertyTableText(propertyTable);
         }
 
         // Refreshes every piece of static (state-independent) UI text after a
-        // language switch. Dynamic text (login status, client ID status, run
-        // availability tooltip) is refreshed separately by the controller,
-        // since it depends on app state this form doesn't track on its own.
+        // language switch (the property table's own row labels follow the
+        // language by themselves, see BuildPropertyTableRows). Dynamic text
+        // (login status, client ID status, run availability tooltip) is
+        // refreshed separately by the controller, since it depends on app
+        // state this form doesn't track on its own.
         private void RefreshLocalizedUi()
         {
             Text = AppLocalization.Get(AppStrings.MainFormWindowTitle);
-
-            propertyTable.ClearRows();
-            BuildPropertyTableRows();
 
             txtSpotifyClientId.PlaceholderText = AppLocalization.Get(AppStrings.MainFormClientIdPlaceholder);
             spotifyAuthToolTip?.SetToolTip(

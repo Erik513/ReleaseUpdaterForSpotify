@@ -12,6 +12,7 @@ public static class ReleaseDefaults
     public const int TrackPageSize = 50;
     public const int SearchResultLimit = 10;
     public const int PlaylistBatchSize = 100;
+    public const int MaxPlaylistDescriptionLength = 300;
     public const int PlaylistPageSize = 50;
     public const int SpotifyRobustRequestBudget = 90;
     public const int SpotifyRobustWindowSeconds = 30;

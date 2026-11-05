@@ -4,6 +4,8 @@ public sealed class ReleaseSettings
 {
     public string? PlaylistId { get; set; }
     public string PlaylistName { get; set; } = ReleaseDefaults.PlaylistName;
+    // Empty / null: the description is made by the app (see SpotifyReleaseUpdater). Spotify takes up to 300 characters.
+    public string? PlaylistDescription { get; set; }
     public int ReleaseLookbackDays { get; set; } = ReleaseDefaults.ReleaseLookbackDays;
     public string? CustomSpotifyClientId { get; set; }
     public DateTimeOffset? SpotifyCooldownUntilUtc { get; set; }
@@ -26,6 +28,17 @@ public sealed class ReleaseSettings
         PlaylistName = string.IsNullOrWhiteSpace(PlaylistName)
             ? ReleaseDefaults.PlaylistName
             : PlaylistName.Trim();
+
+        PlaylistDescription = PlaylistDescription?.Trim();
+
+        if (string.IsNullOrEmpty(PlaylistDescription))
+        {
+            PlaylistDescription = null;
+        }
+        else if (PlaylistDescription.Length > ReleaseDefaults.MaxPlaylistDescriptionLength)
+        {
+            PlaylistDescription = PlaylistDescription.Substring(0, ReleaseDefaults.MaxPlaylistDescriptionLength).TrimEnd();
+        }
 
         ReleaseLookbackDays = Math.Clamp(
             ReleaseLookbackDays,

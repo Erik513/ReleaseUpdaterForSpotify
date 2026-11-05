@@ -64,6 +64,9 @@ public static class AppStrings
     public const string MainFormRowSpotify = "MainForm.RowSpotify";
     public const string MainFormRowClientId = "MainForm.RowClientId";
     public const string MainFormRowPlaylistName = "MainForm.RowPlaylistName";
+    public const string MainFormRowPlaylistDescription = "MainForm.RowPlaylistDescription";
+    public const string MainFormPlaylistDescriptionPlaceholder = "MainForm.PlaylistDescriptionPlaceholder";
+    public const string MainFormPlaylistDescriptionTooltip = "MainForm.PlaylistDescriptionTooltip";
     public const string MainFormRowLookbackDays = "MainForm.RowLookbackDays";
     public const string MainFormOpenReport = "MainForm.OpenReport";
     public const string MainFormCancelUpdate = "MainForm.CancelUpdate";
@@ -274,6 +277,9 @@ public static class AppStrings
         [MainFormRowSpotify] = "Spotify",
         [MainFormRowClientId] = "Client ID",
         [MainFormRowPlaylistName] = "Playlist name",
+        [MainFormRowPlaylistDescription] = "Description",
+        [MainFormPlaylistDescriptionPlaceholder] = "Automatic description",
+        [MainFormPlaylistDescriptionTooltip] = "Description of the playlist on Spotify (up to 300 characters). Leave empty for the automatic text.",
         [MainFormRowLookbackDays] = "Lookback days",
         [MainFormOpenReport] = "Open last HTML report",
         [MainFormCancelUpdate] = "Cancel running update",
@@ -456,6 +462,9 @@ public static class AppStrings
         [MainFormRowSpotify] = "Spotify",
         [MainFormRowClientId] = "Client-ID",
         [MainFormRowPlaylistName] = "Playlist-Name",
+        [MainFormRowPlaylistDescription] = "Beschreibung",
+        [MainFormPlaylistDescriptionPlaceholder] = "Automatische Beschreibung",
+        [MainFormPlaylistDescriptionTooltip] = "Beschreibung der Playlist bei Spotify (bis zu 300 Zeichen). Leer lassen für den automatischen Text.",
         [MainFormRowLookbackDays] = "Rückblick (Tage)",
         [MainFormOpenReport] = "Letzten HTML-Bericht öffnen",
         [MainFormCancelUpdate] = "Laufende Aktualisierung abbrechen",

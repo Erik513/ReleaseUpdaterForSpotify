@@ -170,6 +170,7 @@ internal sealed class FakeSettingsStore : ISettingsStore
     {
         PlaylistId = settings.PlaylistId,
         PlaylistName = settings.PlaylistName,
+        PlaylistDescription = settings.PlaylistDescription,
         ReleaseLookbackDays = settings.ReleaseLookbackDays,
         CustomSpotifyClientId = settings.CustomSpotifyClientId,
         SpotifyCooldownUntilUtc = settings.SpotifyCooldownUntilUtc,

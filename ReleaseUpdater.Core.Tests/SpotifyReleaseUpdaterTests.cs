@@ -61,6 +61,33 @@ public sealed class SpotifyReleaseUpdaterTests
         Assert.Single(reportWriter.LastDuplicateTracks);
     }
 
+    // Verifies that the description the user entered is what is written to the playlist, and that an empty one gives the automatic text.
+    [Theory]
+    [InlineData("  My own text  ", "My own text")]
+    [InlineData("", "Automatically generated playlist with releases from followed artists and collaborations from the last 7 days.")]
+    [InlineData(null, "Automatically generated playlist with releases from followed artists and collaborations from the last 7 days.")]
+    public async Task RunAsync_WritesTheDescriptionOfTheUser_OrTheAutomaticOne(string? entered, string expected)
+    {
+        SpotifyArtist artist = Artist("artist-1", "Artist One");
+        FakeSpotifyGateway spotify = new();
+        FakeSettingsStore settingsStore = Settings(new ReleaseSettings
+        {
+            PlaylistId = "playlist-1",
+            PlaylistName = "Target Playlist",
+            PlaylistDescription = entered,
+            ReleaseLookbackDays = 7
+        });
+        SpotifyReleaseUpdater updater = CreateUpdater(spotify, settingsStore, new FakeReportWriter());
+
+        spotify.FollowedArtists.Add(artist);
+        spotify.AddPlaylist(new SpotifyPlaylist("playlist-1", "Target Playlist", spotify.CurrentUser.Id));
+        spotify.AlbumsByArtistId[artist.Id] = new List<SpotifyAlbum>();
+
+        await updater.RunAsync(new ProgressRecorder(), CancellationToken.None);
+
+        Assert.Equal(expected, spotify.Descriptions.Single());
+    }
+
     // Verifies that an existing playlist is cleared when no current songs are found.
     [Fact]
     public async Task RunAsync_ClearsExistingPlaylistWhenNoSongsAreFound()
@@ -583,12 +610,15 @@ public sealed class SpotifyReleaseUpdaterTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SpotifyPlaylist>>(UserPlaylists);
 
+        public List<string> Descriptions { get; } = new();
+
         public Task<string> CreatePlaylistAsync(
             string name,
             string description,
             CancellationToken cancellationToken)
         {
             CreatePlaylistCalls++;
+            Descriptions.Add(description);
             string playlistId = $"created-playlist-{CreatePlaylistCalls}";
             AddPlaylist(new SpotifyPlaylist(playlistId, name, CurrentUser.Id));
 
@@ -601,6 +631,8 @@ public sealed class SpotifyReleaseUpdaterTests
             string description,
             CancellationToken cancellationToken)
         {
+            Descriptions.Add(description);
+
             if (PlaylistsById.TryGetValue(playlistId, out SpotifyPlaylist? playlist))
             {
                 SpotifyPlaylist updatedPlaylist = playlist with { Name = name };
@@ -656,6 +688,7 @@ public sealed class SpotifyReleaseUpdaterTests
             {
                 PlaylistId = settings.PlaylistId,
                 PlaylistName = settings.PlaylistName,
+                PlaylistDescription = settings.PlaylistDescription,
                 ReleaseLookbackDays = settings.ReleaseLookbackDays,
                 CustomSpotifyClientId = settings.CustomSpotifyClientId,
                 SpotifyCooldownUntilUtc = settings.SpotifyCooldownUntilUtc,

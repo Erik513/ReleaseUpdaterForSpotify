@@ -85,6 +85,16 @@ namespace ReleaseUpdaterGui
                 PropertyIconButtonSize,
                 BtnEditPlaylistName_Click);
 
+            // Always editable (a free text, nothing that must be checked); saved a moment after the last key, like the number box.
+            txtPlaylistDescription = UIStyles.TextBoxes.CreatePrimary(
+                string.Empty,
+                AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionPlaceholder));
+            txtPlaylistDescription.MaxLength = ReleaseDefaults.MaxPlaylistDescriptionLength;
+            txtPlaylistDescription.TextChanged += SettingsControl_Changed;
+            spotifyAuthToolTip.SetToolTip(
+                txtPlaylistDescription,
+                AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionTooltip));
+
             numLookbackDays = UIStyles.NumericUpDowns.CreatePrimary(
                 ReleaseDefaults.MinReleaseLookbackDays,
                 ReleaseDefaults.MaxReleaseLookbackDays,
@@ -228,6 +238,10 @@ namespace ReleaseUpdaterGui
                 PropertyRowHeight,
                 PropertyColumn.Percent(txtPlaylistName, 100),
                 PropertyColumn.Absolute(btnEditPlaylistName.Host, PropertyIconColumnWidth));
+            propertyTable.AddRow(
+                () => AppLocalization.Get(AppStrings.MainFormRowPlaylistDescription),
+                PropertyRowHeight,
+                PropertyColumn.Percent(txtPlaylistDescription, 100));
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowLookbackDays),
                 PropertyRowHeight,

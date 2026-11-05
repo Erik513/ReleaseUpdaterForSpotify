@@ -417,7 +417,7 @@ public sealed class SpotifyReleaseUpdater
         CancellationToken cancellationToken)
     {
         SpotifyUser currentUser = await spotify.GetCurrentUserAsync(cancellationToken);
-        string description = CreatePlaylistDescription(settings.ReleaseLookbackDays);
+        string description = CreatePlaylistDescription(settings);
         IReadOnlyList<SpotifyPlaylist> userPlaylists =
             await spotify.GetCurrentUserPlaylistsAsync(cancellationToken);
 
@@ -541,9 +541,12 @@ public sealed class SpotifyReleaseUpdater
         return (uniqueTracks, duplicates);
     }
 
-    private static string CreatePlaylistDescription(int releaseLookbackDays) =>
-        "Automatically generated playlist with releases from followed artists " +
-        $"and collaborations from the last {releaseLookbackDays} days.";
+    // The text of the user when there is one, else the automatic one.
+    private static string CreatePlaylistDescription(ReleaseSettings settings) =>
+        !string.IsNullOrWhiteSpace(settings.PlaylistDescription)
+            ? settings.PlaylistDescription.Trim()
+            : "Automatically generated playlist with releases from followed artists " +
+                $"and collaborations from the last {settings.ReleaseLookbackDays} days.";
 
     private static string JoinArtistNames(IReadOnlyList<SpotifyArtist> artists) =>
         string.Join(", ", artists.Select(artist => artist.Name));

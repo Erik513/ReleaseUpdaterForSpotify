@@ -64,6 +64,7 @@ namespace ReleaseUpdaterGui
         private TextBox txtPlaylistName = null!;
         private SymbolToggle btnEditPlaylistName = null!;
         private NumericUpDown numLookbackDays = null!;
+        private TextBox txtPlaylistDescription = null!;
         private TextBox txtSpotifyClientId = null!;
         private SymbolToggle btnEditSpotifyClientId = null!;
 
@@ -192,6 +193,7 @@ namespace ReleaseUpdaterGui
             {
                 PlaylistId = currentPlaylistId,
                 PlaylistName = PlaylistName,
+                PlaylistDescription = txtPlaylistDescription.Text,
                 ReleaseLookbackDays = ReleaseLookbackDays,
                 CustomSpotifyClientId = CustomSpotifyClientId,
                 Language = AppLocalization.Language == AppLanguage.German ? "German" : "English"
@@ -208,6 +210,7 @@ namespace ReleaseUpdaterGui
                 currentPlaylistId = normalized.PlaylistId;
 
                 txtPlaylistName.Text = normalized.PlaylistName;
+                txtPlaylistDescription.Text = normalized.PlaylistDescription ?? string.Empty;
                 numLookbackDays.Value = ClampForControl(
                     normalized.ReleaseLookbackDays,
                     numLookbackDays);
@@ -575,6 +578,10 @@ namespace ReleaseUpdaterGui
         {
             Text = AppLocalization.Get(AppStrings.MainFormWindowTitle);
 
+            txtPlaylistDescription.PlaceholderText = AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionPlaceholder);
+            spotifyAuthToolTip?.SetToolTip(
+                txtPlaylistDescription,
+                AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionTooltip));
             txtSpotifyClientId.PlaceholderText = AppLocalization.Get(AppStrings.MainFormClientIdPlaceholder);
             spotifyAuthToolTip?.SetToolTip(
                 txtSpotifyClientId,

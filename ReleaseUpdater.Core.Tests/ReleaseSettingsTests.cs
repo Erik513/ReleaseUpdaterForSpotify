@@ -24,6 +24,19 @@ public sealed class ReleaseSettingsTests
         Assert.Equal(string.Empty, settings.EffectiveSpotifyClientId);
     }
 
+    // Verifies that the playlist description is trimmed, an empty one is "not set", and a long one is cut to what Spotify takes.
+    [Fact]
+    public void Normalize_CleansUpThePlaylistDescription()
+    {
+        ReleaseSettings trimmed = new() { PlaylistDescription = "  Hello  " };
+        ReleaseSettings empty = new() { PlaylistDescription = "   " };
+        ReleaseSettings tooLong = new() { PlaylistDescription = new string('x', ReleaseDefaults.MaxPlaylistDescriptionLength + 50) };
+
+        Assert.Equal("Hello", trimmed.Normalize().PlaylistDescription);
+        Assert.Null(empty.Normalize().PlaylistDescription);
+        Assert.Equal(ReleaseDefaults.MaxPlaylistDescriptionLength, tooLong.Normalize().PlaylistDescription!.Length);
+    }
+
     // Verifies that empty settings fall back to safe defaults.
     [Fact]
     public void Normalize_UsesDefaultPlaylistNameAndRemovesEmptyPlaylistId()

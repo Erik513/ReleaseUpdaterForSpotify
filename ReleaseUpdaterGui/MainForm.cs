@@ -535,7 +535,8 @@ namespace ReleaseUpdaterGui
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question,
                 this,
-                FormSize.Medium);
+                FormSize.Medium,
+                defaultButton: MessageBoxDefault.Button1);
 
             return result == DialogResult.Yes;
         }

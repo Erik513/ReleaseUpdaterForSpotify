@@ -1,6 +1,7 @@
 using ErikwnkCore;
 using ErikwnkWFUI;
 using ErikwnkWFUI.Forms;
+using ErikwnkWFUI.Styles;
 using ReleaseUpdater.Data;
 using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
@@ -57,12 +58,12 @@ namespace ReleaseUpdaterGui
 
         private ComboBox cmbLanguage = null!;
         private TextBox txtPlaylistName = null!;
-        private Button btnEditPlaylistName = null!;
+        private SymbolToggle btnEditPlaylistName = null!;
         private NumericUpDown numLookbackDays = null!;
         private TextBox txtSpotifyClientId = null!;
-        private Button btnEditSpotifyClientId = null!;
+        private SymbolToggle btnEditSpotifyClientId = null!;
 
-        private Button btnLogin = null!;
+        private SymbolToggle btnLogin = null!;
         private Button btnCancel = null!;
         private Button btnOpenReport = null!;
         private Button btnUpdatePlaylist = null!;
@@ -278,12 +279,7 @@ namespace ReleaseUpdaterGui
             isSpotifyAuthLocked = false;
             isSpotifySignedIn = isLoggedIn;
             btnLogin.Enabled = true;
-            SetButtonSymbol(
-                btnLogin,
-                isLoggedIn ? ButtonSymbolKind.Logout : ButtonSymbolKind.Login,
-                isLoggedIn
-                    ? AppLocalization.Get(AppStrings.MainFormSignOutAccessibleName)
-                    : AppLocalization.Get(AppStrings.MainFormSignInAccessibleName));
+            btnLogin.ShowSecond(isLoggedIn);
             SetSpotifyAuthToolTip(
                 isLoggedIn
                     ? AppLocalization.Get(AppStrings.MainFormSignOutTooltip)
@@ -455,10 +451,7 @@ namespace ReleaseUpdaterGui
         {
             txtPlaylistName.ReadOnly = false;
             txtPlaylistName.TabStop = true;
-            SetButtonSymbol(
-                btnEditPlaylistName,
-                ButtonSymbolKind.Check,
-                AppLocalization.Get(AppStrings.MainFormSavePlaylistName));
+            btnEditPlaylistName.ShowSecond(true);
             btnUpdatePlaylist.Enabled = false;
 
             txtPlaylistName.Focus();
@@ -469,10 +462,7 @@ namespace ReleaseUpdaterGui
         {
             txtPlaylistName.ReadOnly = true;
             txtPlaylistName.TabStop = false;
-            SetButtonSymbol(
-                btnEditPlaylistName,
-                ButtonSymbolKind.Edit,
-                AppLocalization.Get(AppStrings.EditPlaylistName));
+            btnEditPlaylistName.ShowSecond(false);
 
             txtPlaylistName.SelectionLength = 0;
             btnEditPlaylistName.Focus();
@@ -488,10 +478,7 @@ namespace ReleaseUpdaterGui
         {
             txtSpotifyClientId.ReadOnly = false;
             txtSpotifyClientId.TabStop = true;
-            SetButtonSymbol(
-                btnEditSpotifyClientId,
-                ButtonSymbolKind.Check,
-                AppLocalization.Get(AppStrings.MainFormSaveSpotifyClientId));
+            btnEditSpotifyClientId.ShowSecond(true);
             btnUpdatePlaylist.Enabled = false;
 
             txtSpotifyClientId.Focus();
@@ -502,10 +489,7 @@ namespace ReleaseUpdaterGui
         {
             txtSpotifyClientId.ReadOnly = true;
             txtSpotifyClientId.TabStop = false;
-            SetButtonSymbol(
-                btnEditSpotifyClientId,
-                ButtonSymbolKind.Edit,
-                AppLocalization.Get(AppStrings.EditSpotifyClientId));
+            btnEditSpotifyClientId.ShowSecond(false);
 
             txtSpotifyClientId.SelectionLength = 0;
             btnEditSpotifyClientId.Focus();
@@ -578,34 +562,28 @@ namespace ReleaseUpdaterGui
 
             spotifyAuthToolTip = UIStyles.ToolTips.CreateToolTip();
 
-            btnLogin = UIStyles.Buttons.CreateStandard(
-                string.Empty,
-                string.Empty,
+            btnLogin = new SymbolToggle(
+                UIStyles.Buttons.Presets.Login,
+                UIStyles.Buttons.Presets.Logout,
+                AppLocalization.Get(AppStrings.MainFormSignInTooltip),
+                AppLocalization.Get(AppStrings.MainFormSignOutTooltip),
                 PropertyIconButtonSize,
-                true);
-            SetButtonSymbol(
-                btnLogin,
-                ButtonSymbolKind.Login,
-                AppLocalization.Get(AppStrings.MainFormSignInAccessibleName));
-            SetSpotifyAuthToolTip(
-                AppLocalization.Get(AppStrings.MainFormSignInTooltip));
-            btnLogin.Click += BtnLogin_Click;
+                BtnLogin_Click);
+            btnLogin.SetAccessibleNames(
+                AppLocalization.Get(AppStrings.MainFormSignInAccessibleName),
+                AppLocalization.Get(AppStrings.MainFormSignOutAccessibleName));
 
-            btnClientIdStatus = UIStyles.Buttons.CreateStandard(
+            btnClientIdStatus = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Info,
                 string.Empty,
-                string.Empty,
-                PropertyIconButtonSize,
-                true);
-            SetButtonSymbol(
-                btnClientIdStatus,
-                ButtonSymbolKind.Status,
-                AppLocalization.Get(AppStrings.MainFormClientIdStatusAccessibleName));
+                PropertyIconButtonSize);
+            btnClientIdStatus.AccessibleName = AppLocalization.Get(AppStrings.MainFormClientIdStatusAccessibleName);
             SetClientIdStatus(
                 AppLocalization.Get(AppStrings.MainFormClientIdStatusInitial),
                 ClientIdStatusKind.Info);
             btnClientIdStatus.Click += BtnClientIdHelp_Click;
 
-            cmbLanguage = UIStyles.ComboBoxes.CreateStandard();
+            cmbLanguage = UIStyles.ComboBoxes.CreatePrimary();
             cmbLanguage.Items.Add(new LanguageOption("English", "English"));
             cmbLanguage.Items.Add(new LanguageOption("German", "Deutsch"));
             cmbLanguage.SelectedIndex = 0;
@@ -617,18 +595,15 @@ namespace ReleaseUpdaterGui
             txtPlaylistName.ReadOnly = true;
             txtPlaylistName.TabStop = false;
 
-            btnEditPlaylistName = UIStyles.Buttons.CreateStandard(
-                string.Empty,
+            btnEditPlaylistName = new SymbolToggle(
+                UIStyles.Buttons.Presets.Edit,
+                UIStyles.Buttons.Presets.Save,
                 AppLocalization.Get(AppStrings.EditPlaylistName),
+                AppLocalization.Get(AppStrings.MainFormSavePlaylistName),
                 PropertyIconButtonSize,
-                true);
-            SetButtonSymbol(
-                btnEditPlaylistName,
-                ButtonSymbolKind.Edit,
-                AppLocalization.Get(AppStrings.EditPlaylistName));
-            btnEditPlaylistName.Click += BtnEditPlaylistName_Click;
+                BtnEditPlaylistName_Click);
 
-            numLookbackDays = UIStyles.NumericUpDowns.CreateStandard(
+            numLookbackDays = UIStyles.NumericUpDowns.CreatePrimary(
                 ReleaseDefaults.MinReleaseLookbackDays,
                 ReleaseDefaults.MaxReleaseLookbackDays,
                 1,
@@ -645,16 +620,13 @@ namespace ReleaseUpdaterGui
                 txtSpotifyClientId,
                 AppLocalization.Get(AppStrings.MainFormClientIdTooltip));
 
-            btnEditSpotifyClientId = UIStyles.Buttons.CreateStandard(
-                string.Empty,
+            btnEditSpotifyClientId = new SymbolToggle(
+                UIStyles.Buttons.Presets.Edit,
+                UIStyles.Buttons.Presets.Save,
                 AppLocalization.Get(AppStrings.EditSpotifyClientId),
+                AppLocalization.Get(AppStrings.MainFormSaveSpotifyClientId),
                 PropertyIconButtonSize,
-                true);
-            SetButtonSymbol(
-                btnEditSpotifyClientId,
-                ButtonSymbolKind.Edit,
-                AppLocalization.Get(AppStrings.EditSpotifyClientId));
-            btnEditSpotifyClientId.Click += BtnEditSpotifyClientId_Click;
+                BtnEditSpotifyClientId_Click);
 
             BuildPropertyTableRows();
 
@@ -684,48 +656,33 @@ namespace ReleaseUpdaterGui
             // the panel behind it paints in a single pass instead.
             lblElapsedTime.BackColor = UIStyles.Colors.BackgroundLight;
 
-            btnUpdatePlaylist = UIStyles.Buttons.CreateGreen(
+            btnUpdatePlaylist = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Play,
                 string.Empty,
-                AppLocalization.Get(AppStrings.UpdatePlaylist),
                 ActionIconButtonSize);
-            SetButtonSymbol(
-                btnUpdatePlaylist,
-                ButtonSymbolKind.Play,
-                AppLocalization.Get(AppStrings.UpdatePlaylist));
+            btnUpdatePlaylist.AccessibleName = AppLocalization.Get(AppStrings.UpdatePlaylist);
             btnUpdatePlaylist.Click += BtnUpdatePlaylist_Click;
             spotifyAuthToolTip.SetToolTip(
                 btnUpdatePlaylist,
                 AppLocalization.Get(AppStrings.UpdatePlaylist));
 
-            btnOpenReport = UIStyles.Buttons.CreateStandard(
-                string.Empty,
+            btnOpenReport = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Document,
                 AppLocalization.Get(AppStrings.MainFormOpenReport),
                 ActionIconButtonSize);
-            SetButtonSymbol(
-                btnOpenReport,
-                ButtonSymbolKind.Report,
-                AppLocalization.Get(AppStrings.MainFormOpenReport));
             btnOpenReport.Click += BtnOpenReport_Click;
 
-            btnCancel = UIStyles.Buttons.CreateRed(
-                string.Empty,
+            btnCancel = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Stop,
                 AppLocalization.Get(AppStrings.MainFormCancelUpdate),
                 ActionIconButtonSize);
-            SetButtonSymbol(
-                btnCancel,
-                ButtonSymbolKind.Stop,
-                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
             btnCancel.Enabled = false;
             btnCancel.Click += BtnCancel_Click;
 
-            btnUnreleasedSongs = UIStyles.Buttons.CreateStandard(
-                string.Empty,
+            btnUnreleasedSongs = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Search,
                 AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs),
                 ActionIconButtonSize);
-            SetButtonSymbol(
-                btnUnreleasedSongs,
-                ButtonSymbolKind.Search,
-                AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
             btnUnreleasedSongs.Click += BtnUnreleasedSongs_Click;
 
             buttonPanel.Controls.Add(btnUpdatePlaylist);
@@ -736,7 +693,7 @@ namespace ReleaseUpdaterGui
             bottomPanel.Controls.Add(lblElapsedTime, 0, 0);
             bottomPanel.Controls.Add(buttonPanel, 1, 0);
 
-            txtOutput = UIStyles.TextBoxes.CreateStandard();
+            txtOutput = UIStyles.TextBoxes.CreatePrimary();
             txtOutput.Dock = DockStyle.Fill;
             txtOutput.Multiline = true;
             txtOutput.ScrollBars = ScrollBars.Vertical;
@@ -778,17 +735,17 @@ namespace ReleaseUpdaterGui
                 () => AppLocalization.Get(AppStrings.MainFormRowSpotify),
                 PropertyRowHeight,
                 PropertyColumn.Percent(lblLoginStatus, 100),
-                PropertyColumn.Absolute(btnLogin, PropertyIconColumnWidth));
+                PropertyColumn.Absolute(btnLogin.Host, PropertyIconColumnWidth));
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowClientId),
                 PropertyRowHeight,
                 PropertyColumn.Percent(txtSpotifyClientId, 100),
-                PropertyColumn.Absolute(btnEditSpotifyClientId, PropertyIconColumnWidth));
+                PropertyColumn.Absolute(btnEditSpotifyClientId.Host, PropertyIconColumnWidth));
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowPlaylistName),
                 PropertyRowHeight,
                 PropertyColumn.Percent(txtPlaylistName, 100),
-                PropertyColumn.Absolute(btnEditPlaylistName, PropertyIconColumnWidth));
+                PropertyColumn.Absolute(btnEditPlaylistName.Host, PropertyIconColumnWidth));
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowLookbackDays),
                 PropertyRowHeight,
@@ -812,44 +769,23 @@ namespace ReleaseUpdaterGui
                 txtSpotifyClientId,
                 AppLocalization.Get(AppStrings.MainFormClientIdTooltip));
 
-            SetButtonSymbol(
-                btnEditPlaylistName,
-                txtPlaylistName.ReadOnly ? ButtonSymbolKind.Edit : ButtonSymbolKind.Check,
-                txtPlaylistName.ReadOnly
-                    ? AppLocalization.Get(AppStrings.EditPlaylistName)
-                    : AppLocalization.Get(AppStrings.MainFormSavePlaylistName));
-            SetButtonSymbol(
-                btnEditSpotifyClientId,
-                txtSpotifyClientId.ReadOnly ? ButtonSymbolKind.Edit : ButtonSymbolKind.Check,
-                txtSpotifyClientId.ReadOnly
-                    ? AppLocalization.Get(AppStrings.EditSpotifyClientId)
-                    : AppLocalization.Get(AppStrings.MainFormSaveSpotifyClientId));
+            btnLogin.SetTooltips(
+                AppLocalization.Get(AppStrings.MainFormSignInTooltip),
+                AppLocalization.Get(AppStrings.MainFormSignOutTooltip));
+            btnLogin.SetAccessibleNames(
+                AppLocalization.Get(AppStrings.MainFormSignInAccessibleName),
+                AppLocalization.Get(AppStrings.MainFormSignOutAccessibleName));
+            btnEditPlaylistName.SetTooltips(
+                AppLocalization.Get(AppStrings.EditPlaylistName),
+                AppLocalization.Get(AppStrings.MainFormSavePlaylistName));
+            btnEditSpotifyClientId.SetTooltips(
+                AppLocalization.Get(AppStrings.EditSpotifyClientId),
+                AppLocalization.Get(AppStrings.MainFormSaveSpotifyClientId));
 
-            SetButtonSymbol(
-                btnUpdatePlaylist,
-                ButtonSymbolKind.Play,
-                AppLocalization.Get(AppStrings.UpdatePlaylist));
-            SetButtonSymbol(
-                btnOpenReport,
-                ButtonSymbolKind.Report,
-                AppLocalization.Get(AppStrings.MainFormOpenReport));
-            spotifyAuthToolTip?.SetToolTip(
-                btnOpenReport,
-                AppLocalization.Get(AppStrings.MainFormOpenReport));
-            SetButtonSymbol(
-                btnCancel,
-                ButtonSymbolKind.Stop,
-                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
-            spotifyAuthToolTip?.SetToolTip(
-                btnCancel,
-                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
-            SetButtonSymbol(
-                btnUnreleasedSongs,
-                ButtonSymbolKind.Search,
-                AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
-            spotifyAuthToolTip?.SetToolTip(
-                btnUnreleasedSongs,
-                AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
+            UIStyles.Buttons.UpdateTooltip(btnOpenReport, AppLocalization.Get(AppStrings.MainFormOpenReport));
+            UIStyles.Buttons.UpdateTooltip(btnCancel, AppLocalization.Get(AppStrings.MainFormCancelUpdate));
+            UIStyles.Buttons.UpdateTooltip(btnUnreleasedSongs, AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
+            spotifyAuthToolTip?.SetToolTip(btnUpdatePlaylist, AppLocalization.Get(AppStrings.UpdatePlaylist));
 
             _ = controller.RefreshLocalizedUiAsync();
         }
@@ -1028,27 +964,9 @@ namespace ReleaseUpdaterGui
             }
         }
 
-        private static void SetButtonSymbol(
-            Button button,
-            ButtonSymbolKind kind,
-            string accessibleName)
-        {
-            Image? previousImage = button.Image;
-
-            button.Image = null;
-            button.Text = GetButtonSymbol(kind);
-            button.TextAlign = ContentAlignment.MiddleCenter;
-            button.TextImageRelation = TextImageRelation.TextBeforeImage;
-            button.Font = new Font(button.Font.FontFamily, 10.5f, FontStyle.Regular);
-            button.Padding = Padding.Empty;
-            button.AccessibleName = accessibleName;
-
-            previousImage?.Dispose();
-        }
-
         private void SetSpotifyAuthToolTip(string text)
         {
-            spotifyAuthToolTip?.SetToolTip(btnLogin, text);
+            btnLogin.SetTooltips(text, text);
         }
 
         private bool IsSettingEditActive()
@@ -1074,23 +992,6 @@ namespace ReleaseUpdaterGui
             }
         }
 
-        private static string GetButtonSymbol(ButtonSymbolKind kind)
-        {
-            return kind switch
-            {
-                ButtonSymbolKind.Play => "\u25B6",
-                ButtonSymbolKind.Stop => "\u25A0",
-                ButtonSymbolKind.Report => "\U0001F4C4",
-                ButtonSymbolKind.Login => "\u21AA",
-                ButtonSymbolKind.Logout => "\u21A9",
-                ButtonSymbolKind.Edit => "\u270E",
-                ButtonSymbolKind.Check => "\u2713",
-                ButtonSymbolKind.Status => "\u25CF",
-                ButtonSymbolKind.Search => "\U0001F50D",
-                _ => string.Empty
-            };
-        }
-
         private static Color GetClientIdStatusColor(
             ClientIdStatusKind statusKind)
         {
@@ -1104,17 +1005,80 @@ namespace ReleaseUpdaterGui
             };
         }
 
-        private enum ButtonSymbolKind
+        // A library symbol button cannot change its preset once made, so a button
+        // that switches between two looks (sign in / sign out, edit / save) is a
+        // pair of preset buttons in one host, of which one is visible.
+        private sealed class SymbolToggle
         {
-            Play,
-            Stop,
-            Report,
-            Login,
-            Logout,
-            Edit,
-            Check,
-            Status,
-            Search
+            private readonly Button first;
+            private readonly Button second;
+
+            public SymbolToggle(
+                UIButtonPreset firstPreset,
+                UIButtonPreset secondPreset,
+                string firstTooltip,
+                string secondTooltip,
+                Size size,
+                EventHandler click)
+            {
+                // The presets bring their own colors (blue); the app's buttons carry the accent.
+                first = UIStyles.Buttons.CreateSymbol(
+                    firstPreset.WithColors(UIStyles.Colors.Sets.Primary), firstTooltip, size);
+                second = UIStyles.Buttons.CreateSymbol(
+                    secondPreset.WithColors(UIStyles.Colors.Sets.Primary), secondTooltip, size);
+                first.Dock = DockStyle.Fill;
+                second.Dock = DockStyle.Fill;
+                first.Margin = Padding.Empty;
+                second.Margin = Padding.Empty;
+                first.Click += click;
+                second.Click += click;
+
+                Host = UIStyles.Panels.CreateTransparent();
+                Host.Size = size;
+                Host.Controls.Add(first);
+                Host.Controls.Add(second);
+                ShowSecond(false);
+            }
+
+            public Control Host { get; }
+
+            private Button Active
+            {
+                get { return second.Visible ? second : first; }
+            }
+
+            public bool Enabled
+            {
+                get { return Active.Enabled; }
+                set
+                {
+                    first.Enabled = value;
+                    second.Enabled = value;
+                }
+            }
+
+            public void ShowSecond(bool useSecond)
+            {
+                second.Visible = useSecond;
+                first.Visible = !useSecond;
+            }
+
+            public void SetTooltips(string firstTooltip, string secondTooltip)
+            {
+                UIStyles.Buttons.UpdateTooltip(first, firstTooltip);
+                UIStyles.Buttons.UpdateTooltip(second, secondTooltip);
+            }
+
+            public void SetAccessibleNames(string firstName, string secondName)
+            {
+                first.AccessibleName = firstName;
+                second.AccessibleName = secondName;
+            }
+
+            public void Focus()
+            {
+                Active.Focus();
+            }
         }
 
         // Value is the stable, persisted setting ("English"/"German", matching

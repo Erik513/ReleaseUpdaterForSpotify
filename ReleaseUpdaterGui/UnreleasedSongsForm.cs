@@ -223,25 +223,22 @@ namespace ReleaseUpdaterGui
             buttonPanel.FlowDirection = FlowDirection.RightToLeft;
             buttonPanel.Padding = new Padding(0, 8, 0, 0);
 
-            btnStart = UIStyles.Buttons.CreateGreen(
-                string.Empty,
+            btnStart = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Play,
                 AppLocalization.Get(AppStrings.UnreleasedStart),
                 ActionIconButtonSize);
-            SetButtonSymbol(btnStart, "▶", AppLocalization.Get(AppStrings.UnreleasedStart));
             btnStart.Click += BtnStart_Click;
 
-            btnOpenReport = UIStyles.Buttons.CreateStandard(
-                string.Empty,
+            btnOpenReport = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Document,
                 AppLocalization.Get(AppStrings.UnreleasedOpenReport),
                 ActionIconButtonSize);
-            SetButtonSymbol(btnOpenReport, "\U0001F4C4", AppLocalization.Get(AppStrings.UnreleasedOpenReport));
             btnOpenReport.Click += BtnOpenReport_Click;
 
-            btnCancel = UIStyles.Buttons.CreateRed(
-                string.Empty,
+            btnCancel = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Stop,
                 AppLocalization.Get(AppStrings.UnreleasedCancel),
                 ActionIconButtonSize);
-            SetButtonSymbol(btnCancel, "■", AppLocalization.Get(AppStrings.UnreleasedCancel));
             btnCancel.Enabled = false;
             btnCancel.Click += BtnCancel_Click;
 
@@ -289,15 +286,6 @@ namespace ReleaseUpdaterGui
 
             dataGridView.Columns[0].Width = Math.Max(1, firstColumnWidth);
             dataGridView.Columns[1].Width = Math.Max(1, secondColumnWidth);
-        }
-
-        private static void SetButtonSymbol(Button button, string symbol, string accessibleName)
-        {
-            button.Text = symbol;
-            button.TextAlign = ContentAlignment.MiddleCenter;
-            button.Font = new Font(button.Font.FontFamily, 10.5f, FontStyle.Regular);
-            button.Padding = Padding.Empty;
-            button.AccessibleName = accessibleName;
         }
 
         private async void BtnStart_Click(object? sender, EventArgs e)

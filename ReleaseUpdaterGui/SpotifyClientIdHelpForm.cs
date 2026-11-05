@@ -45,7 +45,7 @@ namespace ReleaseUpdaterGui
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
 
-            instructionsTextBox = UIStyles.TextBoxes.CreateStandard(
+            instructionsTextBox = UIStyles.TextBoxes.CreatePrimary(
                 CreateInstructionText(),
                 string.Empty);
             instructionsTextBox.Dock = DockStyle.Fill;

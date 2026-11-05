@@ -430,6 +430,9 @@ internal sealed class LoopbackCallbackListener : IDisposable
         listener.Start();
     }
 
+    /// <summary>The port actually listened on (differs from the requested one when that was 0).</summary>
+    public int Port => ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+
     public async Task<AuthorizationCallback> WaitForCallbackAsync(
         string expectedState,
         CancellationToken cancellationToken)

@@ -64,15 +64,25 @@ namespace ReleaseUpdaterGui
                     progress,
                     runCancellation.Token);
 
-                form.ShowCompleted(result);
+                if (!IsShuttingDown)
+                {
+                    form.ShowCompleted(result);
+                }
             }
             catch (OperationCanceledException)
             {
-                form.ShowCancelled();
+                if (!IsShuttingDown)
+                {
+                    form.ShowCancelled();
+                }
             }
             catch (Exception ex)
             {
-                form.ShowRunFailed(ex.Message);
+                // (A message box owned by a window that is already closed would throw.)
+                if (!IsShuttingDown)
+                {
+                    form.ShowRunFailed(ex.Message);
+                }
             }
             finally
             {
@@ -80,6 +90,8 @@ namespace ReleaseUpdaterGui
                 runCancellation = null;
             }
         }
+
+        private bool IsShuttingDown => form.IsClosing || form.IsDisposed;
 
         public void CancelSearch()
         {

@@ -109,6 +109,9 @@ namespace ReleaseUpdaterGui
             get { return isSpotifySignedIn; }
         }
 
+        /// <summary>True once the window has agreed to close (after the "close during a run?" question).</summary>
+        public bool IsClosing { get; private set; }
+
         public MainForm() : base(
             FormOptions.CreateStandard(
                 title: AppLocalization.Get(AppStrings.MainFormWindowTitle),
@@ -299,6 +302,12 @@ namespace ReleaseUpdaterGui
 
         public void ApplyProgress(ReleaseProgress progress)
         {
+            // (Progress<T> posts to the UI thread, so a report can arrive after the window closed.)
+            if (IsClosing || IsDisposed)
+            {
+                return;
+            }
+
             if (!string.IsNullOrWhiteSpace(progress.Status))
             {
                 lblStatus.Text = progress.Status;
@@ -890,6 +899,9 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
+            // From here on a run that is still ending must not touch this window or the
+            // HTTP clients below (see MainFormController.IsShuttingDown).
+            IsClosing = true;
             controller.CancelUpdate();
             AppLocalization.LanguageChanged -= AppLocalization_LanguageChanged;
             spotifyAuthToolTip?.Dispose();

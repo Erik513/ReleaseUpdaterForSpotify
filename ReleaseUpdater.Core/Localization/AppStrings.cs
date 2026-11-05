@@ -105,6 +105,7 @@ public static class AppStrings
     public const string ControllerClientIdStatusConfigured = "Controller.ClientIdStatusConfigured";
     public const string ControllerConfirmStartMessage = "Controller.ConfirmStartMessage";
     public const string ControllerSettingsSaved = "Controller.SettingsSaved";
+    public const string ControllerSettingsSaveFailedFormat = "Controller.SettingsSaveFailedFormat";
     public const string ControllerInvalidPlaylistNameTitle = "Controller.InvalidPlaylistNameTitle";
 
     // SpotifyClientIdHelpForm
@@ -169,6 +170,7 @@ public static class AppStrings
     public const string UnreleasedStatusSearchingFormat = "Unreleased.StatusSearchingFormat";
     public const string UnreleasedStatusDoneFormat = "Unreleased.StatusDoneFormat";
     public const string UnreleasedNoSongsMessage = "Unreleased.NoSongsMessage";
+    public const string UnreleasedSaveFailedFormat = "Unreleased.SaveFailedFormat";
 
     private static bool isRegistered;
 
@@ -279,6 +281,7 @@ public static class AppStrings
         [ControllerClientIdStatusConfigured] = "Spotify Client ID configured. Click for setup help.",
         [ControllerConfirmStartMessage] = "The playlist will be replaced with the found songs.\n\nThis can take a few minutes depending on how many artists you follow.\n\nContinue?",
         [ControllerSettingsSaved] = "Settings saved",
+        [ControllerSettingsSaveFailedFormat] = "Settings could not be saved: {0}",
         [ControllerInvalidPlaylistNameTitle] = "Invalid playlist name",
 
         [HelpFormTitle] = "Spotify Client ID",
@@ -337,6 +340,7 @@ public static class AppStrings
         [UnreleasedStatusSearchingFormat] = "Checking {0} / {1}: {2}",
         [UnreleasedStatusDoneFormat] = "Done. {0} of {1} songs found on Spotify.",
         [UnreleasedNoSongsMessage] = "Add at least one song before starting the search.",
+        [UnreleasedSaveFailedFormat] = "The song list could not be saved: {0}",
     };
 
     private static readonly Dictionary<string, string> German = new()
@@ -428,6 +432,7 @@ public static class AppStrings
         [ControllerClientIdStatusConfigured] = "Spotify Client-ID konfiguriert. Klicken für Einrichtungshilfe.",
         [ControllerConfirmStartMessage] = "Die Playlist wird durch die gefundenen Songs ersetzt.\n\nDies kann je nach Anzahl der von dir verfolgten Künstler einige Minuten dauern.\n\nFortfahren?",
         [ControllerSettingsSaved] = "Einstellungen gespeichert",
+        [ControllerSettingsSaveFailedFormat] = "Einstellungen konnten nicht gespeichert werden: {0}",
         [ControllerInvalidPlaylistNameTitle] = "Ungültiger Playlist-Name",
 
         [HelpFormTitle] = "Spotify Client-ID",
@@ -486,5 +491,6 @@ public static class AppStrings
         [UnreleasedStatusSearchingFormat] = "Prüfe {0} / {1}: {2}",
         [UnreleasedStatusDoneFormat] = "Fertig. {0} von {1} Songs auf Spotify gefunden.",
         [UnreleasedNoSongsMessage] = "Füge mindestens einen Song hinzu, bevor du die Suche startest.",
+        [UnreleasedSaveFailedFormat] = "Die Songliste konnte nicht gespeichert werden: {0}",
     };
 }

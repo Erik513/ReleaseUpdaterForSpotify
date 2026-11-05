@@ -50,8 +50,16 @@ namespace ReleaseUpdaterGui
             lblStatus.Text = status;
         }
 
+        /// <summary>True once the window is closing; a search that is still ending must leave it alone.</summary>
+        public bool IsClosing { get; private set; }
+
         public void ApplyProgress(ReleaseProgress progress)
         {
+            if (IsClosing || IsDisposed)
+            {
+                return;
+            }
+
             if (progress.Current.HasValue && progress.Total.HasValue)
             {
                 progressBar.Value = Math.Min(100, Math.Max(0, progress.Percent ?? 0));
@@ -305,6 +313,8 @@ namespace ReleaseUpdaterGui
 
         private void UnreleasedSongsForm_FormClosing(object? sender, CancelEventArgs e)
         {
+            IsClosing = true;
+
             if (controller.IsRunInProgress)
             {
                 controller.CancelSearch();
@@ -317,7 +327,17 @@ namespace ReleaseUpdaterGui
                 .Where(song => song.Title.Length > 0 || song.Artist.Length > 0)
                 .ToList();
 
-            controller.SaveSongs(songsToSave);
+            try
+            {
+                controller.SaveSongs(songsToSave);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The window still closes, but the user is told the list was not kept.
+                ShowError(
+                    AppLocalization.Get(AppStrings.UnreleasedSaveFailedFormat, ex.Message),
+                    AppLocalization.Get(AppStrings.UnreleasedFormTitle));
+            }
         }
 
         private sealed class TrackedSongRow

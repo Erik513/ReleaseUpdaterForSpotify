@@ -150,10 +150,18 @@ namespace ReleaseUpdaterGui
                     progress,
                     runCancellation.Token);
 
-                form.ShowCompleted(result);
+                if (!IsShuttingDown)
+                {
+                    form.ShowCompleted(result);
+                }
             }
             catch (SpotifyRateLimitException ex)
             {
+                if (IsShuttingDown)
+                {
+                    return;
+                }
+
                 if (IsLogicTestModeEnabled())
                 {
                     form.ShowRunFailed(
@@ -166,7 +174,19 @@ namespace ReleaseUpdaterGui
                     settings,
                     DateTimeOffset.UtcNow,
                     ex.RetryAfter);
-                settingsStore.Save(settings);
+
+                try
+                {
+                    settingsStore.Save(settings);
+                }
+                catch (Exception saveException) when (IsFileAccessException(saveException))
+                {
+                    // The cooldown is still shown below; it just will not survive a restart.
+                    form.AppendOutput(AppLocalization.Get(
+                        AppStrings.ControllerSettingsSaveFailedFormat,
+                        saveException.Message));
+                }
+
                 form.SetSettings(settings);
 
                 string message = CreateCooldownMessage(settings);
@@ -174,21 +194,38 @@ namespace ReleaseUpdaterGui
             }
             catch (OperationCanceledException)
             {
-                form.ShowCancelled();
+                if (!IsShuttingDown)
+                {
+                    form.ShowCancelled();
+                }
             }
             catch (Exception ex)
             {
-                form.ShowRunFailed(ex.Message);
+                if (!IsShuttingDown)
+                {
+                    form.ShowRunFailed(ex.Message);
+                }
             }
             finally
             {
                 runCancellation?.Dispose();
                 runCancellation = null;
-                form.StopElapsedTimer();
-                await RefreshLoginStatusAsync();
-                ApplyRunAvailability(updateStatus: false);
+
+                // When the window is closing, its controls and HTTP clients are being
+                // torn down - touching them (or the network) here would only fail.
+                if (!IsShuttingDown)
+                {
+                    form.StopElapsedTimer();
+                    await RefreshLoginStatusAsync();
+                    ApplyRunAvailability(updateStatus: false);
+                }
             }
         }
+
+        private bool IsShuttingDown => form.IsClosing || form.IsDisposed;
+
+        private static bool IsFileAccessException(Exception exception) =>
+            exception is IOException or UnauthorizedAccessException;
 
         public bool IsRunInProgress => runCancellation is not null;
 
@@ -200,6 +237,12 @@ namespace ReleaseUpdaterGui
             }
 
             runCancellation?.Cancel();
+
+            if (IsShuttingDown)
+            {
+                return;
+            }
+
             form.SetStatus(AppLocalization.Get(AppStrings.ControllerCancelling));
             ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastCancelling), form);
         }
@@ -367,7 +410,27 @@ namespace ReleaseUpdaterGui
             settings.SpotifyCooldownUntilUtc = savedSettings.SpotifyCooldownUntilUtc;
             settings.SpotifyCooldownClientId = savedSettings.SpotifyCooldownClientId;
 
-            settingsStore.Save(settings);
+            try
+            {
+                settingsStore.Save(settings);
+            }
+            catch (Exception ex) when (IsFileAccessException(ex))
+            {
+                // A full disk or a locked file must not crash the window: say so and
+                // report "not saved" so callers do not carry on as if it had worked.
+                string message = AppLocalization.Get(
+                    AppStrings.ControllerSettingsSaveFailedFormat,
+                    ex.Message);
+                form.SetStatus(message);
+
+                if (showValidationMessage)
+                {
+                    form.ShowError(message, AppLocalization.Get(AppStrings.MainFormError));
+                }
+
+                return false;
+            }
+
             form.SetStatus(AppLocalization.Get(AppStrings.ControllerSettingsSaved));
 
             return true;

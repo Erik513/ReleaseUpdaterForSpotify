@@ -152,7 +152,7 @@ namespace ReleaseUpdaterGui
             mainPanel.Dock = DockStyle.Fill;
             mainPanel.Padding = new Padding(16);
 
-            dataGridView = UIStyles.DataGridViews.CreateStandard();
+            dataGridView = UIStyles.DataGridViews.CreatePrimary();
             dataGridView.Dock = DockStyle.Fill;
             dataGridView.AutoGenerateColumns = false;
             dataGridView.AllowUserToAddRows = true;

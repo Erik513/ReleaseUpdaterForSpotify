@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using ErikwnkCore;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Localization;
@@ -123,13 +124,14 @@ public sealed class UnreleasedSongChecker
         }
 
         string candidateTitle = Normalize(candidate.Title);
-        double titleSimilarity = SimilarityRatio(normalizedTitle, candidateTitle);
+        double titleSimilarity = TitleSimilarity(song.Title, candidate.Title);
 
         if (titleSimilarity < SimilarityThreshold)
         {
             return (MatchConfidence.None, 0);
         }
 
+        string[] artistWords = Words(song.Artist);
         bool exactArtistMatch = false;
         double bestArtistSimilarity = 0;
 
@@ -142,12 +144,14 @@ public sealed class UnreleasedSongChecker
                 continue;
             }
 
-            // A substring match (either direction) still counts as exact -
+            // A match of whole words (either direction) still counts as exact -
             // it's how "The Weeknd" matches a candidate crediting just
-            // "Weeknd", or one crediting "Weeknd, Playboi Carti".
+            // "Weeknd", or one crediting "Weeknd, Playboi Carti". Whole words,
+            // not just any substring: "Alex" must not match a credit of "Lex"
+            // or "A".
             if (candidateArtist == normalizedArtist ||
-                candidateArtist.Contains(normalizedArtist, StringComparison.Ordinal) ||
-                normalizedArtist.Contains(candidateArtist, StringComparison.Ordinal))
+                ContainsWords(Words(artist.Name), artistWords) ||
+                ContainsWords(artistWords, Words(artist.Name)))
             {
                 exactArtistMatch = true;
             }
@@ -220,10 +224,150 @@ public sealed class UnreleasedSongChecker
     }
 
     /// <summary>
+    /// How alike two titles are. Compares the whole titles, and also the
+    /// titles without their "extras" (a bracketed part, "- Remastered 2011",
+    /// "feat. X"), because Spotify's title often carries an extra that a
+    /// hand-typed one lacks, or the other way round - and takes the better
+    /// of the two. A match that is only close because of the second
+    /// comparison is never an exact title (see ScoreCandidate), so it is
+    /// still reported as "Similar", for a manual glance.
+    /// </summary>
+    private static double TitleSimilarity(string trackedTitle, string candidateTitle)
+    {
+        double whole = SimilarityRatio(Normalize(trackedTitle), Normalize(candidateTitle));
+
+        string trackedCore = Normalize(StripExtras(trackedTitle));
+        string candidateCore = Normalize(StripExtras(candidateTitle));
+
+        if (trackedCore.Length == 0 || candidateCore.Length == 0)
+        {
+            return whole;
+        }
+
+        return Math.Max(whole, SimilarityRatio(trackedCore, candidateCore));
+    }
+
+    // Removes (...) and [...] parts, a " - ..." suffix and a "feat./ft./featuring ..." tail.
+    // ("with" is deliberately not one of them: "Dancing with Myself" is a title, not a credit.)
+    private static string StripExtras(string title)
+    {
+        string result = BracketedPart.Replace(title, " ");
+
+        int dash = result.IndexOf(" - ", StringComparison.Ordinal);
+
+        if (dash >= 0)
+        {
+            result = result[..dash];
+        }
+
+        Match credit = FeatureCredit.Match(result);
+
+        if (credit.Success)
+        {
+            result = result[..credit.Index];
+        }
+
+        return result;
+    }
+
+    private static readonly Regex BracketedPart =
+        new(@"\([^)]*\)|\[[^\]]*\]", RegexOptions.Compiled);
+
+    private static readonly Regex FeatureCredit =
+        new(@"\s(feat|ft|featuring)\b\.?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // A shorter artist name only counts as "contained" in a longer one from this many
+    // letters on; a one- or two-letter credit ("A", "Ke") would match far too much.
+    private const int MinContainedNameLength = 3;
+
+    /// <summary>
+    /// Whether <paramref name="shorter"/> appears as a run of whole words
+    /// inside <paramref name="longer"/> ("weeknd" in "the weeknd"). Equal
+    /// word lists count, too short a name does not (see MinContainedNameLength)
+    /// unless the lists are equal.
+    /// </summary>
+    private static bool ContainsWords(string[] longer, string[] shorter)
+    {
+        if (shorter.Length == 0 || shorter.Length > longer.Length)
+        {
+            return false;
+        }
+
+        if (shorter.Length == longer.Length)
+        {
+            return shorter.SequenceEqual(longer, StringComparer.Ordinal);
+        }
+
+        if (string.Concat(shorter).Length < MinContainedNameLength)
+        {
+            return false;
+        }
+
+        for (int start = 0; start + shorter.Length <= longer.Length; start++)
+        {
+            bool all = true;
+
+            for (int offset = 0; offset < shorter.Length && all; offset++)
+            {
+                all = string.Equals(longer[start + offset], shorter[offset], StringComparison.Ordinal);
+            }
+
+            if (all)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The lowercased words of a name (runs of letters/digits). A name with
+    /// no letters or digits at all ("!!!") is one word, as it is.
+    /// </summary>
+    private static string[] Words(string value)
+    {
+        List<string> words = new();
+        StringBuilder current = new();
+
+        foreach (char character in value.ToLower(CultureInfo.InvariantCulture))
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                current.Append(character);
+            }
+            else if (current.Length > 0)
+            {
+                words.Add(current.ToString());
+                current.Clear();
+            }
+        }
+
+        if (current.Length > 0)
+        {
+            words.Add(current.ToString());
+        }
+
+        if (words.Count == 0)
+        {
+            string fallback = Normalize(value);
+
+            if (fallback.Length > 0)
+            {
+                words.Add(fallback);
+            }
+        }
+
+        return words.ToArray();
+    }
+
+    /// <summary>
     /// Lowercases and strips everything but letters/digits, so spelling
     /// differences in punctuation, spacing, or casing (the most common
     /// mismatch between a hand-typed title and Spotify's own) don't block
-    /// an otherwise-correct match.
+    /// an otherwise-correct match. A text with no letters or digits at all
+    /// (a band called "!!!") keeps its symbols, minus spaces, instead of
+    /// becoming empty - an empty text could never be matched.
     /// </summary>
     private static string Normalize(string value)
     {
@@ -237,6 +381,11 @@ public sealed class UnreleasedSongChecker
             }
         }
 
-        return builder.ToString();
+        if (builder.Length > 0)
+        {
+            return builder.ToString();
+        }
+
+        return string.Concat(value.Where(character => !char.IsWhiteSpace(character)));
     }
 }

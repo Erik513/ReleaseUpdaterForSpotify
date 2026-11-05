@@ -171,6 +171,200 @@ public sealed class UnreleasedSongCheckerTests
         Assert.Equal(0, result.FoundCount);
     }
 
+    // ---- artist matching: whole words, not any substring ----
+
+    // Verifies that an artist credited only by a short fragment of the tracked name is not
+    // taken for the same artist ("Lex", "A" inside "Alex") - with the same title, that
+    // used to come out as a confident match.
+    [Theory]
+    [InlineData("Alex", "Lex")]
+    [InlineData("Alex", "A")]
+    [InlineData("Alexander", "Alex")]
+    [InlineData("Lex", "Alex")]
+    [InlineData("Ke", "Ke$ha")]
+    public async Task Artist_PartOfAWord_IsNotAMatch(string trackedArtist, string spotifyArtist)
+    {
+        SongMatchResult result = await CheckAsync("Same Title", trackedArtist, "Same Title", spotifyArtist);
+
+        Assert.Equal(MatchConfidence.None, result.Confidence);
+    }
+
+    // Verifies that whole words still match in both directions, as before ("The Weeknd" and "Weeknd").
+    [Theory]
+    [InlineData("The Weeknd", "Weeknd")]
+    [InlineData("Weeknd", "The Weeknd")]
+    [InlineData("Dua Lipa", "Dua Lipa")]
+    [InlineData("AC/DC", "ACDC")]
+    [InlineData("Florence", "Florence + the Machine")]
+    public async Task Artist_WholeWords_AreAMatch(string trackedArtist, string spotifyArtist)
+    {
+        SongMatchResult result = await CheckAsync("Same Title", trackedArtist, "Same Title", spotifyArtist);
+
+        Assert.Equal(MatchConfidence.Confident, result.Confidence);
+    }
+
+    // Verifies that any one of several credited artists is enough.
+    [Fact]
+    public async Task Artist_AnyCreditedArtist_CanMatch()
+    {
+        SongMatchResult result = await CheckAsync(
+            "Same Title", "Playboi Carti", "Same Title", "The Weeknd", "Playboi Carti");
+
+        Assert.Equal(MatchConfidence.Confident, result.Confidence);
+    }
+
+    // ---- title matching: extras and symbols ----
+
+    // Verifies that an extra on Spotify's title that the tracked one lacks (or the other way
+    // round) still finds the song - as "Similar", never "Confident", so it gets a manual glance.
+    [Theory]
+    [InlineData("Song", "Song (feat. Bob)")]
+    [InlineData("Song", "Song feat. Bob")]
+    [InlineData("Song", "Song ft. Bob")]
+    [InlineData("Song", "Song - Remastered 2011")]
+    [InlineData("Song", "Song [Live]")]
+    [InlineData("Song (feat. Bob)", "Song")]
+    [InlineData("Song - Radio Edit", "Song")]
+    public async Task Title_WithAnExtra_IsFoundAsSimilar(string trackedTitle, string spotifyTitle)
+    {
+        SongMatchResult result = await CheckAsync(trackedTitle, "Artist", spotifyTitle, "Artist");
+
+        Assert.Equal(MatchConfidence.Similar, result.Confidence);
+    }
+
+    // Verifies that dropping the extras does not make different songs the same: a title that
+    // only starts like another ("Dancing with Myself" / "Dancing"), or a different bracketed
+    // word, is not a match.
+    [Theory]
+    [InlineData("Dancing with Myself", "Dancing")]
+    [InlineData("Dancing", "Dancing with Myself")]
+    [InlineData("Love", "Lovesong (Live)")]
+    [InlineData("Hello", "Goodbye (Hello)")]
+    public async Task Title_ThatOnlyStartsAlike_IsNotAMatch(string trackedTitle, string spotifyTitle)
+    {
+        SongMatchResult result = await CheckAsync(trackedTitle, "Artist", spotifyTitle, "Artist");
+
+        Assert.Equal(MatchConfidence.None, result.Confidence);
+    }
+
+    // Verifies that a title that is nothing but a bracketed part ("(Untitled)") is compared
+    // as it is and can still be found.
+    [Fact]
+    public async Task Title_ThatIsOnlyBracketed_StillMatchesItself()
+    {
+        SongMatchResult result = await CheckAsync("(Untitled)", "Artist", "(Untitled)", "Artist");
+
+        Assert.Equal(MatchConfidence.Confident, result.Confidence);
+    }
+
+    // Verifies that a title or artist made only of symbols (a band called "!!!") can be
+    // matched, instead of silently never being found.
+    [Fact]
+    public async Task SymbolOnlyNames_CanBeMatched()
+    {
+        SongMatchResult result = await CheckAsync("Me and Giuliani", "!!!", "Me and Giuliani", "!!!");
+
+        Assert.Equal(MatchConfidence.Confident, result.Confidence);
+    }
+
+    // Verifies that two different symbol-only names are still different.
+    [Fact]
+    public async Task SymbolOnlyNames_ThatDiffer_AreNotAMatch()
+    {
+        SongMatchResult result = await CheckAsync("Song", "!!!", "Song", "???");
+
+        Assert.Equal(MatchConfidence.None, result.Confidence);
+    }
+
+    // Verifies that non-Latin names match themselves (they have no spaces, so the whole name is one word).
+    [Fact]
+    public async Task NonLatinNames_AreMatched()
+    {
+        SongMatchResult result = await CheckAsync("ラムのラブソング", "大滝詩一", "ラムのラブソング", "大滝詩一");
+
+        Assert.Equal(MatchConfidence.Confident, result.Confidence);
+    }
+
+    // Verifies that a blank tracked title or artist finds nothing (and does not throw).
+    [Theory]
+    [InlineData("", "Artist")]
+    [InlineData("Song", "")]
+    [InlineData("   ", "   ")]
+    public async Task BlankTrackedSong_FindsNothing(string title, string artist)
+    {
+        SongMatchResult result = await CheckAsync(title, artist, "Song", "Artist");
+
+        Assert.Equal(MatchConfidence.None, result.Confidence);
+    }
+
+    // Verifies that, among several candidates, the exact one wins over a closer-looking-but-
+    // extended one regardless of the order Spotify returned them in.
+    [Fact]
+    public async Task BestCandidate_IsTheExactOne_InAnyOrder()
+    {
+        foreach (bool exactFirst in new[] { true, false })
+        {
+            FakeGateway gateway = new();
+            SpotifyTrackItem exact = Track("exact", "Song", "Artist");
+            SpotifyTrackItem extended = Track("extended", "Song (feat. Bob)", "Artist");
+
+            foreach (SpotifyTrackItem item in exactFirst ? new[] { exact, extended } : new[] { extended, exact })
+            {
+                gateway.AddResult("Song", "Artist", item);
+            }
+
+            FakeReportWriter writer = new();
+            await new UnreleasedSongChecker(gateway, writer).RunAsync(
+                new[] { new TrackedSong("Song", "Artist") }, null, CancellationToken.None);
+
+            Assert.Equal("exact", writer.LastResults[0].Match?.Id);
+            Assert.Equal(MatchConfidence.Confident, writer.LastResults[0].Confidence);
+        }
+    }
+
+    // Verifies that a cancelled check stops with an OperationCanceledException and writes no report.
+    [Fact]
+    public async Task RunAsync_WhenCancelled_Throws_AndWritesNoReport()
+    {
+        FakeReportWriter writer = new();
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new UnreleasedSongChecker(new FakeGateway(), writer).RunAsync(
+                new[] { new TrackedSong("Song", "Artist") }, null, cancellation.Token));
+
+        Assert.Empty(writer.LastResults);
+    }
+
+    private static SpotifyTrackItem Track(string id, string title, params string[] artists) =>
+        new(
+            id,
+            title,
+            artists.Select((name, index) => new SpotifyArtist("artist-" + index, name)).ToArray(),
+            "spotify:track:" + id,
+            "https://open.spotify.com/track/" + id,
+            null);
+
+    // One tracked song against one Spotify candidate; returns what the checker decided.
+    private static async Task<SongMatchResult> CheckAsync(
+        string trackedTitle,
+        string trackedArtist,
+        string spotifyTitle,
+        params string[] spotifyArtists)
+    {
+        FakeGateway gateway = new();
+        gateway.AddResult(trackedTitle, trackedArtist, Track("candidate", spotifyTitle, spotifyArtists));
+
+        FakeReportWriter writer = new();
+        await new UnreleasedSongChecker(gateway, writer).RunAsync(
+            new[] { new TrackedSong(trackedTitle, trackedArtist) },
+            null,
+            CancellationToken.None);
+
+        return Assert.Single(writer.LastResults);
+    }
+
     private sealed class FakeReportWriter : IUnreleasedSongsReportWriter
     {
         public string ReportPath => "memory-unreleased-report.html";

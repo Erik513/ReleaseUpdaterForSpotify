@@ -11,7 +11,7 @@ using ReleaseUpdater.Core.Models;
 
 namespace ReleaseUpdater.Spotify.Auth;
 
-public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessTokenProvider
+public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessTokenProvider, ISpotifyAccessTokenInvalidation
 {
     public const int RedirectPort = 5543;
     public const string RedirectUri = "http://127.0.0.1:5543/callback";
@@ -143,7 +143,8 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
         // stored is ever kept here (see StoreInMemory).
         SpotifyToken? cached = cachedToken;
 
-        if (cached is not null &&
+        if (!refreshRequested &&
+            cached is not null &&
             TokenBelongsToClient(cached, clientId) &&
             cached.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
         {
@@ -152,7 +153,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
         SpotifyToken token = ValidateToken(tokenStore.Load(), clientId);
 
-        if (token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
+        if (!refreshRequested && token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
         {
             StoreInMemory(token);
             return token.AccessToken;
@@ -167,7 +168,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
         {
             token = ValidateToken(tokenStore.Load(), clientId);
 
-            if (token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
+            if (!refreshRequested && token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
             {
                 StoreInMemory(token);
                 return token.AccessToken;
@@ -185,12 +186,24 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
             }
 
             StoreInMemory(refreshedToken);
+            refreshRequested = false;
             return refreshedToken.AccessToken;
         }
         finally
         {
             tokenRefreshGate.Release();
         }
+    }
+
+    // Set when Spotify refused the token (401): the next call refreshes it whatever its date says.
+    // Stays set until a refresh has worked, so a refresh that failed is tried again by the next call.
+    private volatile bool refreshRequested;
+
+    /// <summary>Tells the service that Spotify refused the token it handed out last (see <see cref="ISpotifyAccessTokenInvalidation"/>).</summary>
+    public void MarkAccessTokenRejected()
+    {
+        refreshRequested = true;
+        cachedToken = null;
     }
 
     // Set only for a token that passed ValidateToken (right client, required scopes) or was just

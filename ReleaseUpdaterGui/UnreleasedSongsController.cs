@@ -75,6 +75,15 @@ namespace ReleaseUpdaterGui
                     view.ShowCancelled();
                 }
             }
+            catch (SpotifyRateLimitException ex)
+            {
+                // The main window keeps a cooldown for this; here the user only needs to know to wait.
+                if (!IsShuttingDown)
+                {
+                    int minutes = Math.Max(1, (int)Math.Ceiling(ex.RetryAfter.TotalMinutes));
+                    view.ShowRunFailed(AppLocalization.Get(AppStrings.UnreleasedRateLimitedFormat, minutes));
+                }
+            }
             catch (Exception ex)
             {
                 // (A message box owned by a window that is already closed would throw.)

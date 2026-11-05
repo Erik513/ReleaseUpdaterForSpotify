@@ -171,6 +171,7 @@ public static class AppStrings
     public const string UnreleasedStatusDoneFormat = "Unreleased.StatusDoneFormat";
     public const string UnreleasedNoSongsMessage = "Unreleased.NoSongsMessage";
     public const string UnreleasedSaveFailedFormat = "Unreleased.SaveFailedFormat";
+    public const string UnreleasedRateLimitedFormat = "Unreleased.RateLimitedFormat";
 
     // Spotify sign-in and API errors (ReleaseUpdater.Spotify) - shown to the user as they are,
     // so they follow the language like everything else.
@@ -373,6 +374,7 @@ public static class AppStrings
         [UnreleasedStatusDoneFormat] = "Done. {0} of {1} songs found on Spotify.",
         [UnreleasedNoSongsMessage] = "Add at least one song before starting the search.",
         [UnreleasedSaveFailedFormat] = "The song list could not be saved: {0}",
+        [UnreleasedRateLimitedFormat] = "Spotify's request limit was reached. Please try again in about {0} minute(s).",
 
         [SpotifyClientIdNotSaved] = "Please enter and save your Spotify Client ID first.",
         [SpotifySignInFirst] = "Please sign in to Spotify first.",
@@ -554,6 +556,7 @@ public static class AppStrings
         [UnreleasedStatusDoneFormat] = "Fertig. {0} von {1} Songs auf Spotify gefunden.",
         [UnreleasedNoSongsMessage] = "Füge mindestens einen Song hinzu, bevor du die Suche startest.",
         [UnreleasedSaveFailedFormat] = "Die Songliste konnte nicht gespeichert werden: {0}",
+        [UnreleasedRateLimitedFormat] = "Das Anfragelimit von Spotify wurde erreicht. Bitte versuche es in etwa {0} Minute(n) erneut.",
 
         [SpotifyClientIdNotSaved] = "Bitte gib zuerst deine Spotify-Client-ID ein und speichere sie.",
         [SpotifySignInFirst] = "Bitte melde dich zuerst bei Spotify an.",

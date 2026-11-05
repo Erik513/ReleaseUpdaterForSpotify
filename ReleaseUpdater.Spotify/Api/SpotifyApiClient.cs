@@ -79,9 +79,11 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
                 artists.Add(ParseArtist(item));
             }
 
-            after = artistsElement
-                .GetProperty("cursors")
-                .TryGetProperty("after", out JsonElement afterElement)
+            // (No "cursors", or "cursors": null, is the end of the list, not a crash.)
+            after = artistsElement.TryGetProperty("cursors", out JsonElement cursorsElement) &&
+                cursorsElement.ValueKind == JsonValueKind.Object &&
+                cursorsElement.TryGetProperty("after", out JsonElement afterElement) &&
+                afterElement.ValueKind == JsonValueKind.String
                     ? afterElement.GetString()
                     : null;
 
@@ -500,6 +502,8 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         bool allowNotFound,
         CancellationToken cancellationToken)
     {
+        bool refreshedAfterUnauthorized = false;
+
         for (int attempt = 1; attempt <= MaxRetryAttempts; attempt++)
         {
             string accessToken =
@@ -521,7 +525,21 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             HttpResponseMessage response =
                 await httpClient.SendAsync(request, cancellationToken);
 
-            if (IsRetryable(response.StatusCode) && attempt < MaxRetryAttempts)
+            // A 401 usually means the access token was revoked or ran out earlier than its date
+            // said: get a freshly refreshed one and send the same request once more. (Once per
+            // request, and it does not count as a retry - a second 401 is a real "no".)
+            if (response.StatusCode == HttpStatusCode.Unauthorized &&
+                !refreshedAfterUnauthorized &&
+                accessTokenProvider is ISpotifyAccessTokenInvalidation invalidation)
+            {
+                refreshedAfterUnauthorized = true;
+                invalidation.MarkAccessTokenRejected();
+                response.Dispose();
+                attempt--;
+                continue;
+            }
+
+            if (IsRetryable(response.StatusCode, method) && attempt < MaxRetryAttempts)
             {
                 EnableRobustModeWhenNeeded(response.StatusCode, attempt);
                 TimeSpan retryDelay = GetRetryDelay(response, attempt);
@@ -594,12 +612,20 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyApiRetriesExhausted));
     }
 
-    private static bool IsRetryable(HttpStatusCode statusCode)
+    // A 429 was refused before anything happened, so any request can be sent again. A 5xx may have
+    // happened anyway: sending a POST (add tracks, create a playlist) again could add the tracks
+    // twice or make a second playlist, so a POST is not retried after one - the run fails and the
+    // user starts it again (a run replaces the playlist's contents, so that is safe).
+    private static bool IsRetryable(HttpStatusCode statusCode, HttpMethod method)
     {
+        if (statusCode == HttpStatusCode.TooManyRequests)
+        {
+            return true;
+        }
+
         int statusCodeNumber = (int)statusCode;
 
-        return statusCode == HttpStatusCode.TooManyRequests ||
-            statusCodeNumber is >= 500 and <= 599;
+        return statusCodeNumber is >= 500 and <= 599 && method != HttpMethod.Post;
     }
 
     private void EnableRobustModeWhenNeeded(HttpStatusCode statusCode, int attempt)

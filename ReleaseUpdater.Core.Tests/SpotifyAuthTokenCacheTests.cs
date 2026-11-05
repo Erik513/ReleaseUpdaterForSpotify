@@ -182,6 +182,62 @@ public sealed class SpotifyAuthTokenCacheTests
         Assert.Contains("invalid_grant", exception.Message);
     }
 
+    // Verifies that a token Spotify refused (401) is refreshed at once even though its date says it
+    // is still good, once - and the new one is then served from memory.
+    [Fact]
+    public async Task ARefusedToken_IsRefreshedAtOnce_EvenIfItsDateIsGood()
+    {
+        CountingTokenStore store = new(ValidToken("stale"));
+        RefreshHandler handler = new();
+        SpotifyAuthService service = new(store, new HttpClient(handler), new ClientId("client-1"));
+        Assert.Equal("stale", await service.GetAccessTokenAsync(CancellationToken.None));
+
+        service.MarkAccessTokenRejected();
+
+        for (int i = 0; i < 5; i++)
+        {
+            Assert.Equal("refreshed", await service.GetAccessTokenAsync(CancellationToken.None));
+        }
+
+        Assert.Equal(1, handler.RequestCount);
+        Assert.Equal("refreshed", store.Load()!.AccessToken);
+    }
+
+    // Verifies that a refresh that fails does not forget that the token was refused: the next call
+    // tries again (and does not hand the refused token out).
+    [Fact]
+    public async Task ARefusedToken_IsNotHandedOutAgain_WhenTheRefreshFailed()
+    {
+        CountingTokenStore store = new(ValidToken("stale"));
+        FlakyRefreshHandler handler = new();
+        SpotifyAuthService service = new(store, new HttpClient(handler), new ClientId("client-1"));
+        await service.GetAccessTokenAsync(CancellationToken.None);
+        service.MarkAccessTokenRejected();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetAccessTokenAsync(CancellationToken.None));
+        string second = await service.GetAccessTokenAsync(CancellationToken.None);
+
+        Assert.Equal("refreshed", second);
+        Assert.Equal(2, handler.RequestCount);
+    }
+
+    // Verifies that a refusal with nothing to refresh with (no refresh token) asks the user to sign in
+    // instead of looping on the refused token.
+    [Fact]
+    public async Task ARefusedToken_WithoutARefreshToken_AsksToSignInAgain()
+    {
+        SpotifyToken token = ValidToken();
+        token.RefreshToken = null;
+        SpotifyAuthService service = new(new CountingTokenStore(token), new HttpClient(new RefreshHandler()), new ClientId("client-1"));
+        await service.GetAccessTokenAsync(CancellationToken.None);
+
+        service.MarkAccessTokenRejected();
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.GetAccessTokenAsync(CancellationToken.None));
+        Assert.Equal(AppLocalization.Get(AppStrings.SpotifyRefreshTokenMissing), exception.Message);
+    }
+
     // Verifies that a refresh without a refresh token says so instead of calling Spotify.
     [Fact]
     public async Task Refresh_WithoutARefreshToken_AsksToSignInAgain()
@@ -266,6 +322,27 @@ public sealed class SpotifyAuthTokenCacheTests
         }
 
         public void Clear() => current = null;
+    }
+
+    // The first refresh is refused by Spotify, the second works.
+    private sealed class FlakyRefreshHandler : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => Volatile.Read(ref requestCount);
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            bool first = Interlocked.Increment(ref requestCount) == 1;
+            string json = first
+                ? "{\"error\":\"temporarily_unavailable\"}"
+                : "{\"access_token\":\"refreshed\",\"expires_in\":3600,\"refresh_token\":\"refresh\",\"scope\":\"" + ReleaseDefaults.SpotifyScope + "\"}";
+
+            return Task.FromResult(new HttpResponseMessage(first ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        }
     }
 
     private sealed class RefreshHandler : HttpMessageHandler

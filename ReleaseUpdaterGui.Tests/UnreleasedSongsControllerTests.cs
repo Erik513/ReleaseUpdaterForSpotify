@@ -95,6 +95,29 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
         Assert.True(view.Has("ShowCompleted"));
     }
 
+    // Verifies that Spotify's request limit gets a message that says how long to wait (rounded up,
+    // at least one minute), not the raw technical text.
+    [Theory]
+    [InlineData(20 * 60, 20)]
+    [InlineData(61, 2)]
+    [InlineData(60, 1)]
+    [InlineData(10, 1)]
+    [InlineData(0, 1)]
+    public async Task StartSearch_WhenRateLimited_SaysHowLongToWait(int retryAfterSeconds, int expectedMinutes)
+    {
+        gateway.OnSearch = (_, _, _) => throw new SpotifyRateLimitException("GET", "search", TimeSpan.FromSeconds(retryAfterSeconds), "slow down");
+        UnreleasedSongsController controller = CreateController();
+
+        await controller.StartSearchAsync(new[] { new TrackedSong("Song", "Artist") });
+
+        Assert.Contains(
+            "ShowRunFailed:" + ErikwnkCore.AppLocalization.Get(
+                ReleaseUpdater.Core.Localization.AppStrings.UnreleasedRateLimitedFormat,
+                expectedMinutes),
+            view.Calls);
+        Assert.False(controller.IsRunInProgress);
+    }
+
     // Verifies that cancelling ends the search as "cancelled".
     [Fact]
     public async Task CancelSearch_EndsTheSearchAsCancelled()

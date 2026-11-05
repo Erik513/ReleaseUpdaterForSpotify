@@ -26,6 +26,101 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
     private UnreleasedSongsController CreateController() =>
         new(view, new TrackedSongsStore(new AppDataPaths(directory)), new UnreleasedSongChecker(gateway, reportWriter), reportWriter);
 
+    // ---- export and import ----
+
+    // Verifies that the list is written as JSON or CSV by the file name, and read back by the import.
+    [Theory]
+    [InlineData("songs.json")]
+    [InlineData("songs.csv")]
+    public void Export_ThenImport_GivesTheSameSongs(string fileName)
+    {
+        string path = Path.Combine(directory, fileName);
+        TrackedSong[] songs = { new("Song; A", "Artist \"A\""), new("Über", "Ärzte") };
+
+        Assert.True(CreateController().ExportSongs(songs, path));
+        IReadOnlyList<TrackedSong>? imported = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.Equal(songs, imported);
+        Assert.True(view.Has("SetStatus:"));
+        Assert.False(view.Has("ShowError:"));
+    }
+
+    // Verifies that rows that are completely blank (the grid's empty row) are not exported, and a row with only one text is.
+    [Fact]
+    public void Export_LeavesOutBlankRows()
+    {
+        string path = Path.Combine(directory, "songs.json");
+
+        CreateController().ExportSongs(new[] { new TrackedSong("A", "B"), new TrackedSong("", " "), new TrackedSong("Half", "") }, path);
+
+        IReadOnlyList<TrackedSong>? imported = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+        Assert.Equal(new[] { new TrackedSong("A", "B") }, imported);
+    }
+
+    // Verifies that nothing is written, and the user is told, when there is nothing to export.
+    [Fact]
+    public void Export_WithoutSongs_SaysSo_AndWritesNothing()
+    {
+        string path = Path.Combine(directory, "songs.json");
+
+        bool exported = CreateController().ExportSongs(new[] { new TrackedSong("", "") }, path);
+
+        Assert.False(exported);
+        Assert.True(view.Has("ShowInfo:"));
+        Assert.False(File.Exists(path));
+    }
+
+    // Verifies that a path that cannot be written is reported instead of crashing the window.
+    [Fact]
+    public void Export_ToAFolderThatIsNotThere_ShowsAnError()
+    {
+        string path = Path.Combine(directory, "no-such-folder", "songs.json");
+
+        bool exported = CreateController().ExportSongs(new[] { new TrackedSong("A", "B") }, path);
+
+        Assert.False(exported);
+        Assert.True(view.Has("ShowError:"));
+    }
+
+    // Verifies that an import is added behind the songs in the list, without the ones that are in it already.
+    [Fact]
+    public void Import_AddsOnlyNewSongs_AndReportsTheCounts()
+    {
+        string path = Path.Combine(directory, "songs.csv");
+        File.WriteAllText(path, "Title;Artist\r\nsong a;artist a\r\nSong B;Artist B\r\nbroken\r\n");
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, new[] { new TrackedSong("Song A", "Artist A") });
+
+        Assert.Equal(new[] { new TrackedSong("Song A", "Artist A"), new TrackedSong("Song B", "Artist B") }, merged);
+        Assert.True(view.Has("SetStatus:"));
+    }
+
+    // Verifies that a file that is no song list, an empty list and a missing file leave the list alone and say why.
+    [Theory]
+    [InlineData("not json at all", "ShowError:")]
+    [InlineData("[]", "ShowInfo:")]
+    [InlineData("[ { \"title\": \"only a title\" } ]", "ShowInfo:")]
+    public void Import_OfAnUnusableFile_ReturnsNull_AndTellsTheUser(string content, string expectedCall)
+    {
+        string path = Path.Combine(directory, "songs.json");
+        File.WriteAllText(path, content);
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, new[] { new TrackedSong("Keep", "Me") });
+
+        Assert.Null(merged);
+        Assert.True(view.Has(expectedCall));
+    }
+
+    // Verifies that a file that is not there is reported.
+    [Fact]
+    public void Import_OfAMissingFile_ShowsAnError()
+    {
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(Path.Combine(directory, "missing.json"), Array.Empty<TrackedSong>());
+
+        Assert.Null(merged);
+        Assert.True(view.Has("ShowError:"));
+    }
+
     // Verifies that with nothing to search for the user is told, and nothing starts.
     [Fact]
     public async Task StartSearch_WithoutSongs_SaysSo_AndDoesNotRun()

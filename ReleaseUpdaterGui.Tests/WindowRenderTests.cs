@@ -33,6 +33,41 @@ public sealed class WindowRenderTests
         });
     }
 
+    // Verifies that the unreleased-songs window can be built and printed, and that the picture is not empty.
+    [Fact]
+    public void UnreleasedSongsForm_RendersAWindowWithContent()
+    {
+        RunOnStaThread(() =>
+        {
+            string directory = Path.Combine(Path.GetTempPath(), "SpotifyReleaseTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+
+            try
+            {
+                FakeUnreleasedReportWriter reportWriter = new();
+                using UnreleasedSongsForm form = new(
+                    new ReleaseUpdater.Data.Storage.TrackedSongsStore(new ReleaseUpdater.Data.Storage.AppDataPaths(directory)),
+                    reportWriter,
+                    new ReleaseUpdater.Core.Services.UnreleasedSongChecker(new FakeGateway(), reportWriter));
+                using Bitmap picture = UITesting.Render(form);
+
+                Assert.Equal(form.Width, picture.Width);
+                Assert.True(CountDistinctColors(picture) > 8, "the picture shows more than a flat surface");
+
+                string? folder = Environment.GetEnvironmentVariable("RELEASEUPDATER_RENDER_DIR");
+
+                if (!string.IsNullOrEmpty(folder))
+                {
+                    UITesting.Render(form, Path.Combine(folder, "unreleased.png"));
+                }
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        });
+    }
+
     private static int CountDistinctColors(Bitmap picture)
     {
         HashSet<int> colors = new HashSet<int>();

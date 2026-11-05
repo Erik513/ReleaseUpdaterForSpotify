@@ -129,6 +129,7 @@ internal sealed class FakeUnreleasedView : IUnreleasedSongsView
 
     public bool IsShuttingDown { get; set; }
 
+    public void SetStatus(string status) => Calls.Add("SetStatus:" + status);
     public void PrepareRunUi() => Calls.Add("PrepareRunUi");
     // Not recorded, for the reason given at FakeMainView.ApplyProgress.
     public void ApplyProgress(ReleaseProgress progress)

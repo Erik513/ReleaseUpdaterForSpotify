@@ -11,6 +11,7 @@ namespace ReleaseUpdaterGui
         /// <summary>True once the window is closing or gone; a search that is still ending must leave it alone.</summary>
         bool IsShuttingDown { get; }
 
+        void SetStatus(string status);
         void PrepareRunUi();
         void ApplyProgress(ReleaseProgress progress);
         void ShowCompleted(UnreleasedSongsCheckResult result);

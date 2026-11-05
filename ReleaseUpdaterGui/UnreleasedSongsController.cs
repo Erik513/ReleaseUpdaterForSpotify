@@ -34,6 +34,88 @@ namespace ReleaseUpdaterGui
 
         public void SaveSongs(IReadOnlyList<TrackedSong> songs) => songsStore.Save(songs);
 
+        /// <summary>
+        /// Writes the songs (JSON, or CSV for a .csv file) to <paramref name="path"/>. Tells the user what happened; false when nothing was written.
+        /// </summary>
+        public bool ExportSongs(IReadOnlyList<TrackedSong> songs, string path)
+        {
+            string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
+            List<TrackedSong> toExport = songs
+                .Where(song => !string.IsNullOrWhiteSpace(song.Title) || !string.IsNullOrWhiteSpace(song.Artist))
+                .Select(song => new TrackedSong(song.Title.Trim(), song.Artist.Trim()))
+                .ToList();
+
+            if (toExport.Count == 0)
+            {
+                view.ShowInfo(AppLocalization.Get(AppStrings.UnreleasedNothingToExport), title);
+
+                return false;
+            }
+
+            try
+            {
+                string text = TrackedSongsTransfer.Serialize(toExport, TrackedSongsTransfer.FormatForPath(path));
+
+                // (UTF-8 with a byte order mark, so that a spreadsheet reads the umlauts of a CSV right.)
+                File.WriteAllText(path, text, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                view.ShowError(AppLocalization.Get(AppStrings.UnreleasedExportFailedFormat, ex.Message), title);
+
+                return false;
+            }
+
+            view.SetStatus(AppLocalization.Get(AppStrings.UnreleasedExportDoneFormat, toExport.Count));
+
+            return true;
+        }
+
+        /// <summary>
+        /// Reads songs from <paramref name="path"/> and returns <paramref name="current"/> with the new ones behind it (the songs that are in
+        /// it already are not added again). Null, after telling the user why, when the file could not be used; the list is not touched then.
+        /// </summary>
+        public IReadOnlyList<TrackedSong>? ImportSongs(string path, IReadOnlyList<TrackedSong> current)
+        {
+            string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
+            TrackedSongsImport import;
+
+            try
+            {
+                import = TrackedSongsTransfer.Parse(
+                    File.ReadAllText(path),
+                    TrackedSongsTransfer.FormatForPath(path));
+            }
+            catch (FormatException)
+            {
+                view.ShowError(AppLocalization.Get(AppStrings.UnreleasedImportInvalidFile), title);
+
+                return null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                view.ShowError(AppLocalization.Get(AppStrings.UnreleasedImportFailedFormat, ex.Message), title);
+
+                return null;
+            }
+
+            if (import.Songs.Count == 0)
+            {
+                view.ShowInfo(AppLocalization.Get(AppStrings.UnreleasedImportNothingFound), title);
+
+                return null;
+            }
+
+            TrackedSongsMerge merge = TrackedSongsTransfer.Merge(current, import.Songs);
+            view.SetStatus(AppLocalization.Get(
+                AppStrings.UnreleasedImportDoneFormat,
+                merge.AddedCount,
+                merge.DuplicateCount,
+                import.SkippedCount));
+
+            return merge.Songs;
+        }
+
         public async Task StartSearchAsync(IReadOnlyList<TrackedSong> songs)
         {
             List<TrackedSong> validSongs = songs

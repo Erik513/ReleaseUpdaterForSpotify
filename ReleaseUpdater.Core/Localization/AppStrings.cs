@@ -174,6 +174,16 @@ public static class AppStrings
     public const string UnreleasedStatusDoneFormat = "Unreleased.StatusDoneFormat";
     public const string UnreleasedNoSongsMessage = "Unreleased.NoSongsMessage";
     public const string UnreleasedSaveFailedFormat = "Unreleased.SaveFailedFormat";
+    public const string UnreleasedImport = "Unreleased.Import";
+    public const string UnreleasedExport = "Unreleased.Export";
+    public const string UnreleasedFileFilterSongs = "Unreleased.FileFilterSongs";
+    public const string UnreleasedNothingToExport = "Unreleased.NothingToExport";
+    public const string UnreleasedExportDoneFormat = "Unreleased.ExportDoneFormat";
+    public const string UnreleasedExportFailedFormat = "Unreleased.ExportFailedFormat";
+    public const string UnreleasedImportDoneFormat = "Unreleased.ImportDoneFormat";
+    public const string UnreleasedImportNothingFound = "Unreleased.ImportNothingFound";
+    public const string UnreleasedImportInvalidFile = "Unreleased.ImportInvalidFile";
+    public const string UnreleasedImportFailedFormat = "Unreleased.ImportFailedFormat";
     public const string UnreleasedRateLimitedFormat = "Unreleased.RateLimitedFormat";
 
     // Spotify sign-in and API errors (ReleaseUpdater.Spotify) - shown to the user as they are,
@@ -380,6 +390,16 @@ public static class AppStrings
         [UnreleasedStatusDoneFormat] = "Done. {0} of {1} songs found on Spotify.",
         [UnreleasedNoSongsMessage] = "Add at least one song before starting the search.",
         [UnreleasedSaveFailedFormat] = "The song list could not be saved: {0}",
+        [UnreleasedImport] = "Import songs from a file (JSON or CSV)",
+        [UnreleasedExport] = "Export the song list to a file (JSON or CSV)",
+        [UnreleasedFileFilterSongs] = "Song lists",
+        [UnreleasedNothingToExport] = "There are no songs to export.",
+        [UnreleasedExportDoneFormat] = "Exported {0} songs.",
+        [UnreleasedExportFailedFormat] = "The song list could not be exported: {0}",
+        [UnreleasedImportDoneFormat] = "Imported {0} songs ({1} already in the list, {2} entries skipped).",
+        [UnreleasedImportNothingFound] = "The file contains no songs with a title and an artist.",
+        [UnreleasedImportInvalidFile] = "The file is not a list of songs (JSON: a list of title and artist; CSV: title;artist per line).",
+        [UnreleasedImportFailedFormat] = "The file could not be read: {0}",
         [UnreleasedRateLimitedFormat] = "Spotify's request limit was reached. Please try again in about {0} minute(s).",
 
         [SpotifyClientIdNotSaved] = "Please enter and save your Spotify Client ID first.",
@@ -565,6 +585,16 @@ public static class AppStrings
         [UnreleasedStatusDoneFormat] = "Fertig. {0} von {1} Songs auf Spotify gefunden.",
         [UnreleasedNoSongsMessage] = "Füge mindestens einen Song hinzu, bevor du die Suche startest.",
         [UnreleasedSaveFailedFormat] = "Die Songliste konnte nicht gespeichert werden: {0}",
+        [UnreleasedImport] = "Songs aus einer Datei importieren (JSON oder CSV)",
+        [UnreleasedExport] = "Songliste in eine Datei exportieren (JSON oder CSV)",
+        [UnreleasedFileFilterSongs] = "Songlisten",
+        [UnreleasedNothingToExport] = "Es gibt keine Songs zum Exportieren.",
+        [UnreleasedExportDoneFormat] = "{0} Songs exportiert.",
+        [UnreleasedExportFailedFormat] = "Die Songliste konnte nicht exportiert werden: {0}",
+        [UnreleasedImportDoneFormat] = "{0} Songs importiert ({1} schon in der Liste, {2} Einträge übersprungen).",
+        [UnreleasedImportNothingFound] = "Die Datei enthält keine Songs mit Titel und Interpret.",
+        [UnreleasedImportInvalidFile] = "Die Datei ist keine Songliste (JSON: Liste mit title und artist; CSV: Titel;Interpret pro Zeile).",
+        [UnreleasedImportFailedFormat] = "Die Datei konnte nicht gelesen werden: {0}",
         [UnreleasedRateLimitedFormat] = "Das Anfragelimit von Spotify wurde erreicht. Bitte versuche es in etwa {0} Minute(n) erneut.",
 
         [SpotifyClientIdNotSaved] = "Bitte gib zuerst deine Spotify-Client-ID ein und speichere sie.",

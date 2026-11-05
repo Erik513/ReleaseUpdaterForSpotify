@@ -22,6 +22,8 @@ namespace ReleaseUpdaterGui
         private Button btnStart = null!;
         private Button btnOpenReport = null!;
         private Button btnCancel = null!;
+        private Button btnImport = null!;
+        private Button btnExport = null!;
 
         public UnreleasedSongsForm(
             TrackedSongsStore songsStore,
@@ -78,16 +80,12 @@ namespace ReleaseUpdaterGui
             progressBar.Value = 0;
             SetStatus(AppLocalization.Get(AppStrings.UnreleasedSearching));
 
-            btnStart.Enabled = false;
-            btnCancel.Enabled = true;
-            dataGridView.Enabled = false;
+            SetBusy(true);
         }
 
         public void ShowCompleted(UnreleasedSongsCheckResult result)
         {
-            btnStart.Enabled = true;
-            btnCancel.Enabled = false;
-            dataGridView.Enabled = true;
+            SetBusy(false);
             progressBar.Value = 100;
 
             SetStatus(AppLocalization.Get(
@@ -98,9 +96,7 @@ namespace ReleaseUpdaterGui
 
         public void ShowRunFailed(string message)
         {
-            btnStart.Enabled = true;
-            btnCancel.Enabled = false;
-            dataGridView.Enabled = true;
+            SetBusy(false);
 
             string title = AppLocalization.Get(AppStrings.MainFormError);
             SetStatus(title);
@@ -109,11 +105,19 @@ namespace ReleaseUpdaterGui
 
         public void ShowCancelled()
         {
-            btnStart.Enabled = true;
-            btnCancel.Enabled = false;
-            dataGridView.Enabled = true;
+            SetBusy(false);
 
             SetStatus(AppLocalization.Get(AppStrings.MainFormCancelled));
+        }
+
+        // While a search runs, the list and everything that changes it or starts another search is locked.
+        private void SetBusy(bool busy)
+        {
+            btnStart.Enabled = !busy;
+            btnCancel.Enabled = busy;
+            btnImport.Enabled = !busy;
+            btnExport.Enabled = !busy;
+            dataGridView.Enabled = !busy;
         }
 
         public void ShowInfo(string message, string title)
@@ -195,7 +199,7 @@ namespace ReleaseUpdaterGui
             bottomPanel.Dock = DockStyle.Bottom;
             bottomPanel.Height = 56;
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 3 * ActionIconButtonSize.Width + 16));
+            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5 * ActionIconButtonSize.Width + 16));
             bottomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             Panel progressPanel = UIStyles.Panels.CreateTransparent();
@@ -240,9 +244,23 @@ namespace ReleaseUpdaterGui
             btnCancel.Enabled = false;
             btnCancel.Click += BtnCancel_Click;
 
+            btnImport = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Download,
+                AppLocalization.Get(AppStrings.UnreleasedImport),
+                ActionIconButtonSize);
+            btnImport.Click += BtnImport_Click;
+
+            btnExport = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Upload,
+                AppLocalization.Get(AppStrings.UnreleasedExport),
+                ActionIconButtonSize);
+            btnExport.Click += BtnExport_Click;
+
             buttonPanel.Controls.Add(btnStart);
             buttonPanel.Controls.Add(btnOpenReport);
             buttonPanel.Controls.Add(btnCancel);
+            buttonPanel.Controls.Add(btnImport);
+            buttonPanel.Controls.Add(btnExport);
 
             bottomPanel.Controls.Add(progressPanel, 0, 0);
             bottomPanel.Controls.Add(buttonPanel, 1, 0);
@@ -294,6 +312,65 @@ namespace ReleaseUpdaterGui
         private void BtnCancel_Click(object? sender, EventArgs e)
         {
             controller.CancelSearch();
+        }
+
+        private void BtnImport_Click(object? sender, EventArgs e)
+        {
+            using OpenFileDialog dialog = new()
+            {
+                Title = AppLocalization.Get(AppStrings.UnreleasedImport),
+                Filter = GetFileFilter(includeCombined: true),
+                CheckFileExists = true
+            };
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            // (Rows that are still being typed are part of the list, so they are kept.)
+            IReadOnlyList<TrackedSong>? merged = controller.ImportSongs(dialog.FileName, GetCurrentSongs());
+
+            if (merged is null)
+            {
+                return;
+            }
+
+            rows.Clear();
+
+            foreach (TrackedSong song in merged)
+            {
+                rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist });
+            }
+        }
+
+        private void BtnExport_Click(object? sender, EventArgs e)
+        {
+            using SaveFileDialog dialog = new()
+            {
+                Title = AppLocalization.Get(AppStrings.UnreleasedExport),
+                Filter = GetFileFilter(includeCombined: false),
+                DefaultExt = "json",
+                AddExtension = true,
+                FileName = "unreleased-songs",
+                OverwritePrompt = true
+            };
+
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+            {
+                controller.ExportSongs(GetCurrentSongs(), dialog.FileName);
+            }
+        }
+
+        // JSON first (the default of a save), then CSV; an open dialog can also show both at once.
+        private static string GetFileFilter(bool includeCombined)
+        {
+            string songs = AppLocalization.Get(AppStrings.UnreleasedFileFilterSongs);
+            string filter = "JSON (*.json)|*.json|CSV (*.csv)|*.csv";
+
+            return includeCombined
+                ? songs + " (*.json;*.csv)|*.json;*.csv|" + filter
+                : filter;
         }
 
         private void BtnOpenReport_Click(object? sender, EventArgs e)

@@ -194,7 +194,8 @@ namespace ReleaseUpdaterGui
                 SpotifyRunPolicy.MarkRateLimitCooldown(
                     settings,
                     DateTimeOffset.UtcNow,
-                    ex.RetryAfter);
+                    ex.RetryAfter,
+                    quotaExceeded: ex.IsQuotaExceeded);
 
                 try
                 {
@@ -417,6 +418,7 @@ namespace ReleaseUpdaterGui
 
             settings.SpotifyCooldownUntilUtc = savedSettings.SpotifyCooldownUntilUtc;
             settings.SpotifyCooldownClientId = savedSettings.SpotifyCooldownClientId;
+            settings.SpotifyCooldownAccountWide = savedSettings.SpotifyCooldownAccountWide;
 
             try
             {

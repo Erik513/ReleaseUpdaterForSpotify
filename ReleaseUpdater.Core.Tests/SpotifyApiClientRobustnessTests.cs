@@ -145,6 +145,35 @@ public sealed class SpotifyApiClientRobustnessTests
         Assert.Equal(2, handler.Requests.Count);
     }
 
+    // Verifies that a 429 with "QUOTA_EXCEEDED" (the quota of the developer account) is not sent again, even with a short Retry-After.
+    [Fact]
+    public async Task ExhaustedQuota_IsReportedAtOnce_AndNotRepeated()
+    {
+        StubHandler handler = new();
+        handler.Enqueue(HttpStatusCode.TooManyRequests, """{ "status": 429, "message": "Too many requests", "reason": "QUOTA_EXCEEDED" }""", retryAfter: TimeSpan.FromSeconds(1));
+        handler.Enqueue(HttpStatusCode.OK, UserJson);
+
+        SpotifyRateLimitException exception = await Assert.ThrowsAsync<SpotifyRateLimitException>(
+            () => new SpotifyApiClient(new FixedTokenProvider(), new HttpClient(handler)).GetCurrentUserAsync(CancellationToken.None));
+
+        Assert.True(exception.IsQuotaExceeded);
+        Assert.Single(handler.Requests);
+    }
+
+    // Verifies which 429 bodies count as an exhausted quota.
+    [Theory]
+    [InlineData("""{ "reason": "QUOTA_EXCEEDED" }""", true)]
+    [InlineData("""{ "reason": "quota_exceeded" }""", true)]
+    [InlineData("""{ "reason": "RATE_LIMIT" }""", false)]
+    [InlineData("""{ "message": "Too many requests" }""", false)]
+    [InlineData("""["QUOTA_EXCEEDED"]""", false)]
+    [InlineData("not json", false)]
+    [InlineData("", false)]
+    public void QuotaExceededResponse_IsRecognizedByItsReason(string body, bool expected)
+    {
+        Assert.Equal(expected, SpotifyRateLimitException.IsQuotaExceededResponse(body));
+    }
+
     // Verifies that requests that can safely be repeated (GET, PUT) still are after a server error.
     [Fact]
     public async Task ReadingAndReplacing_AreRepeated_AfterAServerError()

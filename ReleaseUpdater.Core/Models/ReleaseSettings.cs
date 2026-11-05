@@ -11,6 +11,9 @@ public sealed class ReleaseSettings
     public DateTimeOffset? SpotifyCooldownUntilUtc { get; set; }
     public string? SpotifyCooldownClientId { get; set; }
 
+    // The quota is counted per developer account: a cooldown that was caused by an exhausted quota holds for every Client ID.
+    public bool SpotifyCooldownAccountWide { get; set; }
+
     // Plain string, not ErikwnkCore.AppLanguage - Core has no UI/library
     // dependency, and this is the only two values MainForm's language
     // picker ever writes here, so a stray/unrecognized value (an old

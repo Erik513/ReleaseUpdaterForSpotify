@@ -86,6 +86,23 @@ public sealed class SpotifyRunPolicyTests
             ignoreCooldown: true));
     }
 
+    // Verifies that a cooldown from an exhausted quota holds for every Client ID (the quota is counted per developer account).
+    [Fact]
+    public void QuotaCooldown_HoldsForAnotherClientId_AClientIdCooldownDoesNot()
+    {
+        DateTimeOffset now = new(2026, 7, 11, 12, 0, 0, TimeSpan.Zero);
+        ReleaseSettings quota = new() { CustomSpotifyClientId = ClientId };
+        SpotifyRunPolicy.MarkRateLimitCooldown(quota, now, TimeSpan.FromMinutes(30), ignoreCooldown: false, quotaExceeded: true);
+        ReleaseSettings burst = new() { CustomSpotifyClientId = ClientId };
+        SpotifyRunPolicy.MarkRateLimitCooldown(burst, now, TimeSpan.FromMinutes(30), ignoreCooldown: false);
+
+        quota.CustomSpotifyClientId = "fedcba9876543210fedcba9876543210";
+        burst.CustomSpotifyClientId = "fedcba9876543210fedcba9876543210";
+
+        Assert.True(SpotifyRunPolicy.IsCooldownActive(quota, now.AddMinutes(1), ignoreCooldown: false));
+        Assert.False(SpotifyRunPolicy.IsCooldownActive(burst, now.AddMinutes(1), ignoreCooldown: false));
+    }
+
     // Verifies that a short Retry-After still creates a user-friendly minimum cooldown.
     [Fact]
     public void MarkRateLimitCooldown_UsesMinimumCooldownWhenRetryAfterIsShort()

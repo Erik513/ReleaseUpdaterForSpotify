@@ -544,11 +544,16 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
                 EnableRobustModeWhenNeeded(response.StatusCode, attempt);
                 TimeSpan retryDelay = GetRetryDelay(response, attempt);
 
+                string rateLimitResponseText = response.StatusCode == HttpStatusCode.TooManyRequests
+                    ? await response.Content.ReadAsStringAsync(cancellationToken)
+                    : string.Empty;
+
+                // An exhausted quota (per developer account) does not come back within seconds: sending the request again would
+                // only use more of it, so it is reported at once, whatever the wait is that Spotify names.
                 if (response.StatusCode == HttpStatusCode.TooManyRequests &&
-                    retryDelay > MaxSilentRetryDelay)
+                    (retryDelay > MaxSilentRetryDelay ||
+                        SpotifyRateLimitException.IsQuotaExceededResponse(rateLimitResponseText)))
                 {
-                    string rateLimitResponseText =
-                        await response.Content.ReadAsStringAsync(cancellationToken);
                     response.Dispose();
 
                     throw new SpotifyRateLimitException(

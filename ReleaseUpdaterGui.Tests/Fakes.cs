@@ -175,6 +175,7 @@ internal sealed class FakeSettingsStore : ISettingsStore
         CustomSpotifyClientId = settings.CustomSpotifyClientId,
         SpotifyCooldownUntilUtc = settings.SpotifyCooldownUntilUtc,
         SpotifyCooldownClientId = settings.SpotifyCooldownClientId,
+        SpotifyCooldownAccountWide = settings.SpotifyCooldownAccountWide,
         Language = settings.Language
     };
 }

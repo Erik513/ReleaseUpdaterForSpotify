@@ -692,7 +692,8 @@ public sealed class SpotifyReleaseUpdaterTests
                 ReleaseLookbackDays = settings.ReleaseLookbackDays,
                 CustomSpotifyClientId = settings.CustomSpotifyClientId,
                 SpotifyCooldownUntilUtc = settings.SpotifyCooldownUntilUtc,
-                SpotifyCooldownClientId = settings.SpotifyCooldownClientId
+                SpotifyCooldownClientId = settings.SpotifyCooldownClientId,
+                SpotifyCooldownAccountWide = settings.SpotifyCooldownAccountWide
             };
     }
 

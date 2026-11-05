@@ -107,7 +107,6 @@ public static class AppStrings
     public const string ControllerConfirmStartMessage = "Controller.ConfirmStartMessage";
     public const string ControllerSettingsSaved = "Controller.SettingsSaved";
     public const string ControllerSettingsSaveFailedFormat = "Controller.SettingsSaveFailedFormat";
-    public const string ControllerInvalidPlaylistNameTitle = "Controller.InvalidPlaylistNameTitle";
 
     // SpotifyClientIdHelpForm
     public const string HelpFormTitle = "HelpForm.Title";
@@ -317,7 +316,6 @@ public static class AppStrings
         [ControllerConfirmStartMessage] = "The playlist will be replaced with the found songs.\n\nThis can take a few minutes depending on how many artists you follow.\n\nContinue?",
         [ControllerSettingsSaved] = "Settings saved",
         [ControllerSettingsSaveFailedFormat] = "Settings could not be saved: {0}",
-        [ControllerInvalidPlaylistNameTitle] = "Invalid playlist name",
 
         [HelpFormTitle] = "Spotify Client ID",
         [HelpFormClose] = "Close",
@@ -500,7 +498,6 @@ public static class AppStrings
         [ControllerConfirmStartMessage] = "Die Playlist wird durch die gefundenen Songs ersetzt.\n\nDies kann je nach Anzahl der von dir verfolgten Künstler einige Minuten dauern.\n\nFortfahren?",
         [ControllerSettingsSaved] = "Einstellungen gespeichert",
         [ControllerSettingsSaveFailedFormat] = "Einstellungen konnten nicht gespeichert werden: {0}",
-        [ControllerInvalidPlaylistNameTitle] = "Ungültiger Playlist-Name",
 
         [HelpFormTitle] = "Spotify Client-ID",
         [HelpFormClose] = "Schließen",

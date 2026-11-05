@@ -21,6 +21,9 @@ namespace ReleaseUpdaterGui
     public partial class MainForm : AppForm, IMainView
     {
         private static readonly TimeSpan UpdateCheckTimeout = TimeSpan.FromSeconds(8);
+        private const int SettingsSaveDelayMilliseconds = 400;
+
+        private DelayedAction? saveSettingsLater;
         private static readonly Size PropertyIconButtonSize = new(36, 30);
         private static readonly Size ActionIconButtonSize = new(48, 34);
         private const int PropertyIconColumnWidth = 54;
@@ -164,6 +167,8 @@ namespace ReleaseUpdaterGui
                 reportWriter,
                 authService,
                 releaseUpdater);
+
+            saveSettingsLater = new DelayedAction(controller.SaveSettingsFromUi, SettingsSaveDelayMilliseconds);
 
             Size = MinimumSize;
             MinimumSize = new Size(520, 740);
@@ -839,7 +844,9 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            controller.SaveSettingsFromUi();
+            // Held back a moment: holding the arrow of the number box changes the value many times a
+            // second, and each change used to rewrite the settings file.
+            saveSettingsLater?.Schedule();
         }
 
         private void CmbLanguage_SelectedIndexChanged(object? sender, EventArgs e)
@@ -931,6 +938,11 @@ namespace ReleaseUpdaterGui
 
             // From here on a run that is still ending must not touch this window or the
             // HTTP clients below (see MainFormController.IsShuttingDown).
+            // A change that was still waiting for its save is written now, not lost with the window.
+            saveSettingsLater?.Flush();
+            saveSettingsLater?.Dispose();
+            saveSettingsLater = null;
+
             IsClosing = true;
             controller.CancelLogin();
             controller.CancelUpdate();

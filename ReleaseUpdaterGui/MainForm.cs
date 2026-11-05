@@ -194,7 +194,7 @@ namespace ReleaseUpdaterGui
                 PlaylistName = PlaylistName,
                 ReleaseLookbackDays = ReleaseLookbackDays,
                 CustomSpotifyClientId = CustomSpotifyClientId,
-                Language = (cmbLanguage.SelectedItem as LanguageOption)?.Value ?? "English"
+                Language = AppLocalization.Language == AppLanguage.German ? "German" : "English"
             }.Normalize();
         }
 
@@ -213,7 +213,6 @@ namespace ReleaseUpdaterGui
                     numLookbackDays);
                 txtSpotifyClientId.Text = normalized.CustomSpotifyClientId ?? string.Empty;
 
-                SelectLanguageOption(normalized.Language);
                 ApplyLanguage(normalized.Language);
             }
             finally
@@ -221,19 +220,6 @@ namespace ReleaseUpdaterGui
                 isLoadingSettings = false;
             }
 
-        }
-
-        private void SelectLanguageOption(string language)
-        {
-            foreach (object item in cmbLanguage.Items)
-            {
-                if (item is LanguageOption option &&
-                    string.Equals(option.Value, language, StringComparison.OrdinalIgnoreCase))
-                {
-                    cmbLanguage.SelectedItem = option;
-                    return;
-                }
-            }
         }
 
         // Applies the language to ErikwnkWFUI's own built-in dialogs (title bar
@@ -612,7 +598,18 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            BeginInvoke(RefreshLocalizedUi);
+            // A choice in the language box (not the loading of the settings) is kept.
+            bool keepChoice = !isLoadingSettings;
+
+            BeginInvoke(() =>
+            {
+                RefreshLocalizedUi();
+
+                if (keepChoice && !IsShuttingDown)
+                {
+                    controller.SaveSettingsFromUi();
+                }
+            });
         }
 
         private void SettingsControl_Changed(object? sender, EventArgs e)
@@ -625,17 +622,6 @@ namespace ReleaseUpdaterGui
             // Held back a moment: holding the arrow of the number box changes the value many times a
             // second, and each change used to rewrite the settings file.
             saveSettingsLater?.Schedule();
-        }
-
-        private void CmbLanguage_SelectedIndexChanged(object? sender, EventArgs e)
-        {
-            if (isLoadingSettings)
-            {
-                return;
-            }
-
-            ApplyLanguage((cmbLanguage.SelectedItem as LanguageOption)?.Value ?? "English");
-            controller.SaveSettingsFromUi();
         }
 
         private async void BtnLogin_Click(object? sender, EventArgs e)

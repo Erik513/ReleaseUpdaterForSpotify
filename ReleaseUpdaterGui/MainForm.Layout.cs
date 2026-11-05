@@ -67,12 +67,10 @@ namespace ReleaseUpdaterGui
                 ClientIdStatusKind.Info);
             btnClientIdStatus.Click += BtnClientIdHelp_Click;
 
-            cmbLanguage = UIStyles.ComboBoxes.CreatePrimary();
-            cmbLanguage.Items.Add(new LanguageOption("English", "English"));
-            cmbLanguage.Items.Add(new LanguageOption("German", "Deutsch"));
-            cmbLanguage.SelectedIndex = 0;
+            // Sets UIStyles.Language itself and follows a change from elsewhere; MainForm
+            // reacts to AppLocalization.LanguageChanged (texts, saving the choice).
+            cmbLanguage = UIStyles.ComboBoxes.CreateLanguagePrimary();
             cmbLanguage.TabStop = false;
-            cmbLanguage.SelectedIndexChanged += CmbLanguage_SelectedIndexChanged;
 
             txtPlaylistName = UIStyles.TextBoxes.CreateBorderless(
                 ReleaseDefaults.PlaylistName);

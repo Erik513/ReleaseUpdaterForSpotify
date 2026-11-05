@@ -178,7 +178,7 @@ namespace ReleaseUpdaterGui
             txtOutput = UIStyles.TextBoxes.CreatePrimary();
             txtOutput.Dock = DockStyle.Fill;
             txtOutput.Multiline = true;
-            txtOutput.ScrollBars = ScrollBars.Vertical;
+            txtOutput.ScrollBars = ScrollBars.None;
             txtOutput.WordWrap = true;
             txtOutput.ReadOnly = true;
             txtOutput.TabStop = false;

@@ -51,7 +51,7 @@ namespace ReleaseUpdaterGui
             instructionsTextBox.Dock = DockStyle.Fill;
             instructionsTextBox.Multiline = true;
             instructionsTextBox.ReadOnly = true;
-            instructionsTextBox.ScrollBars = ScrollBars.Vertical;
+            instructionsTextBox.ScrollBars = ScrollBars.None;
             instructionsTextBox.TabStop = false;
             instructionsTextBox.WordWrap = true;
             instructionsTextBox.Margin = new Padding(0, 0, 0, 12);

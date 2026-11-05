@@ -262,15 +262,10 @@ namespace ReleaseUpdaterGui
             string status,
             ClientIdStatusKind statusKind)
         {
-            Color backColor = GetClientIdStatusColor(statusKind);
-
-            btnClientIdStatus.BackColor = backColor;
-            btnClientIdStatus.ForeColor = Color.White;
+            UIStyles.Buttons.SetColors(
+                btnClientIdStatus,
+                UIStyles.Colors.CreateSet(GetClientIdStatusColor(statusKind)));
             btnClientIdStatus.AccessibleName = status;
-            btnClientIdStatus.FlatAppearance.MouseOverBackColor =
-                ControlPaint.Light(backColor);
-            btnClientIdStatus.FlatAppearance.MouseDownBackColor =
-                ControlPaint.Dark(backColor);
             spotifyAuthToolTip?.SetToolTip(btnClientIdStatus, status);
         }
 

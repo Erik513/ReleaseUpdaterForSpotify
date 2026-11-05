@@ -3,79 +3,82 @@ using ErikwnkWFUI.Styles;
 
 namespace ReleaseUpdaterGui
 {
-    // A library symbol button cannot change its preset once made, so a button
-    // that switches between two looks (sign in / sign out, edit / save) is a
-    // pair of preset buttons in one host, of which one is visible.
+    // One symbol button that switches between two looks (sign in / sign out,
+    // edit / save) with UIStyles.Buttons.SetPreset; keeps the text of both
+    // states so that a language switch can set them while the other is shown.
     internal sealed class SymbolToggle
     {
-        private readonly Button first;
-        private readonly Button second;
+        private readonly Button button;
+        private readonly UIButtonPreset firstPreset;
+        private readonly UIButtonPreset secondPreset;
+        private string firstTooltip;
+        private string secondTooltip;
+        private string firstName = string.Empty;
+        private string secondName = string.Empty;
+        private bool showingSecond;
 
         public SymbolToggle(
-            UIButtonPreset firstPreset,
-            UIButtonPreset secondPreset,
+            UIButtonPreset first,
+            UIButtonPreset second,
             string firstTooltip,
             string secondTooltip,
             Size size,
             EventHandler click)
         {
             // The presets bring their own colors (blue); the app's buttons carry the accent.
-            first = UIStyles.Buttons.CreateSymbol(
-                firstPreset.WithColors(UIStyles.Colors.Sets.Primary), firstTooltip, size);
-            second = UIStyles.Buttons.CreateSymbol(
-                secondPreset.WithColors(UIStyles.Colors.Sets.Primary), secondTooltip, size);
-            first.Dock = DockStyle.Fill;
-            second.Dock = DockStyle.Fill;
-            first.Margin = Padding.Empty;
-            second.Margin = Padding.Empty;
-            first.Click += click;
-            second.Click += click;
+            firstPreset = first.WithColors(UIStyles.Colors.Sets.Primary);
+            secondPreset = second.WithColors(UIStyles.Colors.Sets.Primary);
+            this.firstTooltip = firstTooltip;
+            this.secondTooltip = secondTooltip;
 
-            Host = UIStyles.Panels.CreateTransparent();
-            Host.Size = size;
-            Host.Controls.Add(first);
-            Host.Controls.Add(second);
-            ShowSecond(false);
+            button = UIStyles.Buttons.CreateSymbol(firstPreset, firstTooltip, size);
+            button.Margin = Padding.Empty;
+            button.Click += click;
         }
 
-        public Control Host { get; }
-
-        private Button Active
+        public Control Host
         {
-            get { return second.Visible ? second : first; }
+            get { return button; }
         }
 
         public bool Enabled
         {
-            get { return Active.Enabled; }
-            set
-            {
-                first.Enabled = value;
-                second.Enabled = value;
-            }
+            get { return button.Enabled; }
+            set { button.Enabled = value; }
         }
 
         public void ShowSecond(bool useSecond)
         {
-            second.Visible = useSecond;
-            first.Visible = !useSecond;
+            showingSecond = useSecond;
+            Apply();
         }
 
-        public void SetTooltips(string firstTooltip, string secondTooltip)
+        public void SetTooltips(string first, string second)
         {
-            UIStyles.Buttons.UpdateTooltip(first, firstTooltip);
-            UIStyles.Buttons.UpdateTooltip(second, secondTooltip);
+            firstTooltip = first;
+            secondTooltip = second;
+            Apply();
         }
 
-        public void SetAccessibleNames(string firstName, string secondName)
+        public void SetAccessibleNames(string first, string second)
         {
-            first.AccessibleName = firstName;
-            second.AccessibleName = secondName;
+            firstName = first;
+            secondName = second;
+            Apply();
         }
 
         public void Focus()
         {
-            Active.Focus();
+            button.Focus();
+        }
+
+        private void Apply()
+        {
+            UIStyles.Buttons.SetPreset(
+                button,
+                showingSecond ? secondPreset : firstPreset,
+                showingSecond ? secondTooltip : firstTooltip);
+            button.AccessibleName = showingSecond ? secondName : firstName;
         }
     }
 }

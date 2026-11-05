@@ -465,6 +465,15 @@ namespace ReleaseUpdaterGui
             btnEditPlaylistName.Focus();
         }
 
+        public void SetPlaylistNameError(string? message)
+        {
+            // (The factories give the standard type; the box is the library's TextField.)
+            if (txtPlaylistName is ErikwnkWFUI.Controls.TextField field)
+            {
+                field.ErrorText = message;
+            }
+        }
+
         public void FocusPlaylistName()
         {
             txtPlaylistName.Focus();

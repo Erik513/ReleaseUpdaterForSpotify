@@ -312,13 +312,14 @@ public sealed class MainFormControllerTests
 
     // Verifies that a playlist name that is too long stops a run with a warning.
     [Fact]
-    public async Task StartUpdate_WithAnInvalidPlaylistName_Warns()
+    public async Task StartUpdate_WithAnInvalidPlaylistName_MarksTheBoxInsteadOfAskingWithADialog()
     {
         view.PlaylistName = new string('x', 101);
 
         await CreateController().StartUpdateAsync();
 
-        Assert.True(view.Has("ShowWarning:"));
+        Assert.False(string.IsNullOrEmpty(view.PlaylistNameError));
+        Assert.False(view.Has("ShowWarning:"));
         Assert.False(view.Has("ConfirmStart"));
         Assert.Equal(0, store.SaveCount);
     }
@@ -382,7 +383,8 @@ public sealed class MainFormControllerTests
 
         CreateController().TogglePlaylistNameEdit();
 
-        Assert.True(view.Has("ShowWarning:"));
+        Assert.False(string.IsNullOrEmpty(view.PlaylistNameError));
+        Assert.False(view.Has("ShowWarning:"));
         Assert.True(view.Has("FocusPlaylistName"));
         Assert.False(view.Has("DisablePlaylistNameEditing"));
         Assert.Equal(0, store.SaveCount);

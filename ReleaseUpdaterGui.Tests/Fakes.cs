@@ -89,6 +89,8 @@ internal sealed class FakeMainView : IMainView
     }
 
     public void FocusPlaylistName() => Calls.Add("FocusPlaylistName");
+    public string? PlaylistNameError { get; private set; }
+    public void SetPlaylistNameError(string? message) => PlaylistNameError = message;
 
     public void EnableSpotifyClientIdEditing()
     {

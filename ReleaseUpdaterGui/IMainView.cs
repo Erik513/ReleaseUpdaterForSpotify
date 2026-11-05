@@ -42,6 +42,7 @@ namespace ReleaseUpdaterGui
         void EnablePlaylistNameEditing();
         void DisablePlaylistNameEditing();
         void FocusPlaylistName();
+        void SetPlaylistNameError(string? message);
         void EnableSpotifyClientIdEditing();
         void DisableSpotifyClientIdEditing();
         void FocusSpotifyClientId();

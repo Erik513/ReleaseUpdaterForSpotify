@@ -450,9 +450,15 @@ namespace ReleaseUpdaterGui
                 view.PlaylistName,
                 out string errorMessage);
 
-            if (!isValid && showMessage)
+            if (isValid)
             {
-                view.ShowWarning(errorMessage, AppLocalization.Get(AppStrings.ControllerInvalidPlaylistNameTitle));
+                view.SetPlaylistNameError(null);
+            }
+            else if (showMessage)
+            {
+                // A red frame with the reason at the box (it goes when the user types), and the same text in the status line.
+                view.SetPlaylistNameError(errorMessage);
+                view.SetStatus(errorMessage);
             }
 
             return isValid;

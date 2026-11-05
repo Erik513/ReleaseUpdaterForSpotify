@@ -199,13 +199,23 @@ internal sealed class FakeClock : IReleaseClock
 internal sealed class FakeAuthService : ISpotifyAuthService
 {
     public SpotifyUser? CurrentUser { get; set; }
-    public Func<Task<SpotifyUser>>? OnLogin { get; set; }
+
+    /// <summary>When set, the check says "could not find out" (the network is down), whatever the user is.</summary>
+    public bool Unavailable { get; set; }
+
+    public Func<CancellationToken, Task<SpotifyUser>>? OnLogin { get; set; }
     public int LogoutCount { get; private set; }
 
-    public Task<SpotifyUser?> TryGetCurrentUserAsync(CancellationToken cancellationToken) => Task.FromResult(CurrentUser);
+    public Task<SpotifySignInCheck> CheckSignInAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(
+            Unavailable
+                ? new SpotifySignInCheck(SpotifySignInState.Unavailable)
+                : CurrentUser is null
+                    ? new SpotifySignInCheck(SpotifySignInState.NotSignedIn)
+                    : new SpotifySignInCheck(SpotifySignInState.SignedIn, CurrentUser));
 
     public Task<SpotifyUser> LoginAsync(CancellationToken cancellationToken) =>
-        OnLogin is not null ? OnLogin() : Task.FromResult(new SpotifyUser("id", "Name"));
+        OnLogin is not null ? OnLogin(cancellationToken) : Task.FromResult(new SpotifyUser("id", "Name"));
 
     public Task LogoutAsync(CancellationToken cancellationToken)
     {

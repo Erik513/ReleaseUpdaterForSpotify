@@ -857,6 +857,12 @@ namespace ReleaseUpdaterGui
         {
             if (isSpotifyAuthLocked)
             {
+                // A sign-in that waits for the browser can be ended by pressing the button again.
+                if (controller.IsLoginInProgress)
+                {
+                    controller.CancelLogin();
+                }
+
                 return;
             }
 
@@ -926,6 +932,7 @@ namespace ReleaseUpdaterGui
             // From here on a run that is still ending must not touch this window or the
             // HTTP clients below (see MainFormController.IsShuttingDown).
             IsClosing = true;
+            controller.CancelLogin();
             controller.CancelUpdate();
             AppLocalization.LanguageChanged -= AppLocalization_LanguageChanged;
             spotifyAuthToolTip?.Dispose();

@@ -34,15 +34,33 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
     }
 
     /// <summary>
-    /// Checks the stored token and returns the currently signed-in Spotify user.
+    /// Checks the stored token and asks Spotify who the signed-in user is. "Not signed in" is only
+    /// said when it is true (no token, a token that is no use, access that Spotify refuses); when
+    /// Spotify cannot be reached or has a problem the answer is "unavailable", so a bad moment of the
+    /// network does not look like a sign-out.
     /// </summary>
-    public async Task<SpotifyUser?> TryGetCurrentUserAsync(
+    public async Task<SpotifySignInCheck> CheckSignInAsync(
         CancellationToken cancellationToken)
     {
+        string accessToken;
+
         try
         {
-            string accessToken = await GetAccessTokenAsync(cancellationToken);
+            accessToken = await GetAccessTokenAsync(cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            // No token, the token of another client, missing permissions, a refresh that Spotify refused.
+            return new SpotifySignInCheck(SpotifySignInState.NotSignedIn);
+        }
+        catch
+        {
+            // The refresh could not even be tried (no network, timeout).
+            return new SpotifySignInCheck(SpotifySignInState.Unavailable);
+        }
 
+        try
+        {
             using HttpRequestMessage request = new(
                 HttpMethod.Get,
                 "https://api.spotify.com/v1/me");
@@ -57,7 +75,12 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                int status = (int)response.StatusCode;
+
+                // The token is refused (4xx) - or Spotify is the one with the problem (429, 5xx, timeout).
+                return status is >= 400 and < 500 and not 408 and not 429
+                    ? new SpotifySignInCheck(SpotifySignInState.NotSignedIn)
+                    : new SpotifySignInCheck(SpotifySignInState.Unavailable);
             }
 
             await using Stream stream =
@@ -74,12 +97,12 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
                 : id;
 
             return string.IsNullOrWhiteSpace(id)
-                ? null
-                : new SpotifyUser(id, displayName);
+                ? new SpotifySignInCheck(SpotifySignInState.NotSignedIn)
+                : new SpotifySignInCheck(SpotifySignInState.SignedIn, new SpotifyUser(id, displayName));
         }
         catch
         {
-            return null;
+            return new SpotifySignInCheck(SpotifySignInState.Unavailable);
         }
     }
 
@@ -119,9 +142,9 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
         SaveToken(token);
 
-        SpotifyUser? user = await TryGetCurrentUserAsync(cancellationToken);
+        SpotifySignInCheck check = await CheckSignInAsync(cancellationToken);
 
-        return user ?? new SpotifyUser(string.Empty, "Spotify");
+        return check.User ?? new SpotifyUser(string.Empty, "Spotify");
     }
 
     public Task LogoutAsync(CancellationToken cancellationToken)
@@ -354,8 +377,16 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                AppLocalization.Get(AppStrings.SpotifyLoginFailedFormat, response.StatusCode, responseText));
+            string failure = AppLocalization.Get(AppStrings.SpotifyLoginFailedFormat, response.StatusCode, responseText);
+
+            // Spotify having a problem (5xx, 429) is not the same as refusing the sign-in (4xx): the
+            // first is an HttpRequestException, so a check of the sign-in says "unavailable" and keeps the token.
+            if ((int)response.StatusCode >= 500 || response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                throw new HttpRequestException(failure, null, response.StatusCode);
+            }
+
+            throw new InvalidOperationException(failure);
         }
 
         using JsonDocument json = JsonDocument.Parse(responseText);

@@ -255,7 +255,7 @@ public sealed class MainFormControllerTests
     {
         store.SaveFailure = new UnauthorizedAccessException("access denied");
         bool loginCalled = false;
-        auth.OnLogin = () =>
+        auth.OnLogin = _ =>
         {
             loginCalled = true;
             return Task.FromResult(new SpotifyUser("id", "Name"));
@@ -408,7 +408,7 @@ public sealed class MainFormControllerTests
     [Fact]
     public async Task Login_Success_ShowsTheUser()
     {
-        auth.OnLogin = () => Task.FromResult(new SpotifyUser("id", "Erik"));
+        auth.OnLogin = _ => Task.FromResult(new SpotifyUser("id", "Erik"));
 
         await CreateController().LoginAsync();
 
@@ -422,7 +422,7 @@ public sealed class MainFormControllerTests
     [Fact]
     public async Task Login_Cancelled_IsQuiet()
     {
-        auth.OnLogin = () => throw new OperationCanceledException();
+        auth.OnLogin = _ => throw new OperationCanceledException();
 
         await CreateController().LoginAsync();
 
@@ -434,7 +434,7 @@ public sealed class MainFormControllerTests
     [Fact]
     public async Task Login_Failure_ShowsTheError()
     {
-        auth.OnLogin = () => throw new InvalidOperationException("denied");
+        auth.OnLogin = _ => throw new InvalidOperationException("denied");
 
         await CreateController().LoginAsync();
 
@@ -448,11 +448,130 @@ public sealed class MainFormControllerTests
     public async Task Login_AnyFailureAfterTheTimeout_IsTreatedAsCancelled()
     {
         // The 5 minute timeout cannot be waited for; an OperationCanceledException subclass stands in for it.
-        auth.OnLogin = () => throw new TaskCanceledException();
+        auth.OnLogin = _ => throw new TaskCanceledException();
 
         await CreateController().LoginAsync();
 
         Assert.False(view.Has("ShowError"));
+    }
+
+    // Verifies that pressing the sign-in button again while the browser is awaited ends the sign-in:
+    // quiet "cancelled" notices, no error dialog, and the controller is free for the next sign-in.
+    [Fact]
+    public async Task CancelLogin_EndsAWaitingSignIn_Quietly()
+    {
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        auth.OnLogin = async cancellationToken =>
+        {
+            started.SetResult();
+            await Task.Delay(System.Threading.Timeout.Infinite, cancellationToken);
+            return new SpotifyUser("id", "never");
+        };
+        MainFormController controller = CreateController();
+        Assert.False(controller.IsLoginInProgress);
+
+        Task login = controller.LoginAsync();
+        await started.Task.WaitAsync(Timeout);
+        Assert.True(controller.IsLoginInProgress);
+        controller.CancelLogin();
+        await login.WaitAsync(Timeout);
+
+        Assert.False(controller.IsLoginInProgress);
+        Assert.True(view.Has("ShowToast:" + Text(AppStrings.ControllerToastLoginCancelled)));
+        Assert.True(view.Has("SetStatus:" + Text(AppStrings.ControllerLoginCancelledStatus)));
+        Assert.False(view.Has("ShowError"));
+        Assert.False(view.Has("SetAuthenticationState:True"));
+    }
+
+    // Verifies that cancelling when no sign-in waits does nothing.
+    [Fact]
+    public void CancelLogin_WithoutASignIn_DoesNothing()
+    {
+        CreateController().CancelLogin();
+
+        Assert.Empty(view.Calls);
+    }
+
+    // Verifies that, after a cancelled sign-in, a new one can be started and works.
+    [Fact]
+    public async Task Login_CanBeStartedAgain_AfterACancellation()
+    {
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        auth.OnLogin = async cancellationToken =>
+        {
+            started.TrySetResult();
+            await Task.Delay(System.Threading.Timeout.Infinite, cancellationToken);
+            return new SpotifyUser("id", "never");
+        };
+        MainFormController controller = CreateController();
+        Task first = controller.LoginAsync();
+        await started.Task.WaitAsync(Timeout);
+        controller.CancelLogin();
+        await first.WaitAsync(Timeout);
+
+        auth.OnLogin = _ => Task.FromResult(new SpotifyUser("id", "Erik"));
+        await controller.LoginAsync();
+
+        Assert.True(view.Has("SetAuthenticationState:True"));
+    }
+
+    // Verifies the close-during-sign-in case: with the window shutting down, a sign-in that ends
+    // (cancelled by the closing, failed, or even succeeded) touches nothing.
+    [Theory]
+    [InlineData("cancel")]
+    [InlineData("fail")]
+    [InlineData("succeed")]
+    public async Task WhenTheWindowIsShuttingDown_ASignInThatEndsTouchesNothing(string ending)
+    {
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        auth.OnLogin = async cancellationToken =>
+        {
+            started.SetResult();
+            await release.Task;
+
+            return ending switch
+            {
+                "cancel" => throw new OperationCanceledException(),
+                "fail" => throw new InvalidOperationException("boom"),
+                _ => new SpotifyUser("id", "Erik")
+            };
+        };
+        MainFormController controller = CreateController();
+
+        Task login = controller.LoginAsync();
+        await started.Task.WaitAsync(Timeout);
+        view.IsShuttingDown = true;
+        int callsBefore = view.Calls.Count;
+        release.SetResult();
+        await login.WaitAsync(Timeout);
+
+        Assert.Equal(callsBefore, view.Calls.Count);
+        Assert.False(controller.IsLoginInProgress);
+    }
+
+    // Verifies that a start-up where Spotify cannot be reached does not look like a sign-out: the
+    // user stays signed in (so signing out stays possible), with a note.
+    [Fact]
+    public async Task LoadSettings_WhenSpotifyCannotBeReached_KeepsTheUserSignedIn_WithANote()
+    {
+        auth.Unavailable = true;
+
+        await CreateController().LoadSettingsAsync();
+
+        Assert.True(view.Has("SetLoginStatus:" + Text(AppStrings.ControllerSignedInUnverified)));
+        Assert.True(view.Has("SetAuthenticationState:True"));
+        Assert.False(view.Has("SetAuthenticationState:False"));
+    }
+
+    // Verifies that a sign-in that Spotify really does not know any more shows as signed out.
+    [Fact]
+    public async Task LoadSettings_WhenNotSignedIn_ShowsSignedOut()
+    {
+        await CreateController().LoadSettingsAsync();
+
+        Assert.True(view.Has("SetLoginStatus:" + Text(AppStrings.NotSignedIn)));
+        Assert.True(view.Has("SetAuthenticationState:False"));
     }
 
     // Verifies sign-out.

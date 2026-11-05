@@ -72,6 +72,7 @@ public static class AppStrings
     public const string ControllerWaitingForLogin = "Controller.WaitingForLogin";
     public const string ControllerBrowserLoginInProgress = "Controller.BrowserLoginInProgress";
     public const string ControllerSignedInFormat = "Controller.SignedInFormat";
+    public const string ControllerSignedInUnverified = "Controller.SignedInUnverified";
     public const string ControllerSignedIn = "Controller.SignedIn";
     public const string ControllerToastLoginSuccess = "Controller.ToastLoginSuccess";
     public const string ControllerLoginCancelledStatus = "Controller.LoginCancelledStatus";
@@ -242,7 +243,7 @@ public static class AppStrings
 
         [MainFormWindowTitle] = "Release Updater for Spotify",
         [MainFormSignOutBusyTooltip] = "Spotify sign-out is currently running.",
-        [MainFormSignInBusyTooltip] = "Spotify sign-in is currently running.",
+        [MainFormSignInBusyTooltip] = "Spotify sign-in is running. Click to cancel it.",
         [MainFormSignOutAccessibleName] = "Sign out from Spotify",
         [MainFormSignInAccessibleName] = "Sign in with Spotify",
         [MainFormSignOutTooltip] = "Click to sign out from this app and remove the saved Spotify login.",
@@ -281,6 +282,7 @@ public static class AppStrings
         [ControllerWaitingForLogin] = "Waiting for Spotify login...",
         [ControllerBrowserLoginInProgress] = "Browser login in progress...",
         [ControllerSignedInFormat] = "Signed in: {0}",
+        [ControllerSignedInUnverified] = "Signed in (Spotify could not be reached)",
         [ControllerSignedIn] = "Signed in",
         [ControllerToastLoginSuccess] = "Spotify login successful.",
         [ControllerLoginCancelledStatus] = "Login cancelled or timed out",
@@ -424,7 +426,7 @@ public static class AppStrings
 
         [MainFormWindowTitle] = "Release Updater for Spotify",
         [MainFormSignOutBusyTooltip] = "Spotify-Abmeldung läuft gerade.",
-        [MainFormSignInBusyTooltip] = "Spotify-Anmeldung läuft gerade.",
+        [MainFormSignInBusyTooltip] = "Spotify-Anmeldung läuft. Klicke, um sie abzubrechen.",
         [MainFormSignOutAccessibleName] = "Von Spotify abmelden",
         [MainFormSignInAccessibleName] = "Mit Spotify anmelden",
         [MainFormSignOutTooltip] = "Klicken, um dich von dieser App abzumelden und die gespeicherte Spotify-Anmeldung zu entfernen.",
@@ -463,6 +465,7 @@ public static class AppStrings
         [ControllerWaitingForLogin] = "Warte auf Spotify-Anmeldung...",
         [ControllerBrowserLoginInProgress] = "Anmeldung im Browser läuft...",
         [ControllerSignedInFormat] = "Angemeldet als: {0}",
+        [ControllerSignedInUnverified] = "Angemeldet (Spotify nicht erreichbar)",
         [ControllerSignedIn] = "Angemeldet",
         [ControllerToastLoginSuccess] = "Spotify-Anmeldung erfolgreich.",
         [ControllerLoginCancelledStatus] = "Anmeldung abgebrochen oder Zeit abgelaufen",

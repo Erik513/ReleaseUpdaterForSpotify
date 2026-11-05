@@ -214,7 +214,8 @@ public sealed class SpotifyAuthTokenCacheTests
         await service.GetAccessTokenAsync(CancellationToken.None);
         service.MarkAccessTokenRejected();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetAccessTokenAsync(CancellationToken.None));
+        // (A 503 from Spotify is an HttpRequestException - Spotify's problem, not a refusal - so a check of the sign-in says "unavailable".)
+        await Assert.ThrowsAsync<HttpRequestException>(() => service.GetAccessTokenAsync(CancellationToken.None));
         string second = await service.GetAccessTokenAsync(CancellationToken.None);
 
         Assert.Equal("refreshed", second);

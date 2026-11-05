@@ -18,6 +18,7 @@ namespace ReleaseUpdaterGui
         private readonly SpotifyReleaseUpdater releaseUpdater;
 
         private CancellationTokenSource? runCancellation;
+        private CancellationTokenSource? loginCancellation;
 
         public MainFormController(
             IMainView view,
@@ -56,7 +57,8 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            using CancellationTokenSource loginCancellation = new(LoginTimeout);
+            using CancellationTokenSource cancellation = new(LoginTimeout);
+            loginCancellation = cancellation;
 
             try
             {
@@ -65,7 +67,12 @@ namespace ReleaseUpdaterGui
                 view.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerBrowserLoginInProgress));
 
                 SpotifyUser user = await authService.LoginAsync(
-                    loginCancellation.Token);
+                    cancellation.Token);
+
+                if (IsShuttingDown)
+                {
+                    return;
+                }
 
                 view.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerSignedInFormat, user.DisplayName));
                 view.SetAuthenticationState(isLoggedIn: true);
@@ -73,18 +80,43 @@ namespace ReleaseUpdaterGui
 
                 view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastLoginSuccess));
             }
-            catch (Exception ex) when (IsLoginCancellation(ex, loginCancellation.Token))
+            catch (Exception ex) when (IsLoginCancellation(ex, cancellation.Token))
             {
+                if (IsShuttingDown)
+                {
+                    return;
+                }
+
                 await RefreshLoginStatusAsync();
                 view.SetStatus(AppLocalization.Get(AppStrings.ControllerLoginCancelledStatus));
                 view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastLoginCancelled));
             }
             catch (Exception ex)
             {
+                if (IsShuttingDown)
+                {
+                    return;
+                }
+
                 await RefreshLoginStatusAsync();
                 view.SetStatus(AppLocalization.Get(AppStrings.ControllerLoginFailed));
                 view.ShowError(ex.Message, AppLocalization.Get(AppStrings.ControllerSpotifyLoginTitle));
             }
+            finally
+            {
+                loginCancellation = null;
+            }
+        }
+
+        public bool IsLoginInProgress => loginCancellation is not null;
+
+        /// <summary>
+        /// Ends a sign-in that is waiting for the browser (the user closed the tab, changed their mind):
+        /// the wait stops and the port of the callback is free again. Nothing happens when none is running.
+        /// </summary>
+        public void CancelLogin()
+        {
+            loginCancellation?.Cancel();
         }
 
         public async Task LogoutAsync()
@@ -336,14 +368,30 @@ namespace ReleaseUpdaterGui
 
         private async Task RefreshLoginStatusAsync()
         {
-            SpotifyUser? user = await authService.TryGetCurrentUserAsync(
+            SpotifySignInCheck check = await authService.CheckSignInAsync(
                 CancellationToken.None);
 
-            view.SetLoginStatus(
-                user is null
-                    ? AppLocalization.Get(AppStrings.NotSignedIn)
-                    : AppLocalization.Get(AppStrings.ControllerSignedInFormat, user.DisplayName));
-            view.SetAuthenticationState(user is not null);
+            switch (check.State)
+            {
+                case SpotifySignInState.SignedIn:
+                    view.SetLoginStatus(AppLocalization.Get(
+                        AppStrings.ControllerSignedInFormat,
+                        check.User?.DisplayName ?? string.Empty));
+                    view.SetAuthenticationState(true);
+                    break;
+
+                case SpotifySignInState.Unavailable:
+                    // A token is there and Spotify could not be asked: still signed in (so signing out
+                    // stays possible), with a note, instead of a sign-out that did not happen.
+                    view.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerSignedInUnverified));
+                    view.SetAuthenticationState(true);
+                    break;
+
+                default:
+                    view.SetLoginStatus(AppLocalization.Get(AppStrings.NotSignedIn));
+                    view.SetAuthenticationState(false);
+                    break;
+            }
         }
 
         private bool SaveSettings(bool showValidationMessage)

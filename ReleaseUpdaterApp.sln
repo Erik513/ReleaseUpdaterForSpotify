@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleaseUpdater.Spotify", "R
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleaseUpdater.Core.Tests", "ReleaseUpdater.Core.Tests\ReleaseUpdater.Core.Tests.csproj", "{4D884C85-5573-4E78-AB61-8C23F75260CE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleaseUpdaterGui.Tests", "ReleaseUpdaterGui.Tests\ReleaseUpdaterGui.Tests.csproj", "{69AA4332-4E07-41E7-9DB0-915C9B3A342D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{4D884C85-5573-4E78-AB61-8C23F75260CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4D884C85-5573-4E78-AB61-8C23F75260CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4D884C85-5573-4E78-AB61-8C23F75260CE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{69AA4332-4E07-41E7-9DB0-915C9B3A342D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69AA4332-4E07-41E7-9DB0-915C9B3A342D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69AA4332-4E07-41E7-9DB0-915C9B3A342D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69AA4332-4E07-41E7-9DB0-915C9B3A342D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

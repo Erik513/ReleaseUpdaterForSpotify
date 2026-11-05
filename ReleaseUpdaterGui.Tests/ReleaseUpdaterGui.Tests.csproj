@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests of the parts of the GUI project that hold logic (the two controllers, the playlist
+    name check). The windows themselves are replaced by stand-ins (IMainView, IUnreleasedSongsView),
+    so no window is ever shown. The project targets net8.0-windows because it references the GUI project.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReleaseUpdaterGui\ReleaseUpdaterGui.csproj" />
+    <ProjectReference Include="..\ReleaseUpdater.Core\ReleaseUpdater.Core.csproj" />
+    <ProjectReference Include="..\ReleaseUpdater.Data\ReleaseUpdater.Data.csproj" />
+  </ItemGroup>
+
+</Project>

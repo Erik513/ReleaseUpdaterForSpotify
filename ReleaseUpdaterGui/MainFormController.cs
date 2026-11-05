@@ -1,58 +1,47 @@
 using ErikwnkCore;
-using ErikwnkWFUI.Forms;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
-using System.Diagnostics;
 using System.Globalization;
-using System.Reflection;
 
 namespace ReleaseUpdaterGui
 {
     public class MainFormController
     {
         private static readonly TimeSpan LoginTimeout = TimeSpan.FromMinutes(5);
-        private static readonly TimeSpan UpdateCheckTimeout = TimeSpan.FromSeconds(8);
 
-        private readonly MainForm form;
+        private readonly IMainView view;
         private readonly ISettingsStore settingsStore;
         private readonly IReportWriter reportWriter;
         private readonly ISpotifyAuthService authService;
         private readonly SpotifyReleaseUpdater releaseUpdater;
-        private readonly AppUpdater appUpdater;
 
         private CancellationTokenSource? runCancellation;
 
         public MainFormController(
-            MainForm form,
+            IMainView view,
             ISettingsStore settingsStore,
             IReportWriter reportWriter,
             ISpotifyAuthService authService,
-            SpotifyReleaseUpdater releaseUpdater,
-            AppUpdater appUpdater)
+            SpotifyReleaseUpdater releaseUpdater)
         {
-            this.form = form;
+            this.view = view;
             this.settingsStore = settingsStore;
             this.reportWriter = reportWriter;
             this.authService = authService;
             this.releaseUpdater = releaseUpdater;
-            this.appUpdater = appUpdater;
         }
 
         public async Task LoadSettingsAsync()
         {
             ReleaseSettings settings = settingsStore.Load();
-            form.SetSettings(settings);
+            view.SetSettings(settings);
             await RefreshLoginStatusAsync();
-            form.SetStatus(AppLocalization.Get(AppStrings.ReadyToRun));
+            view.SetStatus(AppLocalization.Get(AppStrings.ReadyToRun));
             ApplyRunAvailability(updateStatus: true);
 
-            Version currentVersion =
-                Assembly.GetExecutingAssembly().GetName().Version
-                    ?? new Version(0, 0, 0);
-
-            _ = appUpdater.CheckForUpdateAsync(currentVersion, UpdateCheckTimeout, form);
+            view.BeginUpdateCheck();
         }
 
         public async Task LoginAsync()
@@ -71,30 +60,30 @@ namespace ReleaseUpdaterGui
 
             try
             {
-                form.SetAuthenticationBusy();
-                form.SetStatus(AppLocalization.Get(AppStrings.ControllerWaitingForLogin));
-                form.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerBrowserLoginInProgress));
+                view.SetAuthenticationBusy();
+                view.SetStatus(AppLocalization.Get(AppStrings.ControllerWaitingForLogin));
+                view.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerBrowserLoginInProgress));
 
                 SpotifyUser user = await authService.LoginAsync(
                     loginCancellation.Token);
 
-                form.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerSignedInFormat, user.DisplayName));
-                form.SetAuthenticationState(isLoggedIn: true);
-                form.SetStatus(AppLocalization.Get(AppStrings.ControllerSignedIn));
+                view.SetLoginStatus(AppLocalization.Get(AppStrings.ControllerSignedInFormat, user.DisplayName));
+                view.SetAuthenticationState(isLoggedIn: true);
+                view.SetStatus(AppLocalization.Get(AppStrings.ControllerSignedIn));
 
-                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastLoginSuccess), form);
+                view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastLoginSuccess));
             }
             catch (Exception ex) when (IsLoginCancellation(ex, loginCancellation.Token))
             {
                 await RefreshLoginStatusAsync();
-                form.SetStatus(AppLocalization.Get(AppStrings.ControllerLoginCancelledStatus));
-                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastLoginCancelled), form);
+                view.SetStatus(AppLocalization.Get(AppStrings.ControllerLoginCancelledStatus));
+                view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastLoginCancelled));
             }
             catch (Exception ex)
             {
                 await RefreshLoginStatusAsync();
-                form.SetStatus(AppLocalization.Get(AppStrings.ControllerLoginFailed));
-                form.ShowError(ex.Message, AppLocalization.Get(AppStrings.ControllerSpotifyLoginTitle));
+                view.SetStatus(AppLocalization.Get(AppStrings.ControllerLoginFailed));
+                view.ShowError(ex.Message, AppLocalization.Get(AppStrings.ControllerSpotifyLoginTitle));
             }
         }
 
@@ -102,18 +91,18 @@ namespace ReleaseUpdaterGui
         {
             try
             {
-                form.SetAuthenticationBusy();
+                view.SetAuthenticationBusy();
                 await authService.LogoutAsync(CancellationToken.None);
-                form.SetLoginStatus(AppLocalization.Get(AppStrings.NotSignedIn));
-                form.SetAuthenticationState(isLoggedIn: false);
-                form.SetStatus(AppLocalization.Get(AppStrings.ControllerSignedOut));
-                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastSignedOut), form);
+                view.SetLoginStatus(AppLocalization.Get(AppStrings.NotSignedIn));
+                view.SetAuthenticationState(isLoggedIn: false);
+                view.SetStatus(AppLocalization.Get(AppStrings.ControllerSignedOut));
+                view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastSignedOut));
             }
             catch (Exception ex)
             {
                 await RefreshLoginStatusAsync();
-                form.SetStatus(AppLocalization.Get(AppStrings.ControllerLogoutFailed));
-                form.ShowError(ex.Message, AppLocalization.Get(AppStrings.ControllerSpotifyLogoutTitle));
+                view.SetStatus(AppLocalization.Get(AppStrings.ControllerLogoutFailed));
+                view.ShowError(ex.Message, AppLocalization.Get(AppStrings.ControllerSpotifyLogoutTitle));
             }
         }
 
@@ -134,17 +123,17 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            if (!ConfirmStart())
+            if (!view.ConfirmStart())
             {
                 return;
             }
 
-            form.PrepareRunUi();
+            view.PrepareRunUi();
             runCancellation = new CancellationTokenSource();
 
             try
             {
-                Progress<ReleaseProgress> progress = new(form.ApplyProgress);
+                Progress<ReleaseProgress> progress = new(view.ApplyProgress);
 
                 PlaylistUpdateResult result = await releaseUpdater.RunAsync(
                     progress,
@@ -152,7 +141,7 @@ namespace ReleaseUpdaterGui
 
                 if (!IsShuttingDown)
                 {
-                    form.ShowCompleted(result);
+                    view.ShowCompleted(result);
                 }
             }
             catch (SpotifyRateLimitException ex)
@@ -164,7 +153,7 @@ namespace ReleaseUpdaterGui
 
                 if (IsLogicTestModeEnabled())
                 {
-                    form.ShowRunFailed(
+                    view.ShowRunFailed(
                         AppLocalization.Get(AppStrings.ControllerTestModeRateLimit));
                     return;
                 }
@@ -182,28 +171,28 @@ namespace ReleaseUpdaterGui
                 catch (Exception saveException) when (IsFileAccessException(saveException))
                 {
                     // The cooldown is still shown below; it just will not survive a restart.
-                    form.AppendOutput(AppLocalization.Get(
+                    view.AppendOutput(AppLocalization.Get(
                         AppStrings.ControllerSettingsSaveFailedFormat,
                         saveException.Message));
                 }
 
-                form.SetSettings(settings);
+                view.SetSettings(settings);
 
                 string message = CreateCooldownMessage(settings);
-                form.ShowRunFailed(message);
+                view.ShowRunFailed(message);
             }
             catch (OperationCanceledException)
             {
                 if (!IsShuttingDown)
                 {
-                    form.ShowCancelled();
+                    view.ShowCancelled();
                 }
             }
             catch (Exception ex)
             {
                 if (!IsShuttingDown)
                 {
-                    form.ShowRunFailed(ex.Message);
+                    view.ShowRunFailed(ex.Message);
                 }
             }
             finally
@@ -215,14 +204,14 @@ namespace ReleaseUpdaterGui
                 // torn down - touching them (or the network) here would only fail.
                 if (!IsShuttingDown)
                 {
-                    form.StopElapsedTimer();
+                    view.StopElapsedTimer();
                     await RefreshLoginStatusAsync();
                     ApplyRunAvailability(updateStatus: false);
                 }
             }
         }
 
-        private bool IsShuttingDown => form.IsClosing || form.IsDisposed;
+        private bool IsShuttingDown => view.IsShuttingDown;
 
         private static bool IsFileAccessException(Exception exception) =>
             exception is IOException or UnauthorizedAccessException;
@@ -243,104 +232,75 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            form.SetStatus(AppLocalization.Get(AppStrings.ControllerCancelling));
-            ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastCancelling), form);
-        }
-
-        /// <summary>
-        /// Asks the user before the app closes mid-run, since the playlist may be left
-        /// only partially updated if the run is interrupted now.
-        /// </summary>
-        public bool ConfirmCloseWhileRunning()
-        {
-            DialogResult result = MessageBox.Show(
-                AppLocalization.Get(AppStrings.ControllerConfirmCloseMessage),
-                AppLocalization.Get(AppStrings.ControllerConfirmCloseTitle),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning,
-                form,
-                FormSize.Small);
-
-            return result == DialogResult.Yes;
+            view.SetStatus(AppLocalization.Get(AppStrings.ControllerCancelling));
+            view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastCancelling));
         }
 
         public void OpenReport()
         {
             string reportTitle = AppLocalization.Get(AppStrings.Report);
 
-            if (!File.Exists(reportWriter.ReportPath))
+            switch (ReportLauncher.Open(reportWriter.ReportPath, out string? error))
             {
-                form.ShowInfo(
-                    AppLocalization.Get(AppStrings.ControllerNoReportAvailable),
-                    reportTitle);
+                case ReportOpenResult.Missing:
+                    view.ShowInfo(
+                        AppLocalization.Get(AppStrings.ControllerNoReportAvailable),
+                        reportTitle);
+                    break;
 
-                return;
-            }
+                case ReportOpenResult.Opened:
+                    view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastOpeningReport));
+                    break;
 
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = reportWriter.ReportPath,
-                    UseShellExecute = true
-                });
-                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastOpeningReport), form);
+                default:
+                    view.ShowError(
+                        AppLocalization.Get(AppStrings.ControllerCouldNotOpenReportFormat, error ?? string.Empty),
+                        reportTitle);
+                    break;
             }
-            catch (Exception ex)
-            {
-                form.ShowError(
-                    AppLocalization.Get(AppStrings.ControllerCouldNotOpenReportFormat, ex.Message),
-                    reportTitle);
-            }
-        }
-
-        public void OpenSpotifyClientIdHelp()
-        {
-            using SpotifyClientIdHelpForm helpForm = new();
-            helpForm.ShowDialog(form);
         }
 
         public void TogglePlaylistNameEdit()
         {
-            if (form.IsPlaylistNameReadOnly)
+            if (view.IsPlaylistNameReadOnly)
             {
-                form.EnablePlaylistNameEditing();
+                view.EnablePlaylistNameEditing();
                 return;
             }
 
             if (!ValidatePlaylistName(showMessage: true))
             {
-                form.FocusPlaylistName();
+                view.FocusPlaylistName();
                 return;
             }
 
-            form.DisablePlaylistNameEditing();
+            view.DisablePlaylistNameEditing();
             if (SaveSettings(showValidationMessage: false))
             {
                 ApplyRunAvailability(updateStatus: false);
-                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastPlaylistNameSaved), form);
+                view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastPlaylistNameSaved));
             }
         }
 
         public void ToggleSpotifyClientIdEdit()
         {
-            if (form.IsSpotifyClientIdReadOnly)
+            if (view.IsSpotifyClientIdReadOnly)
             {
-                form.EnableSpotifyClientIdEditing();
+                view.EnableSpotifyClientIdEditing();
                 return;
             }
 
             if (!ValidateSpotifyClientId(showMessage: true))
             {
-                form.FocusSpotifyClientId();
+                view.FocusSpotifyClientId();
                 return;
             }
 
-            form.DisableSpotifyClientIdEditing();
+            view.DisableSpotifyClientIdEditing();
             if (SaveSettings(showValidationMessage: false))
             {
                 ApplyRunAvailability(updateStatus: false);
-                ToastForm.ShowToast(AppLocalization.Get(AppStrings.ControllerToastClientIdSaved), form);
+                view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastClientIdSaved));
             }
         }
 
@@ -379,11 +339,11 @@ namespace ReleaseUpdaterGui
             SpotifyUser? user = await authService.TryGetCurrentUserAsync(
                 CancellationToken.None);
 
-            form.SetLoginStatus(
+            view.SetLoginStatus(
                 user is null
                     ? AppLocalization.Get(AppStrings.NotSignedIn)
                     : AppLocalization.Get(AppStrings.ControllerSignedInFormat, user.DisplayName));
-            form.SetAuthenticationState(user is not null);
+            view.SetAuthenticationState(user is not null);
         }
 
         private bool SaveSettings(bool showValidationMessage)
@@ -398,13 +358,13 @@ namespace ReleaseUpdaterGui
                 return false;
             }
 
-            ReleaseSettings settings = form.GetSettings();
+            ReleaseSettings settings = view.GetSettings();
             ReleaseSettings savedSettings = settingsStore.Load();
 
             if (ShouldKeepSavedPlaylistId(settings, savedSettings))
             {
                 settings.PlaylistId = savedSettings.PlaylistId;
-                form.SetSettings(settings);
+                view.SetSettings(settings);
             }
 
             settings.SpotifyCooldownUntilUtc = savedSettings.SpotifyCooldownUntilUtc;
@@ -421,17 +381,17 @@ namespace ReleaseUpdaterGui
                 string message = AppLocalization.Get(
                     AppStrings.ControllerSettingsSaveFailedFormat,
                     ex.Message);
-                form.SetStatus(message);
+                view.SetStatus(message);
 
                 if (showValidationMessage)
                 {
-                    form.ShowError(message, AppLocalization.Get(AppStrings.MainFormError));
+                    view.ShowError(message, AppLocalization.Get(AppStrings.MainFormError));
                 }
 
                 return false;
             }
 
-            form.SetStatus(AppLocalization.Get(AppStrings.ControllerSettingsSaved));
+            view.SetStatus(AppLocalization.Get(AppStrings.ControllerSettingsSaved));
 
             return true;
         }
@@ -439,12 +399,12 @@ namespace ReleaseUpdaterGui
         private bool ValidatePlaylistName(bool showMessage)
         {
             bool isValid = PlaylistValidator.IsValidPlaylistName(
-                form.PlaylistName,
+                view.PlaylistName,
                 out string errorMessage);
 
             if (!isValid && showMessage)
             {
-                form.ShowWarning(errorMessage, AppLocalization.Get(AppStrings.ControllerInvalidPlaylistNameTitle));
+                view.ShowWarning(errorMessage, AppLocalization.Get(AppStrings.ControllerInvalidPlaylistNameTitle));
             }
 
             return isValid;
@@ -452,7 +412,7 @@ namespace ReleaseUpdaterGui
 
         private bool ValidateSpotifyClientId(bool showMessage)
         {
-            string clientId = form.CustomSpotifyClientId;
+            string clientId = view.CustomSpotifyClientId;
 
             if (string.IsNullOrWhiteSpace(clientId))
             {
@@ -464,7 +424,7 @@ namespace ReleaseUpdaterGui
 
             if (!isValid && showMessage)
             {
-                form.ShowWarning(
+                view.ShowWarning(
                     AppLocalization.Get(AppStrings.ControllerInvalidClientIdMessage),
                     AppLocalization.Get(AppStrings.ControllerInvalidClientIdTitle));
             }
@@ -474,7 +434,7 @@ namespace ReleaseUpdaterGui
 
         private bool EnsureSpotifyClientIdConfigured(bool showMessage)
         {
-            ReleaseSettings settings = form.GetSettings();
+            ReleaseSettings settings = view.GetSettings();
 
             if (settings.HasSpotifyClientId)
             {
@@ -483,13 +443,13 @@ namespace ReleaseUpdaterGui
 
             string message = AppLocalization.Get(AppStrings.ControllerClientIdRequiredForLoginMessage);
             string title = AppLocalization.Get(AppStrings.SpotifyClientIdRequired);
-            form.SetStatus(title);
-            form.SetUpdateAvailability(false, message);
+            view.SetStatus(title);
+            view.SetUpdateAvailability(false, message);
             ApplyClientIdStatus(settings);
 
             if (showMessage)
             {
-                form.ShowInfo(message, title);
+                view.ShowInfo(message, title);
             }
 
             return false;
@@ -505,12 +465,12 @@ namespace ReleaseUpdaterGui
             {
                 string message = AppLocalization.Get(AppStrings.ControllerClientIdRequiredForUpdateMessage);
                 string title = AppLocalization.Get(AppStrings.SpotifyClientIdRequired);
-                form.SetStatus(title);
-                form.SetUpdateAvailability(false, message);
+                view.SetStatus(title);
+                view.SetUpdateAvailability(false, message);
 
                 if (showMessage)
                 {
-                    form.ShowInfo(message, title);
+                    view.ShowInfo(message, title);
                 }
 
                 return false;
@@ -519,18 +479,18 @@ namespace ReleaseUpdaterGui
             if (SpotifyRunPolicy.IsCooldownActive(settings, now))
             {
                 string message = CreateCooldownMessage(settings);
-                form.SetStatus(AppLocalization.Get(AppStrings.ControllerCooldownActive));
-                form.SetUpdateAvailability(false, message);
+                view.SetStatus(AppLocalization.Get(AppStrings.ControllerCooldownActive));
+                view.SetUpdateAvailability(false, message);
 
                 if (showMessage)
                 {
-                    form.ShowInfo(message, AppLocalization.Get(AppStrings.ControllerCooldownTitle));
+                    view.ShowInfo(message, AppLocalization.Get(AppStrings.ControllerCooldownTitle));
                 }
 
                 return false;
             }
 
-            form.SetUpdateAvailability(true, AppLocalization.Get(AppStrings.UpdatePlaylist));
+            view.SetUpdateAvailability(true, AppLocalization.Get(AppStrings.UpdatePlaylist));
             return true;
         }
 
@@ -542,11 +502,11 @@ namespace ReleaseUpdaterGui
             if (!settings.HasSpotifyClientId)
             {
                 string message = AppLocalization.Get(AppStrings.ControllerClientIdRequiredTooltip);
-                form.SetUpdateAvailability(false, message);
+                view.SetUpdateAvailability(false, message);
 
                 if (updateStatus)
                 {
-                    form.SetStatus(AppLocalization.Get(AppStrings.SpotifyClientIdRequired));
+                    view.SetStatus(AppLocalization.Get(AppStrings.SpotifyClientIdRequired));
                 }
 
                 return;
@@ -555,21 +515,21 @@ namespace ReleaseUpdaterGui
             if (SpotifyRunPolicy.IsCooldownActive(settings, DateTimeOffset.UtcNow))
             {
                 string message = CreateCooldownMessage(settings);
-                form.SetUpdateAvailability(false, message);
+                view.SetUpdateAvailability(false, message);
 
                 if (updateStatus)
                 {
-                    form.SetStatus(AppLocalization.Get(AppStrings.ControllerCooldownActive));
+                    view.SetStatus(AppLocalization.Get(AppStrings.ControllerCooldownActive));
                 }
 
                 return;
             }
 
-            form.SetUpdateAvailability(true, AppLocalization.Get(AppStrings.UpdatePlaylist));
+            view.SetUpdateAvailability(true, AppLocalization.Get(AppStrings.UpdatePlaylist));
 
             if (updateStatus)
             {
-                form.SetStatus(AppLocalization.Get(AppStrings.ReadyToRun));
+                view.SetStatus(AppLocalization.Get(AppStrings.ReadyToRun));
             }
         }
 
@@ -588,7 +548,7 @@ namespace ReleaseUpdaterGui
             (string message, ClientIdStatusKind kind) =
                 CreateClientIdStatus(settings);
 
-            form.SetClientIdStatus(message, kind);
+            view.SetClientIdStatus(message, kind);
         }
 
         private (string Message, ClientIdStatusKind Kind)
@@ -625,29 +585,11 @@ namespace ReleaseUpdaterGui
                 ClientIdStatusKind.Configured);
         }
 
-        private static string FormatDate(DateOnly value)
-        {
-            return value.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture);
-        }
-
         private static string FormatLocalTime(DateTimeOffset value)
         {
             return value
                 .ToLocalTime()
                 .ToString("HH:mm", CultureInfo.CurrentCulture);
-        }
-
-        private bool ConfirmStart()
-        {
-            DialogResult result = MessageBox.Show(
-                AppLocalization.Get(AppStrings.ControllerConfirmStartMessage),
-                AppLocalization.Get(AppStrings.UpdatePlaylist),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question,
-                form,
-                FormSize.Medium);
-
-            return result == DialogResult.Yes;
         }
 
         private static bool ShouldKeepSavedPlaylistId(

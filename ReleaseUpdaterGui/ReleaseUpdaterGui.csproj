@@ -38,8 +38,7 @@
   <!--
     ErikwnkWFUI is SDK-style and multi-targets net48;net8.0-windows, so this picks
     its net8.0-windows leg directly - which itself ProjectReferences ErikwnkCore's
-    net8.0 build, avoiding the net48/net8.0 BCL-facade version mismatch (and the manual
-    DLL vendoring under lib/) entirely for this app.
+    net8.0 build, avoiding the net48/net8.0 BCL-facade version mismatch entirely for this app.
   -->
   <ItemGroup>
     <ProjectReference Include="..\..\ErikwnkWFUI\ErikwnkWFUI\ErikwnkWFUI.csproj" />

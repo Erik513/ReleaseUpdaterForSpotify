@@ -18,8 +18,9 @@ using PropertyTable = ErikwnkWFUI.Controls.PropertyTable;
 
 namespace ReleaseUpdaterGui
 {
-    public partial class MainForm : AppForm
+    public partial class MainForm : AppForm, IMainView
     {
+        private static readonly TimeSpan UpdateCheckTimeout = TimeSpan.FromSeconds(8);
         private static readonly Size PropertyIconButtonSize = new(36, 30);
         private static readonly Size ActionIconButtonSize = new(48, 34);
         private const int PropertyIconColumnWidth = 54;
@@ -112,6 +113,8 @@ namespace ReleaseUpdaterGui
         /// <summary>True once the window has agreed to close (after the "close during a run?" question).</summary>
         public bool IsClosing { get; private set; }
 
+        public bool IsShuttingDown => IsClosing || IsDisposed;
+
         public MainForm() : base(
             FormOptions.CreateStandard(
                 title: AppLocalization.Get(AppStrings.MainFormWindowTitle),
@@ -160,8 +163,7 @@ namespace ReleaseUpdaterGui
                 settingsStore,
                 reportWriter,
                 authService,
-                releaseUpdater,
-                appUpdater);
+                releaseUpdater);
 
             Size = MinimumSize;
             MinimumSize = new Size(520, 740);
@@ -510,40 +512,61 @@ namespace ReleaseUpdaterGui
             txtSpotifyClientId.SelectAll();
         }
 
-        public void ShowInfo(
-            string message,
-            string title,
-            FormSize size = FormSize.Small)
+        public void ShowInfo(string message, string title)
         {
-            MessageBox.Show(
-                message,
-                title,
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Info,
-                this,
-                size);
+            Dialogs.Info(this, message, title);
         }
 
         public void ShowWarning(string message, string title)
         {
-            MessageBox.Show(
-                message,
-                title,
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning,
-                this,
-                FormSize.Small);
+            Dialogs.Warning(this, message, title);
         }
 
         public void ShowError(string message, string title)
         {
-            MessageBox.Show(
-                message,
-                title,
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error,
+            Dialogs.Error(this, message, title);
+        }
+
+        public void ShowToast(string message)
+        {
+            ToastForm.ShowToast(message, this);
+        }
+
+        public bool ConfirmStart()
+        {
+            DialogResult result = MessageBox.Show(
+                AppLocalization.Get(AppStrings.ControllerConfirmStartMessage),
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question,
+                this,
+                FormSize.Medium);
+
+            return result == DialogResult.Yes;
+        }
+
+        // Asks before the window closes mid-run, since the playlist may be left only partially
+        // updated if the run is interrupted now.
+        private bool ConfirmCloseWhileRunning()
+        {
+            DialogResult result = MessageBox.Show(
+                AppLocalization.Get(AppStrings.ControllerConfirmCloseMessage),
+                AppLocalization.Get(AppStrings.ControllerConfirmCloseTitle),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
                 this,
                 FormSize.Small);
+
+            return result == DialogResult.Yes;
+        }
+
+        public void BeginUpdateCheck()
+        {
+            Version currentVersion =
+                System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
+                    ?? new Version(0, 0, 0);
+
+            _ = appUpdater.CheckForUpdateAsync(currentVersion, UpdateCheckTimeout, this);
         }
 
         private void BuildUi()
@@ -873,7 +896,8 @@ namespace ReleaseUpdaterGui
 
         private void BtnClientIdHelp_Click(object? sender, EventArgs e)
         {
-            controller.OpenSpotifyClientIdHelp();
+            using SpotifyClientIdHelpForm helpForm = new();
+            helpForm.ShowDialog(this);
         }
 
         private void BtnUnreleasedSongs_Click(object? sender, EventArgs e)
@@ -893,7 +917,7 @@ namespace ReleaseUpdaterGui
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            if (controller.IsRunInProgress && !controller.ConfirmCloseWhileRunning())
+            if (controller.IsRunInProgress && !ConfirmCloseWhileRunning())
             {
                 e.Cancel = true;
                 return;

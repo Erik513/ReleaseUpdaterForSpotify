@@ -11,6 +11,7 @@ A small Windows app that keeps one Spotify playlist stocked with new releases fr
 - Also finds new tracks where a followed artist appears as a featured collaborator
 - Deduplicates everything it finds and replaces the contents of one **private** playlist you choose
 - Writes a sortable HTML report of what was added, and what got skipped as a duplicate
+- Keeps a list of songs you are waiting for and checks Spotify for them (the search icon): titles and artists are matched loosely, so a typo, a "feat." or a "- Remastered" does not hide a release; every match is marked as confident or similar
 
 ## Requirements
 
@@ -51,7 +52,11 @@ Run the tests with:
 
 ```bash
 dotnet test ReleaseUpdater.Core.Tests/ReleaseUpdater.Core.Tests.csproj
+dotnet test ReleaseUpdaterGui.Tests/ReleaseUpdaterGui.Tests.csproj
 ```
+
+The first covers the logic (Spotify access, matching, stores, texts); the second drives the two
+controllers of the app with stand-ins for the windows, so nothing is shown on screen.
 
 ## License
 

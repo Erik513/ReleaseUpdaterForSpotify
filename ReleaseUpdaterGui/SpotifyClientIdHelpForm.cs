@@ -160,13 +160,7 @@ namespace ReleaseUpdaterGui
 
         private void ShowError(string message)
         {
-            MessageBox.Show(
-                message,
-                AppLocalization.Get(AppStrings.HelpFormTitle),
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error,
-                this,
-                FormSize.Small);
+            Dialogs.Error(this, message, AppLocalization.Get(AppStrings.HelpFormTitle));
         }
     }
 }

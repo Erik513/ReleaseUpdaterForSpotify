@@ -9,7 +9,7 @@ using ReleaseUpdater.Data.Storage;
 
 namespace ReleaseUpdaterGui
 {
-    public sealed class UnreleasedSongsForm : AppForm
+    public sealed class UnreleasedSongsForm : AppForm, IUnreleasedSongsView
     {
         private static readonly Size ActionIconButtonSize = new(48, 34);
 
@@ -52,6 +52,8 @@ namespace ReleaseUpdaterGui
 
         /// <summary>True once the window is closing; a search that is still ending must leave it alone.</summary>
         public bool IsClosing { get; private set; }
+
+        public bool IsShuttingDown => IsClosing || IsDisposed;
 
         public void ApplyProgress(ReleaseProgress progress)
         {
@@ -116,24 +118,12 @@ namespace ReleaseUpdaterGui
 
         public void ShowInfo(string message, string title)
         {
-            MessageBox.Show(
-                message,
-                title,
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Info,
-                this,
-                FormSize.Small);
+            Dialogs.Info(this, message, title);
         }
 
         public void ShowError(string message, string title)
         {
-            MessageBox.Show(
-                message,
-                title,
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error,
-                this,
-                FormSize.Small);
+            Dialogs.Error(this, message, title);
         }
 
         private void LoadSongs()

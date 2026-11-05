@@ -1,4 +1,3 @@
-using System.Text.Json;
 using ReleaseUpdater.Core.Models;
 
 namespace ReleaseUpdater.Data.Storage;
@@ -11,12 +10,6 @@ namespace ReleaseUpdater.Data.Storage;
 /// </summary>
 public sealed class TrackedSongsStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-    };
-
     private readonly AppDataPaths paths;
 
     public TrackedSongsStore(AppDataPaths paths)
@@ -28,36 +21,14 @@ public sealed class TrackedSongsStore
     {
         paths.EnsureDirectory();
 
-        try
-        {
-            if (!File.Exists(paths.UnreleasedSongsPath))
-            {
-                return Array.Empty<TrackedSong>();
-            }
-
-            string json = File.ReadAllText(paths.UnreleasedSongsPath);
-
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                return Array.Empty<TrackedSong>();
-            }
-
-            List<TrackedSong>? songs =
-                JsonSerializer.Deserialize<List<TrackedSong>>(json, JsonOptions);
-
-            return songs ?? new List<TrackedSong>();
-        }
-        catch
-        {
-            return Array.Empty<TrackedSong>();
-        }
+        return JsonFile.TryRead<List<TrackedSong>>(paths.UnreleasedSongsPath)
+            ?? (IReadOnlyList<TrackedSong>)Array.Empty<TrackedSong>();
     }
 
     public void Save(IReadOnlyList<TrackedSong> songs)
     {
         paths.EnsureDirectory();
 
-        string json = JsonSerializer.Serialize(songs, JsonOptions);
-        AtomicFile.WriteAllText(paths.UnreleasedSongsPath, json);
+        JsonFile.Write(paths.UnreleasedSongsPath, songs);
     }
 }

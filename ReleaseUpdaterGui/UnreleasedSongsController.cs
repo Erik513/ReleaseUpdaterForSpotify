@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using ErikwnkCore;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Localization;
@@ -10,7 +9,7 @@ namespace ReleaseUpdaterGui
 {
     public sealed class UnreleasedSongsController
     {
-        private readonly UnreleasedSongsForm form;
+        private readonly IUnreleasedSongsView view;
         private readonly TrackedSongsStore songsStore;
         private readonly UnreleasedSongChecker checker;
         private readonly IUnreleasedSongsReportWriter reportWriter;
@@ -18,12 +17,12 @@ namespace ReleaseUpdaterGui
         private CancellationTokenSource? runCancellation;
 
         public UnreleasedSongsController(
-            UnreleasedSongsForm form,
+            IUnreleasedSongsView view,
             TrackedSongsStore songsStore,
             UnreleasedSongChecker checker,
             IUnreleasedSongsReportWriter reportWriter)
         {
-            this.form = form;
+            this.view = view;
             this.songsStore = songsStore;
             this.checker = checker;
             this.reportWriter = reportWriter;
@@ -45,19 +44,19 @@ namespace ReleaseUpdaterGui
 
             if (validSongs.Count == 0)
             {
-                form.ShowInfo(
+                view.ShowInfo(
                     AppLocalization.Get(AppStrings.UnreleasedNoSongsMessage),
                     AppLocalization.Get(AppStrings.UnreleasedFormTitle));
 
                 return;
             }
 
-            form.PrepareRunUi();
+            view.PrepareRunUi();
             runCancellation = new CancellationTokenSource();
 
             try
             {
-                Progress<ReleaseProgress> progress = new(form.ApplyProgress);
+                Progress<ReleaseProgress> progress = new(view.ApplyProgress);
 
                 UnreleasedSongsCheckResult result = await checker.RunAsync(
                     validSongs,
@@ -66,14 +65,14 @@ namespace ReleaseUpdaterGui
 
                 if (!IsShuttingDown)
                 {
-                    form.ShowCompleted(result);
+                    view.ShowCompleted(result);
                 }
             }
             catch (OperationCanceledException)
             {
                 if (!IsShuttingDown)
                 {
-                    form.ShowCancelled();
+                    view.ShowCancelled();
                 }
             }
             catch (Exception ex)
@@ -81,7 +80,7 @@ namespace ReleaseUpdaterGui
                 // (A message box owned by a window that is already closed would throw.)
                 if (!IsShuttingDown)
                 {
-                    form.ShowRunFailed(ex.Message);
+                    view.ShowRunFailed(ex.Message);
                 }
             }
             finally
@@ -91,7 +90,7 @@ namespace ReleaseUpdaterGui
             }
         }
 
-        private bool IsShuttingDown => form.IsClosing || form.IsDisposed;
+        private bool IsShuttingDown => view.IsShuttingDown;
 
         public void CancelSearch()
         {
@@ -102,28 +101,19 @@ namespace ReleaseUpdaterGui
         {
             string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
 
-            if (!File.Exists(reportWriter.ReportPath))
+            switch (ReportLauncher.Open(reportWriter.ReportPath, out string? error))
             {
-                form.ShowInfo(
-                    AppLocalization.Get(AppStrings.ControllerNoReportAvailable),
-                    title);
+                case ReportOpenResult.Missing:
+                    view.ShowInfo(
+                        AppLocalization.Get(AppStrings.ControllerNoReportAvailable),
+                        title);
+                    break;
 
-                return;
-            }
-
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = reportWriter.ReportPath,
-                    UseShellExecute = true
-                });
-            }
-            catch (Exception ex)
-            {
-                form.ShowError(
-                    AppLocalization.Get(AppStrings.ControllerCouldNotOpenReportFormat, ex.Message),
-                    title);
+                case ReportOpenResult.Failed:
+                    view.ShowError(
+                        AppLocalization.Get(AppStrings.ControllerCouldNotOpenReportFormat, error ?? string.Empty),
+                        title);
+                    break;
             }
         }
     }

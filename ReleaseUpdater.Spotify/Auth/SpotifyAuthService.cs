@@ -33,17 +33,6 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
         this.clientIdProvider = clientIdProvider;
     }
 
-    public bool HasCachedToken
-    {
-        get
-        {
-            SpotifyToken? token = tokenStore.Load();
-
-            return HasRequiredScopes(token) &&
-                TokenBelongsToClient(token, GetConfiguredClientId());
-        }
-    }
-
     /// <summary>
     /// Checks the stored token and returns the currently signed-in Spotify user.
     /// </summary>

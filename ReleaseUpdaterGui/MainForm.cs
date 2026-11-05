@@ -699,7 +699,7 @@ namespace ReleaseUpdaterGui
             txtOutput.ScrollBars = ScrollBars.Vertical;
             txtOutput.WordWrap = true;
             txtOutput.ReadOnly = true;
-            txtOutput.TabStop = true;
+            txtOutput.TabStop = false;
             txtOutput.Font = UIStyles.Fonts.Monospace;
 
             mainPanel.Controls.Add(txtOutput);

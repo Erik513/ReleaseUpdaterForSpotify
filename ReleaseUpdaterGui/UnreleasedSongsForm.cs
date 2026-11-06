@@ -203,6 +203,8 @@ namespace ReleaseUpdaterGui
                 SortMode = DataGridViewColumnSortMode.NotSortable,
                 Width = LinkColumnWidth
             });
+            // The header of the column says which clicks do what (the tooltip of the header cell).
+            dataGridView.Columns[LinkColumnName]!.HeaderCell.ToolTipText = AppLocalization.Get(AppStrings.UnreleasedLinkHeaderTooltip);
             dataGridView.CellFormatting += DataGridView_LinkCellFormatting;
             dataGridView.CellMouseDoubleClick += DataGridView_LinkCellMouseDoubleClick;
             dataGridView.DataSource = rows;

@@ -197,6 +197,8 @@ public static class AppStrings
     public const string UnreleasedImportReplacedFormat = "Unreleased.ImportReplacedFormat";
     public const string UnreleasedPasteNothing = "Unreleased.PasteNothing";
     public const string UnreleasedClipboardBusy = "Unreleased.ClipboardBusy";
+    public const string UnreleasedUndoHint = "Unreleased.UndoHint";
+    public const string UnreleasedUndone = "Unreleased.Undone";
     public const string UnreleasedPasteNoSongs = "Unreleased.PasteNoSongs";
     public const string ImportColumnsTitle = "ImportColumns.Title";
     public const string ImportColumnsIntro = "ImportColumns.Intro";
@@ -421,6 +423,8 @@ public static class AppStrings
         [UnreleasedImportModeFormat] = "The list has {0} songs and {1} are imported.\n\nYes: replace the list with the imported songs, in the order of the file.\nNo: add only the new songs at the end of the list.",
         [UnreleasedImportReplacedFormat] = "The list is now the {0} imported songs, in the order of the file ({1} twins left out, {2} entries skipped).",
         [UnreleasedPasteNothing] = "The clipboard contains no text.",
+        [UnreleasedUndoHint] = " Ctrl+Z undoes it.",
+        [UnreleasedUndone] = "The list is back as it was before the import.",
         [UnreleasedClipboardBusy] = "The clipboard is in use by another program. Try again.",
         [UnreleasedLinkPromptFormat] = "Link for \"{0}\": where did you find this song?",
         [UnreleasedLinkHint] = "A web address, for example https://www.youtube.com/...",
@@ -637,6 +641,8 @@ public static class AppStrings
         [UnreleasedImportModeFormat] = "Die Liste hat {0} Songs, importiert werden {1}.\n\nJa: Liste durch die importierten Songs ersetzen, in der Reihenfolge der Datei.\nNein: nur die neuen Songs am Ende der Liste ergänzen.",
         [UnreleasedImportReplacedFormat] = "Die Liste besteht jetzt aus den {0} importierten Songs, in der Reihenfolge der Datei ({1} doppelte weggelassen, {2} Einträge übersprungen).",
         [UnreleasedPasteNothing] = "Die Zwischenablage enthält keinen Text.",
+        [UnreleasedUndoHint] = " Strg+Z macht es rückgängig.",
+        [UnreleasedUndone] = "Die Liste ist wieder so wie vor dem Import.",
         [UnreleasedClipboardBusy] = "Die Zwischenablage wird gerade von einem anderen Programm verwendet. Bitte erneut versuchen.",
         [UnreleasedLinkPromptFormat] = "Link zu \"{0}\": wo hast du den Song entdeckt?",
         [UnreleasedLinkHint] = "Eine Webadresse, zum Beispiel https://www.youtube.com/...",

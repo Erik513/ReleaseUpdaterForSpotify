@@ -36,6 +36,9 @@ namespace ReleaseUpdaterGui
         // True while the code (not the user) moves the columns: that is not saved as the user's choice.
         private bool applyingColumnOrder;
 
+        // The list as it was before the last import or paste (Ctrl+Z brings it back); null when there is nothing to undo.
+        private IReadOnlyList<TrackedSong>? undoSnapshot;
+
         public UnreleasedSongsForm(
             TrackedSongsStore songsStore,
             IUnreleasedSongsReportWriter reportWriter,
@@ -247,6 +250,12 @@ namespace ReleaseUpdaterGui
                     e.SuppressKeyPress = true;
                     e.Handled = true;
                     PasteFromClipboard();
+                }
+                else if (e.Control && e.KeyCode == Keys.Z && !dataGridView.IsCurrentCellInEditMode && btnPaste.Enabled && undoSnapshot is not null)
+                {
+                    e.SuppressKeyPress = true;
+                    e.Handled = true;
+                    UndoImport();
                 }
             };
 
@@ -606,14 +615,34 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
+            undoSnapshot = GetCurrentSongs().Where(song => song.Title.Length > 0 || song.Artist.Length > 0).ToList();
+            SetStatus(lblStatus.Text + AppLocalization.Get(AppStrings.UnreleasedUndoHint));
+            LoadRows(songs);
+            SaveQuietly();
+        }
+
+        // Puts the list as it was before the last import or paste.
+        private void UndoImport()
+        {
+            if (undoSnapshot is null)
+            {
+                return;
+            }
+
+            LoadRows(undoSnapshot);
+            undoSnapshot = null;
+            SaveQuietly();
+            SetStatus(AppLocalization.Get(AppStrings.UnreleasedUndone));
+        }
+
+        private void LoadRows(IReadOnlyList<TrackedSong> songs)
+        {
             rows.Clear();
 
             foreach (TrackedSong song in songs)
             {
                 rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist, Link = TrackedSongLinks.Normalize(song.Link) });
             }
-
-            SaveQuietly();
         }
 
         // Keeps the list at once after an import or a link change, so that a crash does not lose it. A failure is not worth a message here:

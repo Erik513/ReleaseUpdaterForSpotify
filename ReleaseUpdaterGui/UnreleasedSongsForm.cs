@@ -388,7 +388,7 @@ namespace ReleaseUpdaterGui
             {
                 Title = AppLocalization.Get(AppStrings.UnreleasedExport),
                 Filter = GetFileFilter(includeCombined: false),
-                DefaultExt = "xlsx",
+                DefaultExt = "docx",
                 AddExtension = true,
                 FileName = "unreleased-songs",
                 OverwritePrompt = true
@@ -400,14 +400,14 @@ namespace ReleaseUpdaterGui
             }
         }
 
-        // Excel first (the default of a save), then Word, CSV and JSON; an open dialog can also show all of them at once.
+        // Word first (the default of a save), then Excel, CSV and JSON; an open dialog can also show all of them at once.
         private static string GetFileFilter(bool includeCombined)
         {
             string songs = AppLocalization.Get(AppStrings.UnreleasedFileFilterSongs);
-            string filter = "Excel (*.xlsx)|*.xlsx|Word (*.docx)|*.docx|CSV (*.csv)|*.csv|JSON (*.json)|*.json";
+            string filter = "Word (*.docx)|*.docx|Excel (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv|JSON (*.json)|*.json";
 
             return includeCombined
-                ? songs + " (*.xlsx;*.docx;*.csv;*.json)|*.xlsx;*.docx;*.csv;*.json|" + filter
+                ? songs + " (*.docx;*.xlsx;*.csv;*.json)|*.docx;*.xlsx;*.csv;*.json|" + filter
                 : filter;
         }
 

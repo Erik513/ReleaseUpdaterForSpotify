@@ -115,8 +115,7 @@ internal static class TrackedSongsDocx
             using MemoryStream stream = new(content);
             using ZipArchive zip = new(stream, ZipArchiveMode.Read);
             ZipArchiveEntry entry = zip.GetEntry("word/document.xml") ?? throw new FormatException("There is no document.");
-            using Stream part = entry.Open();
-            XDocument document = XDocument.Load(part);
+            XDocument document = OfficeXml.Load(entry);
             XElement table = document.Descendants(W + "tbl").FirstOrDefault() ?? throw new FormatException("The document has no table.");
             Dictionary<string, string> targets = ReadHyperlinkTargets(zip);
             List<IReadOnlyList<string>> rows = new();
@@ -207,10 +206,9 @@ internal static class TrackedSongsDocx
             return targets;
         }
 
-        using Stream stream = entry.Open();
         XNamespace rel = "http://schemas.openxmlformats.org/package/2006/relationships";
 
-        foreach (XElement relationship in XDocument.Load(stream).Descendants(rel + "Relationship"))
+        foreach (XElement relationship in OfficeXml.Load(entry).Descendants(rel + "Relationship"))
         {
             string? type = (string?)relationship.Attribute("Type");
             string? id = (string?)relationship.Attribute("Id");

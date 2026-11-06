@@ -275,6 +275,12 @@ namespace ReleaseUpdaterGui
 
         public async Task StartSearchAsync(IReadOnlyList<TrackedSong> songs)
         {
+            // (One run at a time.)
+            if (IsRunInProgress)
+            {
+                return;
+            }
+
             List<TrackedSong> validSongs = songs
                 .Where(song =>
                     !string.IsNullOrWhiteSpace(song.Title) &&

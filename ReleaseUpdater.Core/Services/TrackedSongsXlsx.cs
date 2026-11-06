@@ -324,9 +324,7 @@ internal static class TrackedSongsXlsx
             return null;
         }
 
-        using Stream stream = entry.Open();
-
-        return XDocument.Load(stream);
+        return OfficeXml.Load(entry);
     }
 
     // The first sheet of the workbook, by the relationship that the workbook names (Excel does not always call it sheet1.xml).

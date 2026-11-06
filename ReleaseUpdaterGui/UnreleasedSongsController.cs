@@ -76,13 +76,18 @@ namespace ReleaseUpdaterGui
         public IReadOnlyList<TrackedSong>? ImportSongs(string path, IReadOnlyList<TrackedSong> current)
         {
             string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
-            TrackedSongsImport import;
+            TrackedSongsFormat format = TrackedSongsTransfer.FormatForPath(path);
+            TrackedSongsImport? import;
 
             try
             {
-                import = TrackedSongsTransfer.Read(
-                    File.ReadAllBytes(path),
-                    TrackedSongsTransfer.FormatForPath(path));
+                byte[] content = File.ReadAllBytes(path);
+
+                // A table (CSV, Excel, Word) may have more columns than the two that are needed: the user chooses them.
+                // JSON has its own names for them.
+                import = TrackedSongsTransfer.IsTable(format)
+                    ? ReadChosenColumns(TrackedSongsTransfer.ReadTable(content, format))
+                    : TrackedSongsTransfer.Read(content, format);
             }
             catch (FormatException)
             {
@@ -97,9 +102,71 @@ namespace ReleaseUpdaterGui
                 return null;
             }
 
+            return Merge(import, current, AppStrings.UnreleasedImportNothingFound);
+        }
+
+        /// <summary>
+        /// Reads songs from what is on the clipboard (a table copied from Excel or Word: tabs between the cells, a line for a row) and
+        /// returns <paramref name="current"/> with the new ones behind it. Null, after telling the user why, when there is nothing to add or
+        /// the user cancels the choice of the columns.
+        /// </summary>
+        public IReadOnlyList<TrackedSong>? PasteSongs(string? clipboardText, IReadOnlyList<TrackedSong> current)
+        {
+            if (string.IsNullOrWhiteSpace(clipboardText))
+            {
+                view.ShowInfo(
+                    AppLocalization.Get(AppStrings.UnreleasedPasteNothing),
+                    AppLocalization.Get(AppStrings.UnreleasedFormTitle));
+
+                return null;
+            }
+
+            return Merge(
+                ReadChosenColumns(TrackedSongsTransfer.ParseClipboardText(clipboardText)),
+                current,
+                AppStrings.UnreleasedPasteNoSongs);
+        }
+
+        // The songs of a table: its two columns when it has no more than two, else the ones the user chooses (null: cancelled).
+        private TrackedSongsImport? ReadChosenColumns(ImportTable table)
+        {
+            if (table.IsEmpty)
+            {
+                return new TrackedSongsImport(Array.Empty<TrackedSong>(), 0);
+            }
+
+            ImportColumnChoice choice;
+
+            if (table.ColumnCount <= 2)
+            {
+                choice = table.GuessColumns();
+            }
+            else
+            {
+                ImportColumnChoice? chosen = view.ChooseImportColumns(table);
+
+                if (chosen is null)
+                {
+                    return null;
+                }
+
+                choice = chosen;
+            }
+
+            return TrackedSongsTransfer.SongsFromTable(table, choice);
+        }
+
+        // Adds the songs that are new to the list and says what happened; null when there was nothing to add.
+        private IReadOnlyList<TrackedSong>? Merge(TrackedSongsImport? import, IReadOnlyList<TrackedSong> current, string noSongsMessage)
+        {
+            if (import is null)
+            {
+                return null;
+            }
+
             if (import.Songs.Count == 0)
             {
-                view.ShowInfo(AppLocalization.Get(AppStrings.UnreleasedImportNothingFound), title);
+                view.ShowInfo(AppLocalization.Get(noSongsMessage), AppLocalization.Get(AppStrings.UnreleasedFormTitle));
 
                 return null;
             }

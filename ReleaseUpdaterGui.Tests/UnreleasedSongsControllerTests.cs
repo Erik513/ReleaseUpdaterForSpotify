@@ -113,6 +113,122 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
         Assert.True(view.Has(expectedCall));
     }
 
+    // ---- the choice of the columns, and paste ----
+
+    // Verifies that a table with more than two columns asks for the columns, and the songs are the ones in the columns that were chosen.
+    [Fact]
+    public void Import_OfAWideTable_AsksForTheColumns_AndReadsTheChosenOnes()
+    {
+        string path = Path.Combine(directory, "wide.csv");
+        File.WriteAllText(path, "Nr;Note;Title;Artist\r\n1;x;Song A;Artist A\r\n2;y;Song B;Artist B\r\n");
+        view.ColumnChoice = new ImportColumnChoice(TitleColumn: 3, ArtistColumn: 2, HasHeader: true);
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        // (The user swapped the two on purpose: what was chosen is what is read.)
+        Assert.Equal(new[] { new TrackedSong("Artist A", "Song A"), new TrackedSong("Artist B", "Song B") }, merged);
+        Assert.True(view.Has("ChooseImportColumns:4"));
+    }
+
+    // Verifies that the proposal of the program is what the dialog starts with: a numbering column in front is skipped.
+    [Fact]
+    public void Import_OfAWideTable_ProposesTheColumnsWithoutTheNumbering()
+    {
+        string path = Path.Combine(directory, "numbered.csv");
+        File.WriteAllText(path, "1;Song A;Artist A\r\n2;Song B;Artist B\r\n");
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.Equal(new[] { new TrackedSong("Song A", "Artist A"), new TrackedSong("Song B", "Artist B") }, merged);
+        Assert.Equal(new ImportColumnChoice(1, 2, false), AskedGuess());
+    }
+
+    private ImportColumnChoice AskedGuess() => view.AskedTable!.GuessColumns();
+
+    // Verifies that a table of two columns is read without asking.
+    [Fact]
+    public void Import_OfATwoColumnTable_DoesNotAsk()
+    {
+        string path = Path.Combine(directory, "two.csv");
+        File.WriteAllText(path, "Title;Artist\r\nSong A;Artist A\r\n");
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.Single(merged!);
+        Assert.False(view.Has("ChooseImportColumns"));
+    }
+
+    // Verifies that Cancel in the dialog leaves the list alone, with no message.
+    [Fact]
+    public void Import_CancelledInTheColumnDialog_ChangesNothing()
+    {
+        string path = Path.Combine(directory, "wide.csv");
+        File.WriteAllText(path, "1;Song A;Artist A\r\n");
+        view.CancelColumnChoice = true;
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, new[] { new TrackedSong("Keep", "Me") });
+
+        Assert.Null(merged);
+        Assert.False(view.Has("SetStatus:"));
+        Assert.False(view.Has("ShowInfo:"));
+        Assert.False(view.Has("ShowError:"));
+    }
+
+    // Verifies that an Excel table is read like the other tables.
+    [Fact]
+    public void Import_OfAnExcelTable_Works()
+    {
+        string path = Path.Combine(directory, "wide.xlsx");
+        TrackedSongsFormat format = TrackedSongsFormat.Xlsx;
+        File.WriteAllBytes(path, TrackedSongsTransfer.Write(new[] { new TrackedSong("Song A", "Artist A") }, format));
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.Equal(new[] { new TrackedSong("Song A", "Artist A") }, merged);
+    }
+
+    // Verifies that a table copied from Excel or Word (tabs, one line per row, a numbering column) can be pasted.
+    [Fact]
+    public void Paste_OfACopiedTable_AsksForTheColumns_AndAddsTheSongs()
+    {
+        IReadOnlyList<TrackedSong>? merged = CreateController().PasteSongs(
+            "Nr\tTitle\tArtist\r\n1\tSong A\tArtist A\r\n2\tSong B\tArtist B\r\n",
+            new[] { new TrackedSong("Old", "One") });
+
+        Assert.Equal(
+            new[] { new TrackedSong("Old", "One"), new TrackedSong("Song A", "Artist A"), new TrackedSong("Song B", "Artist B") },
+            merged);
+        Assert.True(view.Has("ChooseImportColumns:3"));
+        Assert.True(view.Has("SetStatus:"));
+    }
+
+    // Verifies that songs that are in the list already are not added again by a paste.
+    [Fact]
+    public void Paste_DoesNotAddDuplicates()
+    {
+        IReadOnlyList<TrackedSong>? merged = CreateController().PasteSongs(
+            "song a\tARTIST A\nSong B\tArtist B",
+            new[] { new TrackedSong("Song A", "Artist A") });
+
+        Assert.Equal(2, merged!.Count);
+        Assert.False(view.Has("ChooseImportColumns"));
+    }
+
+    // Verifies that an empty clipboard, or text without songs, is reported and changes nothing.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   \r\n  ")]
+    [InlineData("just one word")]
+    [InlineData("a\t")]
+    public void Paste_WithoutSongs_SaysSo(string? clipboard)
+    {
+        IReadOnlyList<TrackedSong>? merged = CreateController().PasteSongs(clipboard, new[] { new TrackedSong("Keep", "Me") });
+
+        Assert.Null(merged);
+        Assert.True(view.Has("ShowInfo:"));
+    }
+
     // Verifies that a file that is not what its ending says (a text file called .xlsx) is reported, and the list is left alone.
     [Theory]
     [InlineData("songs.xlsx")]

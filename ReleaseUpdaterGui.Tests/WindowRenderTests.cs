@@ -1,5 +1,6 @@
 using System.Drawing;
 using ErikwnkWFUI;
+using ReleaseUpdater.Core.Services;
 using ReleaseUpdaterGui;
 
 namespace ReleaseUpdaterGui.Tests;
@@ -64,6 +65,34 @@ public sealed class WindowRenderTests
             finally
             {
                 Directory.Delete(directory, recursive: true);
+            }
+        });
+    }
+
+    // Verifies that the dialog for the columns of an imported table can be built and printed, and that its choice starts with the proposal.
+    [Fact]
+    public void ImportColumnsForm_RendersAWindow_AndStartsWithTheProposal()
+    {
+        RunOnStaThread(() =>
+        {
+            ImportTable table = new(new IReadOnlyList<string>[]
+            {
+                new[] { "Nr", "Titel", "Jahr", "Interpret" },
+                new[] { "1", "Some Song", "2020", "Some Artist" },
+                new[] { "2", "Another Song With A Rather Long Title", "2021", "Another Artist" }
+            });
+
+            using ImportColumnsForm form = new(table);
+            using Bitmap picture = UITesting.Render(form);
+
+            Assert.Equal(new ImportColumnChoice(1, 3, true), form.Choice);
+            Assert.True(CountDistinctColors(picture) > 8, "the picture shows more than a flat surface");
+
+            string? folder = Environment.GetEnvironmentVariable("RELEASEUPDATER_RENDER_DIR");
+
+            if (!string.IsNullOrEmpty(folder))
+            {
+                UITesting.Render(form, Path.Combine(folder, "columns.png"));
             }
         });
     }

@@ -5,6 +5,7 @@ using ErikwnkWFUI.Forms;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
+using ReleaseUpdater.Core.Services;
 using ReleaseUpdater.Data.Storage;
 
 namespace ReleaseUpdaterGui
@@ -22,6 +23,7 @@ namespace ReleaseUpdaterGui
         private SymbolToggle btnRun = null!;
         private Button btnOpenReport = null!;
         private Button btnImport = null!;
+        private Button btnPaste = null!;
         private Button btnExport = null!;
 
         public UnreleasedSongsForm(
@@ -116,6 +118,7 @@ namespace ReleaseUpdaterGui
             btnRun.ShowSecond(busy);
             btnRun.Enabled = true;
             btnImport.Enabled = !busy;
+            btnPaste.Enabled = !busy;
             btnExport.Enabled = !busy;
             dataGridView.Enabled = !busy;
         }
@@ -190,6 +193,17 @@ namespace ReleaseUpdaterGui
             libraryGrid.AllowColumnResizing = false;
             libraryGrid.AllowColumnReordering = false;
 
+            // Ctrl+V in the list (not while a cell is being edited: there it pastes into the cell) adds songs from the clipboard.
+            dataGridView.KeyDown += (_, e) =>
+            {
+                if (e.Control && e.KeyCode == Keys.V && !dataGridView.IsCurrentCellInEditMode && btnPaste.Enabled)
+                {
+                    e.SuppressKeyPress = true;
+                    e.Handled = true;
+                    PasteFromClipboard();
+                }
+            };
+
             dataGridView.Resize += (_, _) => ApplyFixedColumnWidths();
             ApplyFixedColumnWidths();
 
@@ -202,7 +216,7 @@ namespace ReleaseUpdaterGui
             bottomPanel.Dock = DockStyle.Bottom;
             bottomPanel.Height = 44 + 28;
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 4 * ActionIconButtonSize.Width + 16));
+            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5 * ActionIconButtonSize.Width + 16));
             bottomPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
             bottomPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
 
@@ -245,6 +259,12 @@ namespace ReleaseUpdaterGui
                 ActionIconButtonSize);
             btnImport.Click += BtnImport_Click;
 
+            btnPaste = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Paste.WithColors(UIStyles.Buttons.Presets.Document.Colors),
+                AppLocalization.Get(AppStrings.UnreleasedPaste),
+                ActionIconButtonSize);
+            btnPaste.Click += (_, _) => PasteFromClipboard();
+
             btnExport = UIStyles.Buttons.CreateSymbol(
                 UIStyles.Buttons.Presets.Upload.WithColors(UIStyles.Buttons.Presets.Document.Colors),
                 AppLocalization.Get(AppStrings.UnreleasedExport),
@@ -254,6 +274,7 @@ namespace ReleaseUpdaterGui
             // Right to left: the run / stop button is the rightmost, the report next to it, then import and export.
             buttonPanel.Controls.Add(btnRun.Host);
             buttonPanel.Controls.Add(btnOpenReport);
+            buttonPanel.Controls.Add(btnPaste);
             buttonPanel.Controls.Add(btnImport);
             buttonPanel.Controls.Add(btnExport);
 
@@ -328,19 +349,37 @@ namespace ReleaseUpdaterGui
             }
 
             // (Rows that are still being typed are part of the list, so they are kept.)
-            IReadOnlyList<TrackedSong>? merged = controller.ImportSongs(dialog.FileName, GetCurrentSongs());
+            ShowSongs(controller.ImportSongs(dialog.FileName, GetCurrentSongs()));
+        }
 
-            if (merged is null)
+        private void PasteFromClipboard()
+        {
+            string? text = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+
+            ShowSongs(controller.PasteSongs(text, GetCurrentSongs()));
+        }
+
+        // The list after an import or a paste (null: nothing changed).
+        private void ShowSongs(IReadOnlyList<TrackedSong>? songs)
+        {
+            if (songs is null)
             {
                 return;
             }
 
             rows.Clear();
 
-            foreach (TrackedSong song in merged)
+            foreach (TrackedSong song in songs)
             {
                 rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist });
             }
+        }
+
+        public ImportColumnChoice? ChooseImportColumns(ImportTable table)
+        {
+            using ImportColumnsForm dialog = new(table);
+
+            return dialog.ShowDialog(this) == DialogResult.OK ? dialog.Choice : null;
         }
 
         private void BtnExport_Click(object? sender, EventArgs e)

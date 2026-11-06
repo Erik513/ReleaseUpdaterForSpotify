@@ -86,6 +86,72 @@ public static class TrackedSongsTransfer
     private static string DecodeText(byte[] content) =>
         new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false).GetString(content).TrimStart('﻿');
 
+    /// <summary>True for the formats that are a table (CSV, Excel, Word): the user may choose its columns.</summary>
+    public static bool IsTable(TrackedSongsFormat format) =>
+        format is TrackedSongsFormat.Csv or TrackedSongsFormat.Xlsx or TrackedSongsFormat.Docx;
+
+    /// <summary>The cells of a CSV, Excel or Word file, not yet read as songs.</summary>
+    /// <exception cref="FormatException">The content is not a table in that format.</exception>
+    public static ImportTable ReadTable(byte[] content, TrackedSongsFormat format) =>
+        format switch
+        {
+            TrackedSongsFormat.Xlsx => new ImportTable(TrackedSongsXlsx.ReadRows(content)),
+            TrackedSongsFormat.Docx => new ImportTable(TrackedSongsDocx.ReadRows(content)),
+            TrackedSongsFormat.Csv => ParseDelimitedText(DecodeText(content)),
+            _ => throw new ArgumentException("JSON is not a table.", nameof(format))
+        };
+
+    /// <summary>
+    /// The cells of what was copied from a spreadsheet or a Word table (tabs between the cells, a line for a row); text with
+    /// semicolons or commas as a CSV file has them is understood too.
+    /// </summary>
+    public static ImportTable ParseClipboardText(string text)
+    {
+        text = text.TrimStart('﻿');
+        char delimiter = text.Contains('\t') ? '\t' : DetectDelimiter(text);
+
+        try
+        {
+            return new ImportTable(ReadCsvRows(text, delimiter));
+        }
+        catch (FormatException)
+        {
+            // (A quote that is not closed - 12" vinyl - in text that is not a CSV: read it line by line, quotes as they are.)
+            return new ImportTable(
+                text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None)
+                    .Select(line => (IReadOnlyList<string>)line.Split(delimiter))
+                    .ToList());
+        }
+    }
+
+    /// <summary>The songs in the two columns that the user chose, without the header row when there is one.</summary>
+    public static TrackedSongsImport SongsFromTable(ImportTable table, ImportColumnChoice choice)
+    {
+        List<TrackedSong> songs = new();
+        int skipped = 0;
+
+        for (int index = choice.HasHeader ? 1 : 0; index < table.Rows.Count; index++)
+        {
+            if (table.Rows[index].All(string.IsNullOrWhiteSpace))
+            {
+                continue;
+            }
+
+            string title = table.Cell(index, choice.TitleColumn).Trim();
+            string artist = table.Cell(index, choice.ArtistColumn).Trim();
+
+            if (title.Length == 0 || artist.Length == 0)
+            {
+                skipped++;
+                continue;
+            }
+
+            songs.Add(new TrackedSong(title, artist));
+        }
+
+        return new TrackedSongsImport(songs, skipped);
+    }
+
     /// <summary>Adds the imported songs that are not in the list yet (same title and artist, whatever the case) behind it.</summary>
     public static TrackedSongsMerge Merge(IReadOnlyList<TrackedSong> existing, IReadOnlyList<TrackedSong> imported)
     {
@@ -193,9 +259,15 @@ public static class TrackedSongsTransfer
     private static TrackedSongsImport ParseCsv(string text)
     {
         text = text.TrimStart('﻿');
-        char delimiter = DetectDelimiter(text);
 
-        return SongsFromRows(ReadCsvRows(text, delimiter));
+        return SongsFromRows(ParseDelimitedText(text).Rows);
+    }
+
+    private static ImportTable ParseDelimitedText(string text)
+    {
+        text = text.TrimStart('﻿');
+
+        return new ImportTable(ReadCsvRows(text, DetectDelimiter(text)));
     }
 
     // The rows of a table (a CSV, a sheet, a Word table): title in the first column, artist in the second; a header row and

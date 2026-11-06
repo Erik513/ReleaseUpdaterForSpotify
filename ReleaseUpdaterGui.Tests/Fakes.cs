@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
+using ReleaseUpdater.Core.Services;
 
 namespace ReleaseUpdaterGui.Tests;
 
@@ -130,6 +131,20 @@ internal sealed class FakeUnreleasedView : IUnreleasedSongsView
     public bool IsShuttingDown { get; set; }
 
     public void SetStatus(string status) => Calls.Add("SetStatus:" + status);
+
+    /// <summary>What the user "chooses" in the column dialog; null = the guess of the table, <see cref="CancelColumnChoice"/> = Cancel.</summary>
+    public ImportColumnChoice? ColumnChoice { get; set; }
+    public bool CancelColumnChoice { get; set; }
+    public ImportTable? AskedTable { get; private set; }
+
+    public ImportColumnChoice? ChooseImportColumns(ImportTable table)
+    {
+        AskedTable = table;
+        Calls.Add("ChooseImportColumns:" + table.ColumnCount);
+
+        return CancelColumnChoice ? null : ColumnChoice ?? table.GuessColumns();
+    }
+
     public void PrepareRunUi() => Calls.Add("PrepareRunUi");
     // Not recorded, for the reason given at FakeMainView.ApplyProgress.
     public void ApplyProgress(ReleaseProgress progress)

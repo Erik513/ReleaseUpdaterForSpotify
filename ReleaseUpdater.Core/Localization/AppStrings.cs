@@ -184,6 +184,18 @@ public static class AppStrings
     public const string UnreleasedImportNothingFound = "Unreleased.ImportNothingFound";
     public const string UnreleasedImportInvalidFile = "Unreleased.ImportInvalidFile";
     public const string UnreleasedImportFailedFormat = "Unreleased.ImportFailedFormat";
+    public const string UnreleasedPaste = "Unreleased.Paste";
+    public const string UnreleasedPasteNothing = "Unreleased.PasteNothing";
+    public const string UnreleasedPasteNoSongs = "Unreleased.PasteNoSongs";
+    public const string ImportColumnsTitle = "ImportColumns.Title";
+    public const string ImportColumnsIntroFormat = "ImportColumns.IntroFormat";
+    public const string ImportColumnsTitleColumn = "ImportColumns.TitleColumn";
+    public const string ImportColumnsArtistColumn = "ImportColumns.ArtistColumn";
+    public const string ImportColumnsHasHeader = "ImportColumns.HasHeader";
+    public const string ImportColumnsColumnFormat = "ImportColumns.ColumnFormat";
+    public const string ImportColumnsSameColumn = "ImportColumns.SameColumn";
+    public const string ImportColumnsOk = "ImportColumns.Ok";
+    public const string ImportColumnsCancel = "ImportColumns.Cancel";
     public const string UnreleasedRateLimitedFormat = "Unreleased.RateLimitedFormat";
 
     // Spotify sign-in and API errors (ReleaseUpdater.Spotify) - shown to the user as they are,
@@ -400,6 +412,18 @@ public static class AppStrings
         [UnreleasedImportNothingFound] = "The file contains no songs with a title and an artist.",
         [UnreleasedImportInvalidFile] = "The file is not a list of songs (a table with the title in the first column and the artist in the second: Excel, Word or CSV; or JSON with title and artist).",
         [UnreleasedImportFailedFormat] = "The file could not be read: {0}",
+        [UnreleasedPaste] = "Paste songs from the clipboard (Ctrl+V): a table copied from Excel or Word",
+        [UnreleasedPasteNothing] = "The clipboard contains no text.",
+        [UnreleasedPasteNoSongs] = "The clipboard contains no songs with a title and an artist.",
+        [ImportColumnsTitle] = "Choose the columns",
+        [ImportColumnsIntroFormat] = "The table has {0} columns. Choose the column with the title and the column with the artist.",
+        [ImportColumnsTitleColumn] = "Title column",
+        [ImportColumnsArtistColumn] = "Artist column",
+        [ImportColumnsHasHeader] = "The first row is a header",
+        [ImportColumnsColumnFormat] = "Column {0}",
+        [ImportColumnsSameColumn] = "Choose two different columns.",
+        [ImportColumnsOk] = "Import",
+        [ImportColumnsCancel] = "Cancel",
         [UnreleasedRateLimitedFormat] = "Spotify's request limit was reached. Please try again in about {0} minute(s).",
 
         [SpotifyClientIdNotSaved] = "Please enter and save your Spotify Client ID first.",
@@ -595,6 +619,18 @@ public static class AppStrings
         [UnreleasedImportNothingFound] = "Die Datei enthält keine Songs mit Titel und Interpret.",
         [UnreleasedImportInvalidFile] = "Die Datei ist keine Songliste (eine Tabelle mit dem Titel in der ersten und dem Interpreten in der zweiten Spalte: Excel, Word oder CSV; oder JSON mit title und artist).",
         [UnreleasedImportFailedFormat] = "Die Datei konnte nicht gelesen werden: {0}",
+        [UnreleasedPaste] = "Songs aus der Zwischenablage einfügen (Strg+V): eine aus Excel oder Word kopierte Tabelle",
+        [UnreleasedPasteNothing] = "Die Zwischenablage enthält keinen Text.",
+        [UnreleasedPasteNoSongs] = "Die Zwischenablage enthält keine Songs mit Titel und Interpret.",
+        [ImportColumnsTitle] = "Spalten auswählen",
+        [ImportColumnsIntroFormat] = "Die Tabelle hat {0} Spalten. Wähle die Spalte mit dem Titel und die Spalte mit dem Interpreten.",
+        [ImportColumnsTitleColumn] = "Titel-Spalte",
+        [ImportColumnsArtistColumn] = "Interpret-Spalte",
+        [ImportColumnsHasHeader] = "Die erste Zeile ist eine Überschrift",
+        [ImportColumnsColumnFormat] = "Spalte {0}",
+        [ImportColumnsSameColumn] = "Wähle zwei verschiedene Spalten.",
+        [ImportColumnsOk] = "Importieren",
+        [ImportColumnsCancel] = "Abbrechen",
         [UnreleasedRateLimitedFormat] = "Das Anfragelimit von Spotify wurde erreicht. Bitte versuche es in etwa {0} Minute(n) erneut.",
 
         [SpotifyClientIdNotSaved] = "Bitte gib zuerst deine Spotify-Client-ID ein und speichere sie.",

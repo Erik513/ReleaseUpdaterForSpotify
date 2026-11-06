@@ -585,6 +585,11 @@ public sealed class SpotifyReleaseUpdaterTests
                     : Array.Empty<SpotifyTrackItem>());
         }
 
+        public Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksAsync(
+            string query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(Array.Empty<SpotifyTrackItem>());
+
         public Task<IReadOnlyList<SpotifyTrackItem>> SearchTrackByTitleArtistAsync(
             string title,
             string artist,

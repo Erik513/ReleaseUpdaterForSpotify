@@ -33,7 +33,8 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         DateTime generatedAt)
     {
         List<SongMatchResult> found = results.Where(result => result.IsFound).ToList();
-        List<SongMatchResult> notFound = results.Where(result => !result.IsFound).ToList();
+        List<SongMatchResult> possible = results.Where(result => result.IsPossible).ToList();
+        List<SongMatchResult> notFound = results.Where(result => !result.IsFound && !result.IsPossible).ToList();
 
         StringBuilder html = new();
 
@@ -47,9 +48,10 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         html.AppendLine(ReportTheme.GetScript());
         html.AppendLine("</head>");
         html.AppendLine("<body>");
-        AppendHeader(html, results.Count, found.Count, notFound.Count, generatedAt);
+        AppendHeader(html, results.Count, found.Count, possible.Count, notFound.Count, generatedAt);
         AppendToolbar(html);
         AppendFoundSection(html, found);
+        AppendPossibleSection(html, possible);
         AppendNotFoundSection(html, notFound);
         html.AppendLine("</body>");
         html.AppendLine("</html>");
@@ -61,6 +63,7 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         StringBuilder html,
         int checkedCount,
         int foundCount,
+        int possibleCount,
         int notFoundCount,
         DateTime generatedAt)
     {
@@ -76,6 +79,7 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
             generatedAt.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture));
         AppendMetaItem(html, "Checked", checkedCount.ToString(CultureInfo.InvariantCulture));
         AppendMetaItem(html, "Found", foundCount.ToString(CultureInfo.InvariantCulture));
+        AppendMetaItem(html, "Possible", possibleCount.ToString(CultureInfo.InvariantCulture));
         AppendMetaItem(html, "Not found", notFoundCount.ToString(CultureInfo.InvariantCulture));
         html.AppendLine("    </dl>");
         html.AppendLine("  </header>");
@@ -101,19 +105,52 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         html.AppendLine("  </div>");
     }
 
-    private static void AppendFoundSection(StringBuilder html, IReadOnlyList<SongMatchResult> results)
+    private static void AppendFoundSection(StringBuilder html, IReadOnlyList<SongMatchResult> results) =>
+        AppendMatchSection(
+            html,
+            results,
+            "Found on Spotify",
+            "These songs from your list are now available on Spotify.",
+            "No matches yet.",
+            showEntry: false);
+
+    // Only a hint each: the title or the artist fits, the other does not. The entry of the user is shown next to what Spotify has, so
+    // that the two can be compared at a glance. (No section at all when there is none.)
+    private static void AppendPossibleSection(StringBuilder html, IReadOnlyList<SongMatchResult> results)
+    {
+        if (results.Count == 0)
+        {
+            return;
+        }
+
+        AppendMatchSection(
+            html,
+            results,
+            "Possible matches",
+            "Only the title or only the artist fits - this may be the song, or another one. Worth a look.",
+            string.Empty,
+            showEntry: true);
+    }
+
+    private static void AppendMatchSection(
+        StringBuilder html,
+        IReadOnlyList<SongMatchResult> results,
+        string heading,
+        string description,
+        string emptyText,
+        bool showEntry)
     {
         html.AppendLine("  <section class=\"report-section\">");
         html.AppendLine("    <div class=\"section-heading\">");
         html.AppendLine("      <div>");
-        html.AppendLine($"        <h2>Found on Spotify <span>{results.Count}</span></h2>");
-        html.AppendLine("        <p>These songs from your list are now available on Spotify.</p>");
+        html.AppendLine($"        <h2>{ReportTheme.Encode(heading)} <span>{results.Count}</span></h2>");
+        html.AppendLine($"        <p>{ReportTheme.Encode(description)}</p>");
         html.AppendLine("      </div>");
         html.AppendLine("    </div>");
 
         if (results.Count == 0)
         {
-            html.AppendLine("    <p class=\"empty-state\">No matches yet.</p>");
+            html.AppendLine($"    <p class=\"empty-state\">{ReportTheme.Encode(emptyText)}</p>");
             html.AppendLine("  </section>");
             return;
         }
@@ -138,7 +175,7 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
 
         foreach (SongMatchResult result in results)
         {
-            AppendFoundRow(html, result);
+            AppendFoundRow(html, result, showEntry);
         }
 
         html.AppendLine("        </tbody>");
@@ -147,7 +184,7 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         html.AppendLine("  </section>");
     }
 
-    private static void AppendFoundRow(StringBuilder html, SongMatchResult result)
+    private static void AppendFoundRow(StringBuilder html, SongMatchResult result, bool showEntry)
     {
         SpotifyTrackItem match = result.Match!;
         string albumName = match.Album?.Name ?? string.Empty;
@@ -170,6 +207,13 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         html.AppendLine(
             $"                  <div class=\"song-title\"><a class=\"track-link\" href=\"{ReportTheme.EncodeAttribute(match.SpotifyUrl)}\" target=\"_blank\" rel=\"noopener\">{ReportTheme.Encode(match.Title)}</a></div>");
         html.AppendLine($"                  <div class=\"song-artists\">{ReportTheme.BuildArtistLinksMarkup(match.Artists)}</div>");
+
+        if (showEntry)
+        {
+            html.AppendLine(
+                $"                  <div class=\"song-artists\">Your entry: {ReportTheme.Encode(result.Song.Title)} - {ReportTheme.Encode(result.Song.Artist)}</div>");
+        }
+
         html.AppendLine("                </div>");
         html.AppendLine("              </div>");
         html.AppendLine("            </td>");
@@ -177,7 +221,12 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         html.AppendLine($"            <td data-sort=\"{sortDate}\">{displayDate}</td>");
 
         bool isConfident = result.Confidence == MatchConfidence.Confident;
-        string confidenceText = isConfident ? "Confident" : "Similar";
+        string confidenceText = result.Confidence switch
+        {
+            MatchConfidence.Confident => "Confident",
+            MatchConfidence.Partial => result.Hint == MatchHint.ArtistOnly ? "Artist matches" : "Title matches",
+            _ => result.Hint == MatchHint.SwappedFields ? "Similar - title and artist swapped" : "Similar"
+        };
         string confidenceCssClass = isConfident ? "confidence-confident" : "confidence-similar";
         html.AppendLine(
             $"            <td data-sort=\"{confidenceText}\"><span class=\"source-badge {confidenceCssClass}\">{confidenceText}</span></td>");

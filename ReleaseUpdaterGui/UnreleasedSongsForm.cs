@@ -91,10 +91,16 @@ namespace ReleaseUpdaterGui
             SetBusy(false);
             progressBar.Value = 100;
 
-            SetStatus(AppLocalization.Get(
-                AppStrings.UnreleasedStatusDoneFormat,
-                result.FoundCount,
-                result.CheckedCount));
+            SetStatus(result.PossibleCount > 0
+                ? AppLocalization.Get(
+                    AppStrings.UnreleasedStatusDonePossibleFormat,
+                    result.FoundCount,
+                    result.CheckedCount,
+                    result.PossibleCount)
+                : AppLocalization.Get(
+                    AppStrings.UnreleasedStatusDoneFormat,
+                    result.FoundCount,
+                    result.CheckedCount));
         }
 
         public void ShowRunFailed(string message)

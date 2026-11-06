@@ -18,8 +18,29 @@ public sealed record TrackedSong(
 public enum MatchConfidence
 {
     None,
+
+    /// <summary>
+    /// Only one of title and artist fits (the other is wrong or missing): not counted as found, but worth a look by hand. Shown in
+    /// its own section of the report.
+    /// </summary>
+    Partial,
     Similar,
     Confident
+}
+
+/// <summary>What is special about how a song was matched (shown in the report, so that the user knows what to look at).</summary>
+public enum MatchHint
+{
+    None,
+
+    /// <summary>The title and the artist of the entry are the other way round: the title is the artist of the track, and the other way round.</summary>
+    SwappedFields,
+
+    /// <summary>A partial match: the title fits, the artist does not.</summary>
+    TitleOnly,
+
+    /// <summary>A partial match: the artist fits, the title does not (or only loosely).</summary>
+    ArtistOnly
 }
 
 /// <summary>
@@ -32,12 +53,18 @@ public enum MatchConfidence
 public sealed record SongMatchResult(
     TrackedSong Song,
     SpotifyTrackItem? Match,
-    MatchConfidence Confidence)
+    MatchConfidence Confidence,
+    MatchHint Hint = MatchHint.None)
 {
-    public bool IsFound => Confidence != MatchConfidence.None;
+    /// <summary>A match that is believed (<see cref="MatchConfidence.Similar"/> or better).</summary>
+    public bool IsFound => Confidence >= MatchConfidence.Similar;
+
+    /// <summary>Only a hint (<see cref="MatchConfidence.Partial"/>): not found, but something comes close.</summary>
+    public bool IsPossible => Confidence == MatchConfidence.Partial;
 }
 
 public sealed record UnreleasedSongsCheckResult(
     int CheckedCount,
     int FoundCount,
-    string ReportPath);
+    string ReportPath,
+    int PossibleCount = 0);

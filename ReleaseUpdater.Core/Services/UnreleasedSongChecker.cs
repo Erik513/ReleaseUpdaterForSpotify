@@ -68,50 +68,114 @@ public sealed class UnreleasedSongChecker
                     song.Artist,
                     cancellationToken);
 
-            (SpotifyTrackItem? match, MatchConfidence confidence) = FindBestMatch(song, candidates);
+            BestMatch best = FindBestMatch(song, candidates, allowSwapped: false);
 
-            results.Add(new SongMatchResult(song, match, confidence));
+            // The search of the fields found nothing that counts. A hand-typed entry has the fields the wrong way round, an artist in
+            // the title, a name that is a little off - the search of the fields cannot find that, a search of free text can (it does not
+            // care in which order the words come). Only the songs that need it get this one more request.
+            if (best.Confidence < MatchConfidence.Similar)
+            {
+                IReadOnlyList<SpotifyTrackItem> freeText =
+                    await spotify.SearchTracksAsync(BuildFreeTextQuery(song), cancellationToken);
+
+                best = FindBestMatch(song, MergeCandidates(candidates, freeText), allowSwapped: true);
+            }
+
+            results.Add(new SongMatchResult(song, best.Track, best.Confidence, best.Hint));
         }
 
         int foundCount = results.Count(result => result.IsFound);
+        int possibleCount = results.Count(result => result.IsPossible);
         string reportPath = reportWriter.WriteReport(results);
 
-        return new UnreleasedSongsCheckResult(results.Count, foundCount, reportPath);
+        return new UnreleasedSongsCheckResult(results.Count, foundCount, reportPath, possibleCount);
     }
+
+    private readonly record struct Scored(MatchConfidence Confidence, double Score, MatchHint Hint);
+
+    private readonly record struct BestMatch(
+        SpotifyTrackItem? Track,
+        MatchConfidence Confidence,
+        MatchHint Hint,
+        double Score,
+        bool Swapped);
+
+    // How close a name has to be for a partial match (only one of title and artist fits): a title that fits plus an artist that is at
+    // least this close, or an artist that fits plus a title at least this close. A title that is specific enough (see IsSpecificTitle) is
+    // a hint even with an artist that is quite different.
+    private const double PartialArtistCloseness = 0.5;
+    private const double PartialTitleCloseness = 0.6;
 
     // Scores every candidate rather than stopping at the first one that
     // clears the threshold - fuzzy matching means several candidates can
     // plausibly qualify (e.g. a remix and the original), and the closest
-    // one is what's actually worth reporting.
-    private static (SpotifyTrackItem? Match, MatchConfidence Confidence) FindBestMatch(
+    // one is what's actually worth reporting. With allowSwapped the candidates are also tried with the title and the artist of the
+    // entry the other way round; such a match is believed (never as "Confident") but marked, so that the report says what happened.
+    private static BestMatch FindBestMatch(
         TrackedSong song,
-        IReadOnlyList<SpotifyTrackItem> candidates)
+        IReadOnlyList<SpotifyTrackItem> candidates,
+        bool allowSwapped)
     {
-        SpotifyTrackItem? bestMatch = null;
-        MatchConfidence bestConfidence = MatchConfidence.None;
-        double bestScore = -1;
+        BestMatch best = new(null, MatchConfidence.None, MatchHint.None, -1, false);
+        TrackedSong swapped = new(song.Artist, song.Title);
+        bool trySwapped = allowSwapped && Normalize(song.Title) != Normalize(song.Artist);
 
         foreach (SpotifyTrackItem candidate in candidates)
         {
-            (MatchConfidence confidence, double score) = ScoreCandidate(song, candidate);
+            Scored normal = ScoreCandidate(song, candidate);
+            Consider(ref best, candidate, normal.Confidence, normal.Hint, normal.Score, swapped: false);
 
-            if (confidence == MatchConfidence.None)
+            if (trySwapped)
             {
-                continue;
-            }
+                Scored other = ScoreCandidate(swapped, candidate);
 
-            if (confidence > bestConfidence || (confidence == bestConfidence && score > bestScore))
-            {
-                bestMatch = candidate;
-                bestConfidence = confidence;
-                bestScore = score;
+                if (other.Confidence >= MatchConfidence.Similar)
+                {
+                    Consider(ref best, candidate, MatchConfidence.Similar, MatchHint.SwappedFields, other.Score, swapped: true);
+                }
             }
         }
 
-        return (bestMatch, bestConfidence);
+        return best;
     }
 
-    private static (MatchConfidence Confidence, double Score) ScoreCandidate(
+    // The better of the best so far and this candidate: the higher confidence; with the same one, a match of the entry as it is
+    // before a swapped one, and then the higher score.
+    private static void Consider(
+        ref BestMatch best,
+        SpotifyTrackItem candidate,
+        MatchConfidence confidence,
+        MatchHint hint,
+        double score,
+        bool swapped)
+    {
+        if (confidence == MatchConfidence.None)
+        {
+            return;
+        }
+
+        bool better;
+
+        if (confidence != best.Confidence)
+        {
+            better = confidence > best.Confidence;
+        }
+        else if (best.Swapped != swapped)
+        {
+            better = best.Swapped;
+        }
+        else
+        {
+            better = score > best.Score;
+        }
+
+        if (better)
+        {
+            best = new BestMatch(candidate, confidence, hint, score, swapped);
+        }
+    }
+
+    private static Scored ScoreCandidate(
         TrackedSong song,
         SpotifyTrackItem candidate)
     {
@@ -120,24 +184,55 @@ public sealed class UnreleasedSongChecker
 
         if (normalizedTitle.Length == 0 || normalizedArtist.Length == 0)
         {
-            return (MatchConfidence.None, 0);
+            return new Scored(MatchConfidence.None, 0, MatchHint.None);
         }
 
         string candidateTitle = Normalize(candidate.Title);
         double titleSimilarity = TitleSimilarity(song.Title, candidate.Title);
+        (bool exactArtistMatch, double bestArtistSimilarity) = CompareArtists(song.Artist, normalizedArtist, candidate);
 
-        if (titleSimilarity < SimilarityThreshold)
+        bool titleMatches = titleSimilarity >= SimilarityThreshold;
+        bool artistMatches = exactArtistMatch || bestArtistSimilarity >= SimilarityThreshold;
+        double artistSimilarity = exactArtistMatch ? 1.0 : bestArtistSimilarity;
+
+        if (titleMatches && artistMatches)
         {
-            return (MatchConfidence.None, 0);
+            bool isExactTitle = candidateTitle == normalizedTitle;
+            MatchConfidence confidence = isExactTitle && exactArtistMatch
+                ? MatchConfidence.Confident
+                : MatchConfidence.Similar;
+
+            return new Scored(confidence, (titleSimilarity + artistSimilarity) / 2.0, MatchHint.None);
         }
 
-        string[] artistWords = Words(song.Artist);
+        // Only one of the two fits. That is not a match, but a hint when the other one is not far off (a misspelled artist, a title
+        // with something added) - or when the title is so specific that it hardly belongs to anybody else.
+        double partialScore = (titleSimilarity + artistSimilarity) / 2.0;
+
+        if (titleMatches && (IsSpecificTitle(song.Title) || artistSimilarity >= PartialArtistCloseness))
+        {
+            return new Scored(MatchConfidence.Partial, partialScore, MatchHint.TitleOnly);
+        }
+
+        if (artistMatches && titleSimilarity >= PartialTitleCloseness)
+        {
+            return new Scored(MatchConfidence.Partial, partialScore, MatchHint.ArtistOnly);
+        }
+
+        return new Scored(MatchConfidence.None, 0, MatchHint.None);
+    }
+
+    // Whether the artist of the entry is credited on the candidate: exactly (whole words, either direction - "The Weeknd" is "Weeknd",
+    // and one of "Weeknd, Playboi Carti"), and how close the closest credit is.
+    private static (bool Exact, double Closest) CompareArtists(string artist, string normalizedArtist, SpotifyTrackItem candidate)
+    {
+        string[] artistWords = Words(artist);
         bool exactArtistMatch = false;
         double bestArtistSimilarity = 0;
 
-        foreach (SpotifyArtist artist in candidate.Artists)
+        foreach (SpotifyArtist credited in candidate.Artists)
         {
-            string candidateArtist = Normalize(artist.Name);
+            string candidateArtist = Normalize(credited.Name);
 
             if (candidateArtist.Length == 0)
             {
@@ -150,8 +245,8 @@ public sealed class UnreleasedSongChecker
             // not just any substring: "Alex" must not match a credit of "Lex"
             // or "A".
             if (candidateArtist == normalizedArtist ||
-                ContainsWords(Words(artist.Name), artistWords) ||
-                ContainsWords(artistWords, Words(artist.Name)))
+                ContainsWords(Words(credited.Name), artistWords) ||
+                ContainsWords(artistWords, Words(credited.Name)))
             {
                 exactArtistMatch = true;
             }
@@ -161,20 +256,50 @@ public sealed class UnreleasedSongChecker
                 SimilarityRatio(normalizedArtist, candidateArtist));
         }
 
-        if (!exactArtistMatch && bestArtistSimilarity < SimilarityThreshold)
+        return (exactArtistMatch, bestArtistSimilarity);
+    }
+
+    // A title that hardly belongs to another song: three words or more, or a long one. "Sammy In My Room" is one; "Revolution", "One Day" and
+    // "Heal" are not (there are dozens of them), so for those the artist has to be close as well.
+    private static bool IsSpecificTitle(string title)
+    {
+        string core = StripExtras(title);
+        string subject = core.Trim().Length > 0 ? core : title;
+
+        return Words(subject).Length >= 3 || Normalize(subject).Length >= 14;
+    }
+
+    // The words for a search of free text: the title without its extras and the first artist. Both orders find the same song, so the
+    // search does not depend on the fields being right.
+    private static string BuildFreeTextQuery(TrackedSong song)
+    {
+        string core = StripExtras(song.Title).Trim();
+        string title = core.Length > 0 ? core : song.Title.Trim();
+        string artist = ArtistSeparator.Split(song.Artist.Trim(), 2)[0].Trim();
+
+        return (title + " " + artist).Replace("\"", string.Empty).Trim();
+    }
+
+    private static readonly Regex ArtistSeparator =
+        new(@"\s*(?:[,;&/]|\s(?:x|feat\.?|ft\.?|and|und|with)\s)\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // The candidates of the search of the fields and of the search of free text, each track once.
+    private static IReadOnlyList<SpotifyTrackItem> MergeCandidates(
+        IReadOnlyList<SpotifyTrackItem> first,
+        IReadOnlyList<SpotifyTrackItem> second)
+    {
+        List<SpotifyTrackItem> merged = new(first);
+        HashSet<string> known = new(first.Select(track => track.Id), StringComparer.Ordinal);
+
+        foreach (SpotifyTrackItem track in second)
         {
-            return (MatchConfidence.None, 0);
+            if (known.Add(track.Id))
+            {
+                merged.Add(track);
+            }
         }
 
-        bool isExactTitle = candidateTitle == normalizedTitle;
-        MatchConfidence confidence = isExactTitle && exactArtistMatch
-            ? MatchConfidence.Confident
-            : MatchConfidence.Similar;
-
-        double artistSimilarity = exactArtistMatch ? 1.0 : bestArtistSimilarity;
-        double score = (titleSimilarity + artistSimilarity) / 2.0;
-
-        return (confidence, score);
+        return merged;
     }
 
     /// <summary>
@@ -247,11 +372,19 @@ public sealed class UnreleasedSongChecker
         return Math.Max(whole, SimilarityRatio(trackedCore, candidateCore));
     }
 
-    // Removes (...) and [...] parts, a " - ..." suffix and a "feat./ft./featuring ..." tail.
+    // Removes (...) and [...] parts, a note after "->", a " - ..." suffix and a "feat./ft./featuring ..." tail.
     // ("with" is deliberately not one of them: "Dancing with Myself" is a title, not a credit.)
     private static string StripExtras(string title)
     {
         string result = BracketedPart.Replace(title, " ");
+
+        // A note of the user behind the title ("-> 10:43", a time of a set): not part of the song.
+        int arrow = result.IndexOf("->", StringComparison.Ordinal);
+
+        if (arrow >= 0)
+        {
+            result = result[..arrow];
+        }
 
         int dash = result.IndexOf(" - ", StringComparison.Ordinal);
 
@@ -330,7 +463,7 @@ public sealed class UnreleasedSongChecker
         List<string> words = new();
         StringBuilder current = new();
 
-        foreach (char character in value.ToLower(CultureInfo.InvariantCulture))
+        foreach (char character in FoldDiacritics(value.ToLower(CultureInfo.InvariantCulture)))
         {
             if (char.IsLetterOrDigit(character))
             {
@@ -362,6 +495,40 @@ public sealed class UnreleasedSongChecker
     }
 
     /// <summary>
+    /// The letters without their accents (the text is already lowercase): "beyoncé" is "beyonce", "mötley crüe" is "motley crue", and the
+    /// letters that are no accented ones but are written the other way in a plain alphabet ("pæde" is "paede", "ø" is "o", "ß" is "ss").
+    /// Spotify and a hand-typed list rarely agree on those.
+    /// </summary>
+    private static string FoldDiacritics(string lowercase)
+    {
+        StringBuilder builder = new(lowercase.Length);
+
+        foreach (char character in lowercase.Normalize(NormalizationForm.FormD))
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            switch (character)
+            {
+                case 'æ': builder.Append("ae"); break;
+                case 'œ': builder.Append("oe"); break;
+                case 'ø': builder.Append('o'); break;
+                case 'ß': builder.Append("ss"); break;
+                case 'đ': builder.Append('d'); break;
+                case 'ð': builder.Append('d'); break;
+                case 'ł': builder.Append('l'); break;
+                case 'þ': builder.Append("th"); break;
+                case 'ı': builder.Append('i'); break;
+                default: builder.Append(character); break;
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
     /// Lowercases and strips everything but letters/digits, so spelling
     /// differences in punctuation, spacing, or casing (the most common
     /// mismatch between a hand-typed title and Spotify's own) don't block
@@ -373,7 +540,7 @@ public sealed class UnreleasedSongChecker
     {
         StringBuilder builder = new(value.Length);
 
-        foreach (char character in value.ToLower(CultureInfo.InvariantCulture))
+        foreach (char character in FoldDiacritics(value.ToLower(CultureInfo.InvariantCulture)))
         {
             if (char.IsLetterOrDigit(character))
             {

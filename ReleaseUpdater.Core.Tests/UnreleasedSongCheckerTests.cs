@@ -186,7 +186,214 @@ public sealed class UnreleasedSongCheckerTests
     {
         SongMatchResult result = await CheckAsync("Same Title", trackedArtist, "Same Title", spotifyArtist);
 
+        // (Not found. A name that is close but not the same ("Lex" and "Alex") is at most a hint, see the partial matches below.)
+        Assert.False(result.IsFound);
+        Assert.NotEqual(MatchConfidence.Similar, result.Confidence);
+        Assert.NotEqual(MatchConfidence.Confident, result.Confidence);
+    }
+
+    // ---- accents ----
+
+    // Verifies that accents and letters of other alphabets are not a difference: "Beyoncé" is "Beyonce", "PÆDE" is "PAEDE" - in both directions.
+    [Theory]
+    [InlineData("Creme Brulee", "Beyonce", "Crème Brûlée", "Beyoncé")]
+    [InlineData("Crème Brûlée", "Beyoncé", "Creme Brulee", "Beyonce")]
+    [InlineData("Kickstart My Heart", "Motley Crue", "Kickstart My Heart", "Mötley Crüe")]
+    [InlineData("Sky & Sand", "PAEDE", "Sky & Sand", "PÆDE")]
+    [InlineData("Sky & Sand", "PÆDE", "Sky & Sand", "PAEDE")]
+    [InlineData("Strasse", "Bjork", "Straße", "Björk")]
+    [InlineData("Sjaelland", "Mo", "Sjælland", "MØ")]
+    [InlineData("Sao Paulo", "The Weeknd", "São Paulo", "The Weeknd")]
+    public async Task Accents_AreNotADifference(string trackedTitle, string trackedArtist, string spotifyTitle, string spotifyArtist)
+    {
+        SongMatchResult result = await CheckAsync(trackedTitle, trackedArtist, spotifyTitle, spotifyArtist);
+
+        Assert.Equal(MatchConfidence.Confident, result.Confidence);
+    }
+
+    // ---- title and artist the wrong way round, and the search of free text ----
+
+    private static SpotifyTrackItem Found(string id, string title, params string[] artists) => Track(id, title, artists);
+
+    // One entry; the search of the fields finds nothing, the search of free text finds what it is told to.
+    private static async Task<(SongMatchResult Result, FakeGateway Gateway)> CheckWithFreeTextAsync(
+        TrackedSong song,
+        params SpotifyTrackItem[] freeTextResults)
+    {
+        FakeGateway gateway = new();
+        gateway.FreeTextResults.AddRange(freeTextResults);
+        FakeReportWriter writer = new();
+
+        await new UnreleasedSongChecker(gateway, writer).RunAsync(new[] { song }, null, CancellationToken.None);
+
+        return (Assert.Single(writer.LastResults), gateway);
+    }
+
+    // Verifies that an entry with the title and the artist swapped is found, and marked: never "Confident", with a hint for the report.
+    [Fact]
+    public async Task SwappedFields_AreFound_AndMarked()
+    {
+        (SongMatchResult result, _) = await CheckWithFreeTextAsync(
+            new TrackedSong("The Weeknd", "Blinding Lights"),
+            Found("t1", "Blinding Lights", "The Weeknd"));
+
+        Assert.True(result.IsFound);
+        Assert.Equal(MatchConfidence.Similar, result.Confidence);
+        Assert.Equal(MatchHint.SwappedFields, result.Hint);
+        Assert.Equal("t1", result.Match!.Id);
+    }
+
+    // Verifies that a track that fits the entry as it is wins over one that only fits when swapped.
+    [Fact]
+    public async Task AMatchAsItIs_BeatsASwappedOne()
+    {
+        (SongMatchResult result, _) = await CheckWithFreeTextAsync(
+            new TrackedSong("Blinding Lights", "The Weeknd"),
+            Found("swapped", "The Weeknd", "Blinding Lights"),
+            Found("normal", "Blinding Lights (Extended)", "The Weeknd"));
+
+        Assert.Equal("normal", result.Match!.Id);
+        Assert.Equal(MatchHint.None, result.Hint);
+    }
+
+    // Verifies that the search of free text is only made for the songs that the search of the fields did not settle: one request less
+    // for each song that was found.
+    [Fact]
+    public async Task FreeTextSearch_IsOnlyUsedWhenTheFieldSearchFoundNothingThatCounts()
+    {
+        FakeGateway gateway = new();
+        gateway.AddResult("Found Song", "Found Artist", Track("a", "Found Song", "Found Artist"));
+        gateway.AddResult("Close Song", "Close Artist", Track("b", "Totally Other", "Someone"));
+        FakeReportWriter writer = new();
+
+        await new UnreleasedSongChecker(gateway, writer).RunAsync(
+            new[] { new TrackedSong("Found Song", "Found Artist"), new TrackedSong("Close Song", "Close Artist"), new TrackedSong("Missing", "Nobody") },
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(2, gateway.FreeTextQueries.Count);
+        Assert.DoesNotContain(gateway.FreeTextQueries, query => query.Contains("Found Song"));
+    }
+
+    // Verifies what is asked in free text: the title without its extras and the first artist, whatever the separator and the extras.
+    [Theory]
+    [InlineData("Timeless (&ME and Rampa / Keinemusik Remix)", "The Weeknd, Playboi Carti", "Timeless The Weeknd")]
+    [InlineData("Voodoo People (ALOK Edit)", "The Prodigy", "Voodoo People The Prodigy")]
+    [InlineData("Revolution", "Mont Rouge & Peace Control", "Revolution Mont Rouge")]
+    [InlineData("Lose Your Soul (David Mackay Remix)", "Omri Smadar & Jenia Tarsol feat. Nona Choir", "Lose Your Soul Omri Smadar")]
+    [InlineData("Sky & Sand (PÆDE Remix)", "Paul Kalkbrenner", "Sky & Sand Paul Kalkbrenner")]
+    [InlineData("Time And Trust (David Mackay Remix)", "Naomi Sharon", "Time And Trust Naomi Sharon")]
+    [InlineData("Heal \"Quoted\"", "Tom Odell", "Heal Quoted Tom Odell")]
+    [InlineData("São Paulo (ID Remix) -> 10:43", "The Weeknd", "São Paulo The Weeknd")]
+    public async Task FreeTextQuery_IsTheTitleWithoutExtrasAndTheFirstArtist(string title, string artist, string expectedQuery)
+    {
+        (_, FakeGateway gateway) = await CheckWithFreeTextAsync(new TrackedSong(title, artist));
+
+        Assert.Equal(expectedQuery, Assert.Single(gateway.FreeTextQueries));
+    }
+
+    // Verifies that the free text search also finds an entry whose fields are simply off (a name with a typo that the field search
+    // cannot cope with), as an ordinary match without a hint.
+    [Fact]
+    public async Task FreeTextSearch_CanFindWhatTheFieldSearchMissed()
+    {
+        (SongMatchResult result, _) = await CheckWithFreeTextAsync(
+            new TrackedSong("Corocito", "Nitefreak"),
+            Found("n1", "Corocito", "Nitefreak"));
+
+        Assert.Equal(MatchConfidence.Confident, result.Confidence);
+        Assert.Equal(MatchHint.None, result.Hint);
+    }
+
+    // Verifies that an entry whose title and artist are the same ("ID" / "ID") is not tried swapped (it would only be the same twice).
+    [Fact]
+    public async Task EntryWithTwoEqualFields_IsNotSwapped()
+    {
+        (SongMatchResult result, _) = await CheckWithFreeTextAsync(new TrackedSong("ID", "ID"), Found("x", "Something", "ID"));
+
+        Assert.False(result.IsFound);
+        Assert.NotEqual(MatchHint.SwappedFields, result.Hint);
+    }
+
+    // ---- partial matches: only one of the two fits ----
+
+    // Verifies that a title that is specific enough is a hint even when the artist is different - and that it is not counted as found.
+    [Fact]
+    public async Task SpecificTitleWithAnotherArtist_IsAPartialMatch_NotFound()
+    {
+        FakeGateway gateway = new();
+        gateway.AddResult("Sammy In My Room", "David Mackay", Track("p", "Sammy In My Room", "Somebody Else"));
+        FakeReportWriter writer = new();
+
+        UnreleasedSongsCheckResult check = await new UnreleasedSongChecker(gateway, writer).RunAsync(
+            new[] { new TrackedSong("Sammy In My Room", "David Mackay") },
+            null,
+            CancellationToken.None);
+
+        SongMatchResult result = Assert.Single(writer.LastResults);
+        Assert.Equal(MatchConfidence.Partial, result.Confidence);
+        Assert.Equal(MatchHint.TitleOnly, result.Hint);
+        Assert.False(result.IsFound);
+        Assert.True(result.IsPossible);
+        Assert.Equal("p", result.Match!.Id);
+        Assert.Equal(0, check.FoundCount);
+        Assert.Equal(1, check.PossibleCount);
+    }
+
+    // Verifies that a short, common title is no hint on its own: there are dozens of "Revolution".
+    [Fact]
+    public async Task GenericTitleWithAnUnrelatedArtist_IsNothing()
+    {
+        SongMatchResult result = await CheckAsync("Revolution", "Mont Rouge", "Revolution", "The Beatles");
+
         Assert.Equal(MatchConfidence.None, result.Confidence);
+    }
+
+    // Verifies that a short title with an artist that is close (a misspelled name) is a hint: "Norte Dame" for "Notre Dame".
+    [Fact]
+    public async Task GenericTitleWithACloseArtist_IsAPartialMatch()
+    {
+        SongMatchResult result = await CheckAsync("Soda", "Norte Dame", "Soda", "Notre Dame");
+
+        Assert.Equal(MatchConfidence.Partial, result.Confidence);
+        Assert.Equal(MatchHint.TitleOnly, result.Hint);
+    }
+
+    // Verifies that the right artist with a title that is only loosely like it is a hint (the song may have been renamed).
+    [Fact]
+    public async Task RightArtistWithALooseTitle_IsAPartialMatch()
+    {
+        SongMatchResult result = await CheckAsync("Time And Trust", "Naomi Sharon", "Time Trust", "Naomi Sharon");
+
+        Assert.Equal(MatchConfidence.Partial, result.Confidence);
+        Assert.Equal(MatchHint.ArtistOnly, result.Hint);
+    }
+
+    // Verifies that the right artist with another song is nothing: every other song of the artist would be a hint otherwise.
+    [Fact]
+    public async Task RightArtistWithAnotherSong_IsNothing()
+    {
+        SongMatchResult result = await CheckAsync("Revolution", "Solomun", "Completely Different Song", "Solomun");
+
+        Assert.Equal(MatchConfidence.None, result.Confidence);
+    }
+
+    // Verifies that a real match is preferred over a hint, whatever the order of the candidates.
+    [Fact]
+    public async Task ARealMatch_BeatsAPartialOne()
+    {
+        FakeGateway gateway = new();
+        gateway.AddResult("Sammy In My Room", "David Mackay", Track("partial", "Sammy In My Room", "Somebody Else"));
+        gateway.AddResult("Sammy In My Room", "David Mackay", Track("real", "Sammy In My Room (Extended Mix)", "David Mackay"));
+        FakeReportWriter writer = new();
+
+        await new UnreleasedSongChecker(gateway, writer).RunAsync(
+            new[] { new TrackedSong("Sammy In My Room", "David Mackay") },
+            null,
+            CancellationToken.None);
+
+        Assert.Equal("real", Assert.Single(writer.LastResults).Match!.Id);
+        Assert.True(writer.LastResults[0].IsFound);
     }
 
     // Verifies that whole words still match in both directions, as before ("The Weeknd" and "Weeknd").
@@ -407,6 +614,19 @@ public sealed class UnreleasedSongCheckerTests
                 resultsByKey.TryGetValue(key, out List<SpotifyTrackItem>? tracks)
                     ? tracks
                     : Array.Empty<SpotifyTrackItem>());
+        }
+
+        // What the search of free text finds, whatever the query (a test sets it); the queries that were asked are kept.
+        public List<SpotifyTrackItem> FreeTextResults { get; } = new();
+        public List<string> FreeTextQueries { get; } = new();
+
+        public Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksAsync(
+            string query,
+            CancellationToken cancellationToken)
+        {
+            FreeTextQueries.Add(query);
+
+            return Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(FreeTextResults.ToList());
         }
 
         public Task<SpotifyUser> GetCurrentUserAsync(CancellationToken cancellationToken) =>

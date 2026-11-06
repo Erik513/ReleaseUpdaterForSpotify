@@ -282,6 +282,18 @@ internal sealed class FakeGateway : ISpotifyGateway
         return OnSearch(title, artist, cancellationToken);
     }
 
+    public List<string> FreeTextSearches { get; } = new();
+
+    public Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksAsync(string query, CancellationToken cancellationToken)
+    {
+        lock (FreeTextSearches)
+        {
+            FreeTextSearches.Add(query);
+        }
+
+        return Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(Array.Empty<SpotifyTrackItem>());
+    }
+
     public Task<SpotifyUser> GetCurrentUserAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
     public Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(string artistId, CancellationToken cancellationToken) => throw new NotImplementedException();
     public Task<IReadOnlyList<SpotifyTrackItem>> GetAlbumTracksAsync(string albumId, CancellationToken cancellationToken) => throw new NotImplementedException();

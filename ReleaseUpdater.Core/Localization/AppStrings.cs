@@ -172,6 +172,7 @@ public static class AppStrings
     public const string UnreleasedSearching = "Unreleased.Searching";
     public const string UnreleasedStatusSearchingFormat = "Unreleased.StatusSearchingFormat";
     public const string UnreleasedStatusDoneFormat = "Unreleased.StatusDoneFormat";
+    public const string UnreleasedStatusDonePossibleFormat = "Unreleased.StatusDonePossibleFormat";
     public const string UnreleasedNoSongsMessage = "Unreleased.NoSongsMessage";
     public const string UnreleasedSaveFailedFormat = "Unreleased.SaveFailedFormat";
     public const string UnreleasedImport = "Unreleased.Import";
@@ -402,6 +403,7 @@ public static class AppStrings
         [UnreleasedSearching] = "Checking Spotify",
         [UnreleasedStatusSearchingFormat] = "Checking {0} / {1}: {2}",
         [UnreleasedStatusDoneFormat] = "Done. {0} of {1} songs found on Spotify.",
+        [UnreleasedStatusDonePossibleFormat] = "Done. {0} of {1} songs found on Spotify, {2} possible matches to check.",
         [UnreleasedNoSongsMessage] = "Add at least one song before starting the search.",
         [UnreleasedSaveFailedFormat] = "The song list could not be saved: {0}",
         [UnreleasedImport] = "Import songs from a file (Excel, Word, CSV or JSON)",
@@ -611,6 +613,7 @@ public static class AppStrings
         [UnreleasedSearching] = "Spotify wird geprüft",
         [UnreleasedStatusSearchingFormat] = "Prüfe {0} / {1}: {2}",
         [UnreleasedStatusDoneFormat] = "Fertig. {0} von {1} Songs auf Spotify gefunden.",
+        [UnreleasedStatusDonePossibleFormat] = "Fertig. {0} von {1} Songs auf Spotify gefunden, {2} mögliche Treffer zum Prüfen.",
         [UnreleasedNoSongsMessage] = "Füge mindestens einen Song hinzu, bevor du die Suche startest.",
         [UnreleasedSaveFailedFormat] = "Die Songliste konnte nicht gespeichert werden: {0}",
         [UnreleasedImport] = "Songs aus einer Datei importieren (Excel, Word, CSV oder JSON)",

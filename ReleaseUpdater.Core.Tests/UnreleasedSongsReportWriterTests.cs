@@ -50,6 +50,50 @@ public sealed class UnreleasedSongsReportWriterTests
         }
     }
 
+    // Verifies that hints get a section of their own with the entry of the user next to the track, and are not counted as found;
+    // that a swapped match says so; and that without hints there is no such section.
+    [Fact]
+    public void WriteReport_ShowsPossibleMatchesInTheirOwnSection()
+    {
+        string directory = CreateTemporaryDirectory();
+
+        try
+        {
+            UnreleasedSongsReportWriter writer = new(new AppDataPaths(directory));
+            SpotifyTrackItem track = new(
+                "t",
+                "Sammy In My Room",
+                new[] { new SpotifyArtist("a", "Somebody Else") },
+                "spotify:track:t",
+                "https://open.spotify.com/track/t",
+                null);
+
+            SongMatchResult swapped = new(new TrackedSong("The Weeknd", "Blinding Lights"), track, MatchConfidence.Similar, MatchHint.SwappedFields);
+            SongMatchResult titleOnly = new(new TrackedSong("Sammy In My Room", "David <Mackay>"), track, MatchConfidence.Partial, MatchHint.TitleOnly);
+            SongMatchResult artistOnly = new(new TrackedSong("Time And Trust", "Naomi Sharon"), track, MatchConfidence.Partial, MatchHint.ArtistOnly);
+            SongMatchResult nothing = new(new TrackedSong("Nothing", "Nobody"), null, MatchConfidence.None);
+
+            string html = File.ReadAllText(writer.WriteReport(new[] { swapped, titleOnly, artistOnly, nothing }));
+
+            Assert.Contains("<h2>Found on Spotify <span>1</span></h2>", html);
+            Assert.Contains("<h2>Possible matches <span>2</span></h2>", html);
+            Assert.Contains("<h2>Not found <span>1</span></h2>", html);
+            Assert.Contains("Similar - title and artist swapped", html);
+            Assert.Contains("Title matches", html);
+            Assert.Contains("Artist matches", html);
+            Assert.Contains("Your entry: Sammy In My Room - David &lt;Mackay&gt;", html);
+            Assert.DoesNotContain("David <Mackay>", html);
+
+            string without = File.ReadAllText(writer.WriteReport(new[] { nothing }));
+
+            Assert.DoesNotContain("Possible matches", without);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static string CreateTemporaryDirectory()
     {
         string directory = Path.Combine(

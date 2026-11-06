@@ -69,9 +69,8 @@ namespace ReleaseUpdaterGui
         private SymbolToggle btnEditSpotifyClientId = null!;
 
         private SymbolToggle btnLogin = null!;
-        private Button btnCancel = null!;
         private Button btnOpenReport = null!;
-        private Button btnUpdatePlaylist = null!;
+        private SymbolToggle btnRun = null!;
         private Button btnUnreleasedSongs = null!;
         private bool unreleasedOpenedByMouse;
 
@@ -284,12 +283,19 @@ namespace ReleaseUpdaterGui
         public void SetUpdateAvailability(bool isAvailable, string tooltip)
         {
             bool isSettingEditActive = IsSettingEditActive();
-            btnUpdatePlaylist.Enabled = isAvailable && !isSettingEditActive;
-            spotifyAuthToolTip?.SetToolTip(
-                btnUpdatePlaylist,
+
+            // While an update runs the button is the Stop button; the availability is not its business then.
+            if (btnRun.IsSecondShown)
+            {
+                return;
+            }
+
+            btnRun.Enabled = isAvailable && !isSettingEditActive;
+            btnRun.SetTooltips(
                 isSettingEditActive
                     ? AppLocalization.Get(AppStrings.MainFormSaveSettingBeforeUpdateTooltip)
-                    : tooltip);
+                    : tooltip,
+                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
         }
 
         public void ApplyProgress(ReleaseProgress progress)
@@ -329,10 +335,10 @@ namespace ReleaseUpdaterGui
             progressBar.Value = 0;
             txtOutput.Clear();
 
-            btnUpdatePlaylist.Enabled = false;
+            btnRun.ShowSecond(true);
+            btnRun.Enabled = true;
             isSpotifyAuthLocked = true;
             btnLogin.Enabled = true;
-            btnCancel.Enabled = true;
             SetSpotifyAuthToolTip(
                 AppLocalization.Get(AppStrings.MainFormSignInDisabledDuringRunTooltip));
 
@@ -399,10 +405,10 @@ namespace ReleaseUpdaterGui
 
         public void ShowCompleted(PlaylistUpdateResult result)
         {
-            btnUpdatePlaylist.Enabled = true;
+            btnRun.ShowSecond(false);
+            btnRun.Enabled = true;
             isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
-            btnCancel.Enabled = false;
             progressBar.Value = 100;
 
             lblStatus.Text = result.UniqueTrackCount == 0
@@ -420,10 +426,10 @@ namespace ReleaseUpdaterGui
 
         public void ShowRunFailed(string message)
         {
-            btnUpdatePlaylist.Enabled = true;
+            btnRun.ShowSecond(false);
+            btnRun.Enabled = true;
             isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
-            btnCancel.Enabled = false;
 
             string errorTitle = AppLocalization.Get(AppStrings.MainFormError);
             lblStatus.Text = errorTitle;
@@ -433,8 +439,8 @@ namespace ReleaseUpdaterGui
 
         public void ShowCancelled()
         {
-            btnCancel.Enabled = false;
-            btnUpdatePlaylist.Enabled = true;
+            btnRun.ShowSecond(false);
+            btnRun.Enabled = true;
             isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
 
@@ -453,7 +459,7 @@ namespace ReleaseUpdaterGui
             txtPlaylistName.ReadOnly = false;
             txtPlaylistName.TabStop = true;
             btnEditPlaylistName.ShowSecond(true);
-            btnUpdatePlaylist.Enabled = false;
+            btnRun.Enabled = false;
 
             txtPlaylistName.Focus();
             txtPlaylistName.SelectAll();
@@ -489,7 +495,7 @@ namespace ReleaseUpdaterGui
             txtSpotifyClientId.ReadOnly = false;
             txtSpotifyClientId.TabStop = true;
             btnEditSpotifyClientId.ShowSecond(true);
-            btnUpdatePlaylist.Enabled = false;
+            btnRun.Enabled = false;
 
             txtSpotifyClientId.Focus();
             txtSpotifyClientId.SelectAll();
@@ -602,9 +608,13 @@ namespace ReleaseUpdaterGui
                 AppLocalization.Get(AppStrings.MainFormSaveSpotifyClientId));
 
             UIStyles.Buttons.UpdateTooltip(btnOpenReport, AppLocalization.Get(AppStrings.MainFormOpenReport));
-            UIStyles.Buttons.UpdateTooltip(btnCancel, AppLocalization.Get(AppStrings.MainFormCancelUpdate));
             UIStyles.Buttons.UpdateTooltip(btnUnreleasedSongs, AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
-            spotifyAuthToolTip?.SetToolTip(btnUpdatePlaylist, AppLocalization.Get(AppStrings.UpdatePlaylist));
+            btnRun.SetTooltips(
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
+                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
+            btnRun.SetAccessibleNames(
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
+                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
 
             _ = controller.RefreshLocalizedUiAsync();
         }
@@ -664,14 +674,16 @@ namespace ReleaseUpdaterGui
             await controller.LoginAsync();
         }
 
-        private async void BtnUpdatePlaylist_Click(object? sender, EventArgs e)
+        // Play starts the update; while it runs the same button is Stop.
+        private async void BtnRun_Click(object? sender, EventArgs e)
         {
-            await controller.StartUpdateAsync();
-        }
+            if (btnRun.IsSecondShown)
+            {
+                controller.CancelUpdate();
+                return;
+            }
 
-        private void BtnCancel_Click(object? sender, EventArgs e)
-        {
-            controller.CancelUpdate();
+            await controller.StartUpdateAsync();
         }
 
         private void BtnOpenReport_Click(object? sender, EventArgs e)

@@ -128,7 +128,7 @@ namespace ReleaseUpdaterGui
             bottomPanel.Dock = DockStyle.Bottom;
             bottomPanel.Height = 48;
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 4 * ActionIconButtonSize.Width + 16));
+            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 3 * ActionIconButtonSize.Width + 16));
             bottomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             FlowLayoutPanel buttonPanel = UIStyles.FlowLayoutPanels.CreateTransparent();
@@ -148,28 +148,24 @@ namespace ReleaseUpdaterGui
             // the panel behind it paints in a single pass instead.
             lblElapsedTime.BackColor = UIStyles.Colors.BackgroundLight;
 
-            btnUpdatePlaylist = UIStyles.Buttons.CreateSymbol(
+            // One button for both: Play starts the update, and while it runs the same place is Stop.
+            btnRun = new SymbolToggle(
                 UIStyles.Buttons.Presets.Play,
-                string.Empty,
-                ActionIconButtonSize);
-            btnUpdatePlaylist.AccessibleName = AppLocalization.Get(AppStrings.UpdatePlaylist);
-            btnUpdatePlaylist.Click += BtnUpdatePlaylist_Click;
-            spotifyAuthToolTip.SetToolTip(
-                btnUpdatePlaylist,
-                AppLocalization.Get(AppStrings.UpdatePlaylist));
+                UIStyles.Buttons.Presets.Stop,
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
+                AppLocalization.Get(AppStrings.MainFormCancelUpdate),
+                ActionIconButtonSize,
+                BtnRun_Click,
+                useAccent: false);
+            btnRun.SetAccessibleNames(
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
+                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
 
             btnOpenReport = UIStyles.Buttons.CreateSymbol(
                 UIStyles.Buttons.Presets.Document,
                 AppLocalization.Get(AppStrings.MainFormOpenReport),
                 ActionIconButtonSize);
             btnOpenReport.Click += BtnOpenReport_Click;
-
-            btnCancel = UIStyles.Buttons.CreateSymbol(
-                UIStyles.Buttons.Presets.Stop,
-                AppLocalization.Get(AppStrings.MainFormCancelUpdate),
-                ActionIconButtonSize);
-            btnCancel.Enabled = false;
-            btnCancel.Click += BtnCancel_Click;
 
             btnUnreleasedSongs = UIStyles.Buttons.CreateSymbol(
                 UIStyles.Buttons.Presets.Search,
@@ -178,9 +174,8 @@ namespace ReleaseUpdaterGui
             btnUnreleasedSongs.MouseDown += (_, _) => unreleasedOpenedByMouse = true;
             btnUnreleasedSongs.Click += BtnUnreleasedSongs_Click;
 
-            buttonPanel.Controls.Add(btnUpdatePlaylist);
+            buttonPanel.Controls.Add(btnRun.Host);
             buttonPanel.Controls.Add(btnOpenReport);
-            buttonPanel.Controls.Add(btnCancel);
             buttonPanel.Controls.Add(btnUnreleasedSongs);
 
             bottomPanel.Controls.Add(lblElapsedTime, 0, 0);

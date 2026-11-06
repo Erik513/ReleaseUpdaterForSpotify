@@ -19,9 +19,8 @@ namespace ReleaseUpdaterGui
         private DataGridView dataGridView = null!;
         private ProgressBar progressBar = null!;
         private Label lblStatus = null!;
-        private Button btnStart = null!;
+        private SymbolToggle btnRun = null!;
         private Button btnOpenReport = null!;
-        private Button btnCancel = null!;
         private Button btnImport = null!;
         private Button btnExport = null!;
 
@@ -113,8 +112,9 @@ namespace ReleaseUpdaterGui
         // While a search runs, the list and everything that changes it or starts another search is locked.
         private void SetBusy(bool busy)
         {
-            btnStart.Enabled = !busy;
-            btnCancel.Enabled = busy;
+            // One button: Play starts the search, and while it runs the same place is Stop (which stays usable).
+            btnRun.ShowSecond(busy);
+            btnRun.Enabled = true;
             btnImport.Enabled = !busy;
             btnExport.Enabled = !busy;
             dataGridView.Enabled = !busy;
@@ -195,41 +195,42 @@ namespace ReleaseUpdaterGui
 
             TableLayoutPanel bottomPanel = UIStyles.TableLayoutPanels.CreateTransparent(
                 columnCount: 2,
-                rowCount: 1);
+
+            // Two rows: the progress bar (as high as the buttons beside it) and the buttons, and below them the status line
+            // over the whole width - a text that is too long for it moves back and forth instead of being cut.
+                rowCount: 2);
             bottomPanel.Dock = DockStyle.Bottom;
-            bottomPanel.Height = 56;
+            bottomPanel.Height = 44 + 28;
             bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5 * ActionIconButtonSize.Width + 16));
-            bottomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 4 * ActionIconButtonSize.Width + 16));
+            bottomPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            bottomPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
 
-            Panel progressPanel = UIStyles.Panels.CreateTransparent();
-            progressPanel.Dock = DockStyle.Fill;
-            progressPanel.Padding = new Padding(0, 4, 8, 4);
-
-            lblStatus = UIStyles.Labels.CreateStandard(AppLocalization.Get(AppStrings.ReadyToRun));
-            lblStatus.Dock = DockStyle.Top;
-            lblStatus.Height = 20;
+            lblStatus = UIStyles.Labels.CreateStandard(
+                AppLocalization.Get(AppStrings.ReadyToRun),
+                scroll: ErikwnkWFUI.Controls.LabelScroll.BackAndForth(pauseOnHover: true));
+            lblStatus.Dock = DockStyle.Fill;
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
 
             progressBar = UIStyles.ProgressBars.CreateGreen();
-            progressBar.Dock = DockStyle.Bottom;
-            progressBar.Height = 20;
+            progressBar.Dock = DockStyle.Fill;
+            progressBar.Margin = new Padding(0, 8, 8, 2);
             progressBar.Maximum = 100;
             progressBar.Value = 0;
-
-            progressPanel.Controls.Add(progressBar);
-            progressPanel.Controls.Add(lblStatus);
 
             FlowLayoutPanel buttonPanel = UIStyles.FlowLayoutPanels.CreateTransparent();
             buttonPanel.Dock = DockStyle.Fill;
             buttonPanel.FlowDirection = FlowDirection.RightToLeft;
             buttonPanel.Padding = new Padding(0, 8, 0, 0);
 
-            btnStart = UIStyles.Buttons.CreateSymbol(
+            btnRun = new SymbolToggle(
                 UIStyles.Buttons.Presets.Play,
+                UIStyles.Buttons.Presets.Stop,
                 AppLocalization.Get(AppStrings.UnreleasedStart),
-                ActionIconButtonSize);
-            btnStart.Click += BtnStart_Click;
+                AppLocalization.Get(AppStrings.UnreleasedCancel),
+                ActionIconButtonSize,
+                BtnRun_Click,
+                useAccent: false);
 
             btnOpenReport = UIStyles.Buttons.CreateSymbol(
                 UIStyles.Buttons.Presets.Document,
@@ -237,33 +238,29 @@ namespace ReleaseUpdaterGui
                 ActionIconButtonSize);
             btnOpenReport.Click += BtnOpenReport_Click;
 
-            btnCancel = UIStyles.Buttons.CreateSymbol(
-                UIStyles.Buttons.Presets.Stop,
-                AppLocalization.Get(AppStrings.UnreleasedCancel),
-                ActionIconButtonSize);
-            btnCancel.Enabled = false;
-            btnCancel.Click += BtnCancel_Click;
-
+            // Import and export are quiet buttons: the dark gray of the report button, not the blue of their presets.
             btnImport = UIStyles.Buttons.CreateSymbol(
-                UIStyles.Buttons.Presets.Download,
+                UIStyles.Buttons.Presets.Download.WithColors(UIStyles.Buttons.Presets.Document.Colors),
                 AppLocalization.Get(AppStrings.UnreleasedImport),
                 ActionIconButtonSize);
             btnImport.Click += BtnImport_Click;
 
             btnExport = UIStyles.Buttons.CreateSymbol(
-                UIStyles.Buttons.Presets.Upload,
+                UIStyles.Buttons.Presets.Upload.WithColors(UIStyles.Buttons.Presets.Document.Colors),
                 AppLocalization.Get(AppStrings.UnreleasedExport),
                 ActionIconButtonSize);
             btnExport.Click += BtnExport_Click;
 
-            buttonPanel.Controls.Add(btnStart);
+            // Right to left: the run / stop button is the rightmost, the report next to it, then import and export.
+            buttonPanel.Controls.Add(btnRun.Host);
             buttonPanel.Controls.Add(btnOpenReport);
-            buttonPanel.Controls.Add(btnCancel);
             buttonPanel.Controls.Add(btnImport);
             buttonPanel.Controls.Add(btnExport);
 
-            bottomPanel.Controls.Add(progressPanel, 0, 0);
+            bottomPanel.Controls.Add(progressBar, 0, 0);
             bottomPanel.Controls.Add(buttonPanel, 1, 0);
+            bottomPanel.Controls.Add(lblStatus, 0, 1);
+            bottomPanel.SetColumnSpan(lblStatus, 2);
 
             mainPanel.Controls.Add(dataGridView);
             mainPanel.Controls.Add(bottomPanel);
@@ -304,14 +301,16 @@ namespace ReleaseUpdaterGui
             dataGridView.Columns[1].Width = Math.Max(1, secondColumnWidth);
         }
 
-        private async void BtnStart_Click(object? sender, EventArgs e)
+        // Play starts the search; while it runs the same button is Stop.
+        private async void BtnRun_Click(object? sender, EventArgs e)
         {
-            await controller.StartSearchAsync(GetCurrentSongs());
-        }
+            if (btnRun.IsSecondShown)
+            {
+                controller.CancelSearch();
+                return;
+            }
 
-        private void BtnCancel_Click(object? sender, EventArgs e)
-        {
-            controller.CancelSearch();
+            await controller.StartSearchAsync(GetCurrentSongs());
         }
 
         private void BtnImport_Click(object? sender, EventArgs e)

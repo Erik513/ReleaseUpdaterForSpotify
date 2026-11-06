@@ -23,11 +23,13 @@ namespace ReleaseUpdaterGui
             string firstTooltip,
             string secondTooltip,
             Size size,
-            EventHandler click)
+            EventHandler click,
+            bool useAccent = true)
         {
-            // The presets bring their own colors (blue); the app's buttons carry the accent.
-            firstPreset = first.WithColors(UIStyles.Colors.Sets.Primary);
-            secondPreset = second.WithColors(UIStyles.Colors.Sets.Primary);
+            // The presets bring their own colors (blue); the app's buttons carry the accent. Presets with a meaning of
+            // their own (Play is green, Stop is red) keep their colors.
+            firstPreset = useAccent ? first.WithColors(UIStyles.Colors.Sets.Primary) : first;
+            secondPreset = useAccent ? second.WithColors(UIStyles.Colors.Sets.Primary) : second;
             this.firstTooltip = firstTooltip;
             this.secondTooltip = secondTooltip;
 
@@ -45,6 +47,11 @@ namespace ReleaseUpdaterGui
         {
             get { return button.Enabled; }
             set { button.Enabled = value; }
+        }
+
+        public bool IsSecondShown
+        {
+            get { return showingSecond; }
         }
 
         public void ShowSecond(bool useSecond)

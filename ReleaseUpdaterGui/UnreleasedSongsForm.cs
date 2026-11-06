@@ -148,7 +148,8 @@ namespace ReleaseUpdaterGui
                 rows.Add(new TrackedSongRow
                 {
                     Title = song.Title,
-                    Artist = song.Artist
+                    Artist = song.Artist,
+                    Link = song.Link
                 });
             }
         }
@@ -156,7 +157,10 @@ namespace ReleaseUpdaterGui
         private IReadOnlyList<TrackedSong> GetCurrentSongs()
         {
             return rows
-                .Select(row => new TrackedSong(row.Title?.Trim() ?? string.Empty, row.Artist?.Trim() ?? string.Empty))
+                .Select(row => new TrackedSong(
+                    row.Title?.Trim() ?? string.Empty,
+                    row.Artist?.Trim() ?? string.Empty,
+                    string.IsNullOrWhiteSpace(row.Link) ? null : row.Link.Trim()))
                 .ToList();
         }
 
@@ -186,6 +190,19 @@ namespace ReleaseUpdaterGui
                 DataPropertyName = nameof(TrackedSongRow.Artist),
                 HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnArtist)
             });
+
+            // The link of a song: no text in the list (it would make it wide), one small button per row. It is not bound to a property:
+            // CellFormatting draws it from the row. A click opens the link (or asks for one when there is none), a right click changes it.
+            dataGridView.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = LinkColumnName,
+                HeaderText = string.Empty,
+                ReadOnly = true,
+                SortMode = DataGridViewColumnSortMode.NotSortable,
+                Width = LinkColumnWidth
+            });
+            dataGridView.CellFormatting += DataGridView_LinkCellFormatting;
+            dataGridView.CellMouseClick += DataGridView_LinkCellMouseClick;
             dataGridView.DataSource = rows;
 
             // Cast needed since UIStyles.DataGridViews.CreateStandard()
@@ -193,6 +210,7 @@ namespace ReleaseUpdaterGui
             // ShowDeleteRowColumn only exists on ErikwnkWFUI's own subclass.
             ErikwnkWFUI.Controls.DataGridView libraryGrid = (ErikwnkWFUI.Controls.DataGridView)dataGridView;
             libraryGrid.ShowDeleteRowColumn = true;
+            libraryGrid.SetColumnReorderable(dataGridView.Columns[LinkColumnName]!.Index, false);
 
             // The library grid resizes and reorders its columns itself and
             // ignores the standard DataGridViewColumn.Resizable. This form
@@ -316,7 +334,88 @@ namespace ReleaseUpdaterGui
             ApplyFixedColumnWidths();
         }
 
+        private const string LinkColumnName = "colLink";
+        private const int LinkColumnWidth = 40;
+
+        private static readonly Font LinkFont = new("Segoe UI Symbol", 10f);
+
         private bool applyingColumnOrder;
+
+        // The small button of a row: the symbol of a link, bright when the song has one and dim when not; the tooltip says what a click does.
+        private void DataGridView_LinkCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= rows.Count || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
+            {
+                return;
+            }
+
+            string? link = rows[e.RowIndex].Link;
+            bool hasLink = !string.IsNullOrWhiteSpace(link);
+
+            e.Value = UIStyles.Symbols.Link;
+            e.CellStyle!.Font = LinkFont;
+            e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            e.CellStyle.ForeColor = hasLink
+                ? ErikwnkWFUI.Styles.UIColors.TextPrimary
+                : Blend(ErikwnkWFUI.Styles.UIColors.TextPrimary, e.CellStyle.BackColor, 0.7);
+            e.FormattingApplied = true;
+
+            dataGridView[e.ColumnIndex, e.RowIndex].ToolTipText = hasLink
+                ? AppLocalization.Get(AppStrings.UnreleasedLinkTooltipOpenFormat, link!.Trim())
+                : AppLocalization.Get(AppStrings.UnreleasedLinkTooltipAdd);
+        }
+
+        private static Color Blend(Color from, Color to, double toShare) =>
+            Color.FromArgb(
+                (int)(from.R + ((to.R - from.R) * toShare)),
+                (int)(from.G + ((to.G - from.G) * toShare)),
+                (int)(from.B + ((to.B - from.B) * toShare)));
+
+        private void DataGridView_LinkCellMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            // (Not the header, and not the empty row at the end of the list.)
+            if (e.RowIndex < 0 || e.RowIndex >= rows.Count || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
+            {
+                return;
+            }
+
+            TrackedSongRow row = rows[e.RowIndex];
+
+            if (e.Button == MouseButtons.Left && !string.IsNullOrWhiteSpace(row.Link))
+            {
+                controller.OpenLink(row.Link);
+            }
+            else if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
+            {
+                AskForLink(row, e.RowIndex);
+            }
+        }
+
+        // The box for the link of a song: what is typed has to be a web address (or nothing, which takes the link away).
+        private void AskForLink(TrackedSongRow row, int rowIndex)
+        {
+            string? answer = InputBox.Show(
+                AppLocalization.Get(AppStrings.UnreleasedLinkPrompt, row.Title?.Trim() ?? string.Empty),
+                AppLocalization.Get(AppStrings.UnreleasedFormTitle),
+                row.Link ?? string.Empty,
+                owner: this,
+                hint: AppLocalization.Get(AppStrings.UnreleasedLinkHint),
+                placeholder: "https://",
+                maxLength: 2000,
+                validate: text => string.IsNullOrWhiteSpace(text) || TrackedSongLinks.Normalize(text) is not null
+                    ? null
+                    : AppLocalization.Get(AppStrings.UnreleasedLinkInvalid),
+                trim: true);
+
+            // (Null: the box was cancelled.)
+            if (answer is null)
+            {
+                return;
+            }
+
+            row.Link = string.IsNullOrWhiteSpace(answer) ? null : answer;
+            dataGridView.InvalidateRow(rowIndex);
+        }
 
         public void ApplyColumnOrder(bool artistFirst)
         {
@@ -384,6 +483,9 @@ namespace ReleaseUpdaterGui
             int reservedWidth = ((ErikwnkWFUI.Controls.DataGridView)dataGridView).ShowDeleteRowColumn
                 ? ErikwnkWFUI.Controls.DataGridView.DeleteRowColumnWidth
                 : 0;
+
+            // The column of the link buttons has a width of its own, too.
+            reservedWidth += LinkColumnWidth;
             // (The DisplayRectangle is the width that is left of the client area when a scroll bar is shown.)
             int availableWidth = dataGridView.DisplayRectangle.Width - reservedWidth;
 
@@ -456,7 +558,7 @@ namespace ReleaseUpdaterGui
 
             foreach (TrackedSong song in songs)
             {
-                rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist });
+                rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist, Link = song.Link });
             }
         }
 
@@ -549,6 +651,9 @@ namespace ReleaseUpdaterGui
         {
             public string Title { get; set; } = string.Empty;
             public string Artist { get; set; } = string.Empty;
+
+            // Not shown as text (the list stays compact): a small button per row opens it, see the column "colLink".
+            public string? Link { get; set; }
         }
     }
 }

@@ -19,6 +19,7 @@ namespace ReleaseUpdaterGui
         private readonly ImportTable table;
         private readonly ComboBox cmbTitle;
         private readonly ComboBox cmbArtist;
+        private readonly ComboBox cmbLink;
         private readonly CheckBox chkHeader;
         private readonly DataGridView preview;
         private readonly Label lblHint;
@@ -47,7 +48,7 @@ namespace ReleaseUpdaterGui
             layout.Dock = DockStyle.Fill;
             layout.Padding = new Padding(16);
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
@@ -63,17 +64,25 @@ namespace ReleaseUpdaterGui
             cmbTitle.AccessibleName = AppLocalization.Get(AppStrings.ImportColumnsTitleColumn);
             cmbArtist.AccessibleName = AppLocalization.Get(AppStrings.ImportColumnsArtistColumn);
 
-            TableLayoutPanel choices = UIStyles.TableLayoutPanels.CreateTransparent(columnCount: 4, rowCount: 1);
+            // The column of the links is optional: the first entry is "none".
+            cmbLink = UIStyles.ComboBoxes.CreatePrimary();
+            cmbLink.Dock = DockStyle.Fill;
+            cmbLink.AccessibleName = AppLocalization.Get(AppStrings.ImportColumnsLinkColumn);
+
+            TableLayoutPanel choices = UIStyles.TableLayoutPanels.CreateTransparent(columnCount: 4, rowCount: 2);
             choices.Dock = DockStyle.Fill;
             choices.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
             choices.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             choices.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
             choices.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            choices.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            choices.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            choices.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
             choices.Controls.Add(CreateCaption(AppStrings.ImportColumnsTitleColumn), 0, 0);
             choices.Controls.Add(cmbTitle, 1, 0);
             choices.Controls.Add(CreateCaption(AppStrings.ImportColumnsArtistColumn), 2, 0);
             choices.Controls.Add(cmbArtist, 3, 0);
+            choices.Controls.Add(CreateCaption(AppStrings.ImportColumnsLinkColumn), 0, 1);
+            choices.Controls.Add(cmbLink, 1, 1);
 
             TableLayoutPanel options = UIStyles.TableLayoutPanels.CreateTransparent(columnCount: 2, rowCount: 1);
             options.Dock = DockStyle.Fill;
@@ -143,10 +152,12 @@ namespace ReleaseUpdaterGui
             FillColumnLists(keepSelection: false);
             cmbTitle.SelectedIndex = Math.Min(guess.TitleColumn, cmbTitle.Items.Count - 1);
             cmbArtist.SelectedIndex = Math.Min(guess.ArtistColumn, cmbArtist.Items.Count - 1);
+            cmbLink.SelectedIndex = guess.LinkColumn is int linkColumn ? Math.Min(linkColumn + 1, cmbLink.Items.Count - 1) : 0;
             updating = false;
 
             cmbTitle.SelectedIndexChanged += (_, _) => RefreshPreview();
             cmbArtist.SelectedIndexChanged += (_, _) => RefreshPreview();
+            cmbLink.SelectedIndexChanged += (_, _) => RefreshPreview();
             chkHeader.CheckedChanged += (_, _) =>
             {
                 updating = true;
@@ -160,7 +171,10 @@ namespace ReleaseUpdaterGui
 
         /// <summary>The columns the user chose (valid after OK).</summary>
         public ImportColumnChoice Choice =>
-            new(Math.Max(0, cmbTitle.SelectedIndex), Math.Max(0, cmbArtist.SelectedIndex), chkHeader.Checked);
+            new(Math.Max(0, cmbTitle.SelectedIndex), Math.Max(0, cmbArtist.SelectedIndex), chkHeader.Checked, LinkColumn);
+
+        // The column of the links (the first entry of its list is "none").
+        private int? LinkColumn => cmbLink.SelectedIndex > 0 ? cmbLink.SelectedIndex - 1 : null;
 
         private Label CreateCaption(string key)
         {
@@ -176,6 +190,7 @@ namespace ReleaseUpdaterGui
         {
             int title = cmbTitle.SelectedIndex;
             int artist = cmbArtist.SelectedIndex;
+            int link = cmbLink.SelectedIndex;
             List<object> items = new();
 
             for (int column = 0; column < Math.Max(2, table.ColumnCount); column++)
@@ -188,11 +203,16 @@ namespace ReleaseUpdaterGui
 
             UIStyles.ComboBoxes.ReplaceItems(cmbTitle, items, keepSelection: false);
             UIStyles.ComboBoxes.ReplaceItems(cmbArtist, items, keepSelection: false);
+            UIStyles.ComboBoxes.ReplaceItems(
+                cmbLink,
+                new List<object> { AppLocalization.Get(AppStrings.ImportColumnsNoLink) }.Concat(items).ToList(),
+                keepSelection: false);
 
             if (keepSelection)
             {
                 cmbTitle.SelectedIndex = Math.Max(0, title);
                 cmbArtist.SelectedIndex = Math.Max(0, artist);
+                cmbLink.SelectedIndex = Math.Max(0, link);
             }
         }
 
@@ -204,7 +224,9 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            bool different = cmbTitle.SelectedIndex != cmbArtist.SelectedIndex;
+            // (The three columns are different ones; "no link" is no column.)
+            bool different = cmbTitle.SelectedIndex != cmbArtist.SelectedIndex &&
+                (LinkColumn is null || (LinkColumn != cmbTitle.SelectedIndex && LinkColumn != cmbArtist.SelectedIndex));
             btnOk.Enabled = different;
             lblHint.Text = different ? string.Empty : AppLocalization.Get(AppStrings.ImportColumnsSameColumn);
 
@@ -225,6 +247,10 @@ namespace ReleaseUpdaterGui
                 else if (column == cmbArtist.SelectedIndex)
                 {
                     header += " → " + AppLocalization.Get(AppStrings.UnreleasedColumnArtist);
+                }
+                else if (column == LinkColumn)
+                {
+                    header += " → " + AppLocalization.Get(AppStrings.ImportColumnsLinkShort);
                 }
 
                 preview.Columns.Add(new DataGridViewTextBoxColumn

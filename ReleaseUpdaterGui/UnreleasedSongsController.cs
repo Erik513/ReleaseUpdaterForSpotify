@@ -87,7 +87,7 @@ namespace ReleaseUpdaterGui
             string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
             List<TrackedSong> toExport = songs
                 .Where(song => !string.IsNullOrWhiteSpace(song.Title) || !string.IsNullOrWhiteSpace(song.Artist))
-                .Select(song => new TrackedSong(song.Title.Trim(), song.Artist.Trim()))
+                .Select(song => new TrackedSong(song.Title.Trim(), song.Artist.Trim(), string.IsNullOrWhiteSpace(song.Link) ? null : song.Link.Trim()))
                 .ToList();
 
             if (toExport.Count == 0)
@@ -185,7 +185,8 @@ namespace ReleaseUpdaterGui
             ImportColumnChoice choice;
             bool chosenByUser = false;
 
-            if (table.ColumnCount <= 2)
+            // A table that is just what the app writes (title, artist and perhaps link, named so) needs no question.
+            if (table.ColumnCount <= 2 || table.HasRecognizedHeader())
             {
                 choice = table.GuessColumns();
             }
@@ -334,6 +335,23 @@ namespace ReleaseUpdaterGui
         public void CancelSearch()
         {
             runCancellation?.Cancel();
+        }
+
+        /// <summary>Opens the link of a song in the browser; tells the user when it is no web address or cannot be opened.</summary>
+        public void OpenLink(string? link)
+        {
+            string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
+
+            switch (LinkLauncher.Open(link, out string? error))
+            {
+                case LinkOpenResult.NotAWebAddress:
+                    view.ShowError(AppLocalization.Get(AppStrings.UnreleasedLinkInvalid), title);
+                    break;
+
+                case LinkOpenResult.Failed:
+                    view.ShowError(AppLocalization.Get(AppStrings.UnreleasedLinkCouldNotOpenFormat, error ?? string.Empty), title);
+                    break;
+            }
         }
 
         public void OpenReport()

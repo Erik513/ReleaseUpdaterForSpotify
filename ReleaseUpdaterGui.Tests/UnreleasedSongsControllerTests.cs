@@ -115,6 +115,89 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
         Assert.True(view.Has(expectedCall));
     }
 
+    // ---- links ----
+
+    // Verifies that the links go into an export and come back with an import, in the formats that are tables as well as in JSON.
+    [Theory]
+    [InlineData("songs.json")]
+    [InlineData("songs.csv")]
+    [InlineData("songs.xlsx")]
+    [InlineData("songs.docx")]
+    public void Links_SurviveExportAndImport(string fileName)
+    {
+        string path = Path.Combine(directory, fileName);
+        TrackedSong[] songs = { new("Song A", "Artist A", "https://example.com/a"), new("Song B", "Artist B") };
+
+        Assert.True(CreateController().ExportSongs(songs, path));
+        IReadOnlyList<TrackedSong>? imported = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.Equal(songs, imported);
+        // (What the app writes is recognized: no question about the columns.)
+        Assert.False(view.Has("ChooseImportColumns"));
+    }
+
+    // Verifies the table of the user: a number, the title, the artist, a link - the columns are asked for, the link column is proposed and
+    // used, and the songs get their links.
+    [Fact]
+    public void Import_OfATableWithALinkColumn_ReadsTheLinks()
+    {
+        string path = Path.Combine(directory, "with-links.csv");
+        File.WriteAllText(path, "1;Song A;Artist A;https://example.com/a\r\n2;Song B;Artist B;\r\n3;Song C;Artist C;www.example.com/c\r\n");
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.True(view.Has("ChooseImportColumns:4"));
+        Assert.Equal(
+            new[]
+            {
+                new TrackedSong("Song A", "Artist A", "https://example.com/a"),
+                new TrackedSong("Song B", "Artist B"),
+                new TrackedSong("Song C", "Artist C", "www.example.com/c")
+            },
+            merged);
+    }
+
+    // Verifies that the user can choose another column for the links (or none) in the dialog.
+    [Fact]
+    public void Import_UsesTheLinkColumnThatTheUserChose()
+    {
+        string path = Path.Combine(directory, "choice.csv");
+        File.WriteAllLines(path, new[] { "Song A;Artist A;https://example.com/a;https://other.example/a" });
+        view.ColumnChoice = new ImportColumnChoice(TitleColumn: 0, ArtistColumn: 1, HasHeader: false, LinkColumn: 3);
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.Equal(new[] { new TrackedSong("Song A", "Artist A", "https://other.example/a") }, merged);
+    }
+
+    // Verifies that a table with three columns that is not the app's own (no names) still asks.
+    [Fact]
+    public void Import_OfAThreeColumnTableWithoutNames_StillAsks()
+    {
+        string path = Path.Combine(directory, "three.csv");
+        File.WriteAllText(path, "Song A;Artist A;a note\r\n");
+
+        CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.True(view.Has("ChooseImportColumns:3"));
+    }
+
+    // Verifies that a link that is no web address is not opened - and that the user is told, instead of anything being started.
+    [Theory]
+    [InlineData("file:///C:/Windows/System32/calc.exe")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData(@"C:\Windows
+otepad.exe")]
+    [InlineData("two words")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void OpenLink_WithoutAWebAddress_ShowsAnError(string? link)
+    {
+        CreateController().OpenLink(link);
+
+        Assert.True(view.Has("ShowError:"));
+    }
+
     // ---- the order of the columns ----
 
     // Verifies that the order of the columns is kept in the settings (and read from there), and starts as Title first.

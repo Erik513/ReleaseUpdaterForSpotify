@@ -205,6 +205,12 @@ namespace ReleaseUpdaterGui
             };
 
             dataGridView.Resize += (_, _) => ApplyFixedColumnWidths();
+
+            // The vertical scroll bar appears (and goes) with the number of rows, and takes room from the width without the grid being
+            // resized: the columns have to follow, or they are wider than what is left and a horizontal scroll bar appears.
+            // (Asked for after the grid has laid itself out: only then does it know whether it shows the bar.)
+            dataGridView.RowsAdded += (_, _) => ApplyFixedColumnWidthsAfterLayout();
+            dataGridView.RowsRemoved += (_, _) => ApplyFixedColumnWidthsAfterLayout();
             ApplyFixedColumnWidths();
 
             TableLayoutPanel bottomPanel = UIStyles.TableLayoutPanels.CreateTransparent(
@@ -291,6 +297,24 @@ namespace ReleaseUpdaterGui
             ApplyFixedColumnWidths();
         }
 
+        private bool widthsPending;
+
+        private void ApplyFixedColumnWidthsAfterLayout()
+        {
+            if (widthsPending || !dataGridView.IsHandleCreated)
+            {
+                return;
+            }
+
+            widthsPending = true;
+
+            dataGridView.BeginInvoke(() =>
+            {
+                widthsPending = false;
+                ApplyFixedColumnWidths();
+            });
+        }
+
         // AutoSizeColumnsMode.Fill (the usual way to split a grid's width
         // between columns) left the column headers nearly invisible in this
         // control, so the widths are recalculated by hand instead - a fixed
@@ -308,7 +332,8 @@ namespace ReleaseUpdaterGui
             int reservedWidth = ((ErikwnkWFUI.Controls.DataGridView)dataGridView).ShowDeleteRowColumn
                 ? ErikwnkWFUI.Controls.DataGridView.DeleteRowColumnWidth
                 : 0;
-            int availableWidth = dataGridView.ClientSize.Width - reservedWidth;
+            // (The DisplayRectangle is the width that is left of the client area when a scroll bar is shown.)
+            int availableWidth = dataGridView.DisplayRectangle.Width - reservedWidth;
 
             if (availableWidth <= 0)
             {
@@ -318,8 +343,16 @@ namespace ReleaseUpdaterGui
             int firstColumnWidth = availableWidth / 2;
             int secondColumnWidth = availableWidth - firstColumnWidth;
 
-            dataGridView.Columns[0].Width = Math.Max(1, firstColumnWidth);
-            dataGridView.Columns[1].Width = Math.Max(1, secondColumnWidth);
+            // (Only a change is set: setting a width lays the grid out again, which comes back here.)
+            if (dataGridView.Columns[0].Width != Math.Max(1, firstColumnWidth))
+            {
+                dataGridView.Columns[0].Width = Math.Max(1, firstColumnWidth);
+            }
+
+            if (dataGridView.Columns[1].Width != Math.Max(1, secondColumnWidth))
+            {
+                dataGridView.Columns[1].Width = Math.Max(1, secondColumnWidth);
+            }
         }
 
         // Play starts the search; while it runs the same button is Stop.

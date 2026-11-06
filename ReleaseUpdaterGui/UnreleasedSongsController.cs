@@ -17,6 +17,10 @@ namespace ReleaseUpdaterGui
 
         private CancellationTokenSource? runCancellation;
 
+        // The order of the columns of the table that is being imported (artist first or not), when it says something: the user chose
+        // the columns, or the header named them. Applied to the list once the songs are in it.
+        private bool? orderOfImportedTable;
+
         public UnreleasedSongsController(
             IUnreleasedSongsView view,
             TrackedSongsStore songsStore,
@@ -118,6 +122,7 @@ namespace ReleaseUpdaterGui
             string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
             TrackedSongsFormat format = TrackedSongsTransfer.FormatForPath(path);
             TrackedSongsImport? import;
+            orderOfImportedTable = null;
 
             try
             {
@@ -152,6 +157,8 @@ namespace ReleaseUpdaterGui
         /// </summary>
         public IReadOnlyList<TrackedSong>? PasteSongs(string? clipboardText, IReadOnlyList<TrackedSong> current)
         {
+            orderOfImportedTable = null;
+
             if (string.IsNullOrWhiteSpace(clipboardText))
             {
                 view.ShowInfo(
@@ -176,6 +183,7 @@ namespace ReleaseUpdaterGui
             }
 
             ImportColumnChoice choice;
+            bool chosenByUser = false;
 
             if (table.ColumnCount <= 2)
             {
@@ -191,6 +199,14 @@ namespace ReleaseUpdaterGui
                 }
 
                 choice = chosen;
+                chosenByUser = true;
+            }
+
+            // The list shows the columns in the order the table had them - when the table says so (a choice, or a header that names
+            // them); a table of two columns without a header says nothing, and leaves the order the user has.
+            if (chosenByUser || choice.HasHeader)
+            {
+                orderOfImportedTable = choice.ArtistColumn < choice.TitleColumn;
             }
 
             return TrackedSongsTransfer.SongsFromTable(table, choice);
@@ -217,6 +233,11 @@ namespace ReleaseUpdaterGui
                 merge.AddedCount,
                 merge.DuplicateCount,
                 import.SkippedCount));
+
+            if (orderOfImportedTable is bool artistFirst)
+            {
+                view.ApplyColumnOrder(artistFirst);
+            }
 
             return merge.Songs;
         }

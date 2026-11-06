@@ -160,6 +160,91 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
         Assert.False(CreateController().LoadArtistFirst());
     }
 
+    // ---- the list shows the columns in the order of the imported table ----
+
+    // Verifies that a table with the artist in front of the title makes the list show the Artist column first (the user's choice counts).
+    [Fact]
+    public void Import_WithTheArtistBeforeTheTitle_ShowsTheArtistColumnFirst()
+    {
+        string path = Path.Combine(directory, "artist-first.csv");
+        File.WriteAllText(path, "1;Artist A;Song A;2020\r\n2;Artist B;Song B;2021\r\n");
+        view.ColumnChoice = new ImportColumnChoice(TitleColumn: 2, ArtistColumn: 1, HasHeader: false);
+
+        CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.True(view.Has("ApplyColumnOrder:True"));
+    }
+
+    // Verifies that a table with the title in front makes the list show the Title column first again.
+    [Fact]
+    public void Import_WithTheTitleBeforeTheArtist_ShowsTheTitleColumnFirst()
+    {
+        string path = Path.Combine(directory, "title-first.csv");
+        File.WriteAllText(path, "1;Song A;Artist A;2020\r\n");
+
+        CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.True(view.Has("ApplyColumnOrder:False"));
+    }
+
+    // Verifies that a header that names the columns (Interpret before Titel) is enough, also for a table of two columns.
+    [Fact]
+    public void Import_OfATwoColumnTableWithAHeader_FollowsTheHeader()
+    {
+        string path = Path.Combine(directory, "header.csv");
+        File.WriteAllText(path, "Interpret;Titel\r\nArtist A;Song A\r\n");
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.Equal(new[] { new TrackedSong("Song A", "Artist A") }, merged);
+        Assert.True(view.Has("ApplyColumnOrder:True"));
+        Assert.False(view.Has("ChooseImportColumns"));
+    }
+
+    // Verifies that a plain table of two columns without a header says nothing about the order, so the order of the user stays.
+    [Fact]
+    public void Import_OfAPlainTwoColumnTable_LeavesTheColumnOrder()
+    {
+        string path = Path.Combine(directory, "plain.csv");
+        File.WriteAllText(path, "Song A;Artist A\r\n");
+
+        CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.False(view.Has("ApplyColumnOrder"));
+    }
+
+    // Verifies that JSON, a cancelled choice and an import without songs leave the order alone too.
+    [Fact]
+    public void Import_WithoutSongsOrCancelled_LeavesTheColumnOrder()
+    {
+        string json = Path.Combine(directory, "songs.json");
+        File.WriteAllText(json, "[ { \"title\": \"A\", \"artist\": \"B\" } ]");
+        CreateController().ImportSongs(json, Array.Empty<TrackedSong>());
+
+        string wide = Path.Combine(directory, "wide.csv");
+        File.WriteAllText(wide, "1;Song;Artist\r\n");
+        view.CancelColumnChoice = true;
+        CreateController().ImportSongs(wide, Array.Empty<TrackedSong>());
+
+        string empty = Path.Combine(directory, "empty.csv");
+        File.WriteAllText(empty, "Interpret;Titel\r\n");
+        CreateController().ImportSongs(empty, Array.Empty<TrackedSong>());
+
+        Assert.False(view.Has("ApplyColumnOrder"));
+    }
+
+    // Verifies that a paste follows the order of the copied table the same way, and that an earlier import does not leak into it.
+    [Fact]
+    public void Paste_FollowsTheColumnOrderOfTheCopiedTable()
+    {
+        IReadOnlyList<TrackedSong>? merged = CreateController().PasteSongs(
+            "Interpret\tTitel\r\nArtist A\tSong A\r\n",
+            Array.Empty<TrackedSong>());
+
+        Assert.Single(merged!);
+        Assert.True(view.Has("ApplyColumnOrder:True"));
+    }
+
     // ---- the choice of the columns, and paste ----
 
     // Verifies that a table with more than two columns asks for the columns, and the songs are the ones in the columns that were chosen.

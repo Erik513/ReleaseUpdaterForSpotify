@@ -137,6 +137,8 @@ internal sealed class FakeUnreleasedView : IUnreleasedSongsView
     public bool CancelColumnChoice { get; set; }
     public ImportTable? AskedTable { get; private set; }
 
+    public void ApplyColumnOrder(bool artistFirst) => Calls.Add("ApplyColumnOrder:" + artistFirst);
+
     public ImportColumnChoice? ChooseImportColumns(ImportTable table)
     {
         AskedTable = table;

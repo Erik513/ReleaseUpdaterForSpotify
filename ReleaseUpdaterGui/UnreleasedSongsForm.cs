@@ -312,6 +312,11 @@ namespace ReleaseUpdaterGui
 
         private bool applyingColumnOrder;
 
+        public void ApplyColumnOrder(bool artistFirst)
+        {
+            ApplyColumnOrder(artistFirst, keep: true);
+        }
+
         private bool IsArtistFirst() =>
             dataGridView.Columns["colArtist"]!.DisplayIndex < dataGridView.Columns["colTitle"]!.DisplayIndex;
 

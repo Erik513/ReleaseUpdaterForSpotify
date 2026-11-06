@@ -122,6 +122,12 @@ namespace ReleaseUpdaterGui
 
             BuildPropertyTableRows();
 
+            // Workaround for ErikwnkWFUI: the PropertyTable docks a number box to the left, which puts it a little too high in its
+            // cell (see docs/MIGRATION-FEEDBACK.md, "NumericUpDown sits too high"). Anchored like a button, the cell centers it.
+            // To be removed when the table does this itself.
+            numLookbackDays.Dock = DockStyle.None;
+            numLookbackDays.Anchor = AnchorStyles.Left;
+
             TableLayoutPanel bottomPanel = UIStyles.TableLayoutPanels.CreateTransparent(
                 columnCount: 2,
                 rowCount: 1);

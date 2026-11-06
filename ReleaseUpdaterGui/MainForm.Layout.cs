@@ -175,6 +175,7 @@ namespace ReleaseUpdaterGui
                 UIStyles.Buttons.Presets.Search,
                 AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs),
                 ActionIconButtonSize);
+            btnUnreleasedSongs.MouseDown += (_, _) => unreleasedOpenedByMouse = true;
             btnUnreleasedSongs.Click += BtnUnreleasedSongs_Click;
 
             buttonPanel.Controls.Add(btnUpdatePlaylist);

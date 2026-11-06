@@ -189,9 +189,12 @@ namespace ReleaseUpdaterGui
             // The library grid resizes and reorders its columns itself and
             // ignores the standard DataGridViewColumn.Resizable. This form
             // sizes its two columns by hand to fill the width
-            // (ApplyFixedColumnWidths), so the user must not drag them.
+            // (ApplyFixedColumnWidths), so the user must not drag their
+            // widths. The order of Title and Artist can be changed by
+            // dragging a header (the delete column stays pinned at the
+            // right); the rows are read by column name, not by position.
             libraryGrid.AllowColumnResizing = false;
-            libraryGrid.AllowColumnReordering = false;
+            libraryGrid.AllowColumnReordering = true;
 
             // Ctrl+V in the list (not while a cell is being edited: there it pastes into the cell) adds songs from the clipboard.
             dataGridView.KeyDown += (_, e) =>

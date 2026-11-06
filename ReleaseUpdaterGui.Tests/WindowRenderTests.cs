@@ -211,6 +211,55 @@ public sealed class WindowRenderTests
         });
     }
 
+    // Verifies that the empty row at the end of the list has no link: not when it is waiting, and not while it is being filled (the list
+    // has an item for it then, but it is still the "new" row of the grid); a row that is a song has one.
+    [Fact]
+    public void UnreleasedSongsForm_TheNewRowHasNoLink()
+    {
+        RunOnStaThread(() =>
+        {
+            const System.Reflection.BindingFlags nonPublic = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            string directory = Path.Combine(Path.GetTempPath(), "SpotifyReleaseTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+
+            try
+            {
+                FakeUnreleasedReportWriter reportWriter = new();
+                using UnreleasedSongsForm form = new(
+                    new ReleaseUpdater.Data.Storage.TrackedSongsStore(new ReleaseUpdater.Data.Storage.AppDataPaths(directory)),
+                    reportWriter,
+                    new ReleaseUpdater.Core.Services.UnreleasedSongChecker(new FakeGateway(), reportWriter),
+                    new FakeSettingsStore());
+                // (A print makes the window and its grid, so that the grid has its rows; it is not shown for that.)
+                using Bitmap warmUp = UITesting.Render(form);
+
+                typeof(UnreleasedSongsForm).GetMethod("ShowSongs", nonPublic)!.Invoke(
+                    form,
+                    new object[] { new[] { new ReleaseUpdater.Core.Models.TrackedSong("One", "A"), new ReleaseUpdater.Core.Models.TrackedSong("Two", "B") } });
+
+                DataGridView grid = (DataGridView)typeof(UnreleasedSongsForm).GetField("dataGridView", nonPublic)!.GetValue(form)!;
+                System.Reflection.MethodInfo isSongRow = typeof(UnreleasedSongsForm).GetMethod("IsSongRow", nonPublic)!;
+                bool IsSong(int row) => (bool)isSongRow.Invoke(form, new object[] { row })!;
+
+                Assert.True(IsSong(0), "row 0, grid rows " + grid.Rows.Count);
+                Assert.True(IsSong(1), "row 1");
+                Assert.False(IsSong(2));                       // the empty row at the end
+                Assert.False(IsSong(-1));                      // the header
+                Assert.False(IsSong(3));                       // nothing
+
+                // The user clicks into the empty row: the list gets an item for it, the row is still the new one.
+                grid.CurrentCell = grid.Rows[grid.Rows.Count - 1].Cells[0];
+
+                Assert.True(grid.Rows[grid.Rows.Count - 1].IsNewRow, "last row is new");
+                Assert.False(IsSong(grid.Rows.Count - 1));
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        });
+    }
+
     private static IEnumerable<T> FindAll<T>(Control parent) where T : Control
     {
         foreach (Control child in parent.Controls)

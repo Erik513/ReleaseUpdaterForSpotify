@@ -13,6 +13,8 @@ namespace ReleaseUpdaterGui
     /// </summary>
     public sealed class LinkForm : AppForm
     {
+        private static readonly Size ButtonSize = new(48, 34);
+
         private readonly TextBox txtLink;
         private readonly bool hadLink;
 
@@ -30,7 +32,7 @@ namespace ReleaseUpdaterGui
             MinimizeBox = false;
             MaximizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(520, 200);
+            ClientSize = new Size(480, 190);
 
             TableLayoutPanel layout = UIStyles.TableLayoutPanels.CreateStandard(
                 columnCount: 1,
@@ -62,20 +64,22 @@ namespace ReleaseUpdaterGui
             buttons.FlowDirection = FlowDirection.RightToLeft;
             buttons.WrapContents = false;
 
-            Button btnCancel = UIStyles.Buttons.CreateStandard(
+            // Symbols, not words: the tooltips say what they are. OK is the green check mark, Cancel the quiet gray one (the red one is
+            // for taking the link away).
+            Button btnCancel = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Cancel.WithColors(UIStyles.Buttons.Presets.Document.Colors),
                 AppLocalization.Get(AppStrings.UnreleasedLinkCancel),
-                AppLocalization.Get(AppStrings.UnreleasedLinkCancel),
-                new Size(100, 32),
-                true);
-            btnCancel.Margin = new Padding(8, 6, 0, 6);
+                ButtonSize);
+            btnCancel.AccessibleName = AppLocalization.Get(AppStrings.UnreleasedLinkCancel);
+            btnCancel.Margin = new Padding(8, 5, 0, 5);
             btnCancel.DialogResult = DialogResult.Cancel;
 
-            Button btnOk = UIStyles.Buttons.CreatePrimary(
+            Button btnOk = UIStyles.Buttons.CreateSymbol(
+                UIStyles.Buttons.Presets.Check,
                 AppLocalization.Get(AppStrings.UnreleasedLinkOk),
-                AppLocalization.Get(AppStrings.UnreleasedLinkOk),
-                new Size(100, 32),
-                true);
-            btnOk.Margin = new Padding(0, 6, 0, 6);
+                ButtonSize);
+            btnOk.AccessibleName = AppLocalization.Get(AppStrings.UnreleasedLinkOk);
+            btnOk.Margin = new Padding(0, 5, 0, 5);
             btnOk.Click += (_, _) => Confirm();
 
             buttons.Controls.Add(btnCancel);
@@ -86,18 +90,18 @@ namespace ReleaseUpdaterGui
 
             if (hadLink)
             {
-                btnRemove = UIStyles.Buttons.CreateStandard(
+                btnRemove = UIStyles.Buttons.CreateSymbol(
+                    UIStyles.Buttons.Presets.Delete,
                     AppLocalization.Get(AppStrings.UnreleasedLinkRemove),
-                    AppLocalization.Get(AppStrings.UnreleasedLinkRemove),
-                    new Size(150, 32),
-                    true);
-                btnRemove.Margin = new Padding(0, 6, 0, 6);
+                    ButtonSize);
+                btnRemove.AccessibleName = AppLocalization.Get(AppStrings.UnreleasedLinkRemove);
+                btnRemove.Margin = new Padding(0, 5, 0, 5);
                 btnRemove.Click += (_, _) => RemoveLink();
             }
 
             TableLayoutPanel bottom = UIStyles.TableLayoutPanels.CreateTransparent(columnCount: 2, rowCount: 1);
             bottom.Dock = DockStyle.Fill;
-            bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+            bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, ButtonSize.Width + 12));
             bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             bottom.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 

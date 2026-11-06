@@ -348,7 +348,7 @@ namespace ReleaseUpdaterGui
         // The small button of a row: the symbol of a link, bright when the song has one and dim when not; the tooltip says what a click does.
         private void DataGridView_LinkCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
         {
-            if (e.RowIndex < 0 || e.RowIndex >= rows.Count || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
+            if (!IsSongRow(e.RowIndex) || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
             {
                 return;
             }
@@ -369,6 +369,20 @@ namespace ReleaseUpdaterGui
                 : AppLocalization.Get(AppStrings.UnreleasedLinkTooltipAdd);
         }
 
+        // A row that is a song: not the header, not the empty row at the end of the list - also not while that row is being filled: the list has
+        // an item for it then, but it is still the row "new" of the grid - and one with a title or an artist in it. Only such a row has a link.
+        private bool IsSongRow(int rowIndex)
+        {
+            if (rowIndex < 0 || rowIndex >= rows.Count || rowIndex >= dataGridView.Rows.Count || dataGridView.Rows[rowIndex].IsNewRow)
+            {
+                return false;
+            }
+
+            TrackedSongRow row = rows[rowIndex];
+
+            return !string.IsNullOrWhiteSpace(row.Title) || !string.IsNullOrWhiteSpace(row.Artist);
+        }
+
         private static Color Blend(Color from, Color to, double toShare) =>
             Color.FromArgb(
                 (int)(from.R + ((to.R - from.R) * toShare)),
@@ -378,7 +392,7 @@ namespace ReleaseUpdaterGui
         private void DataGridView_LinkCellMouseDoubleClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
             // (Not the header, and not the empty row at the end of the list.)
-            if (e.RowIndex < 0 || e.RowIndex >= rows.Count || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
+            if (!IsSongRow(e.RowIndex) || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
             {
                 return;
             }

@@ -32,6 +32,8 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
     [Theory]
     [InlineData("songs.json")]
     [InlineData("songs.csv")]
+    [InlineData("songs.xlsx")]
+    [InlineData("songs.docx")]
     public void Export_ThenImport_GivesTheSameSongs(string fileName)
     {
         string path = Path.Combine(directory, fileName);
@@ -109,6 +111,21 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
 
         Assert.Null(merged);
         Assert.True(view.Has(expectedCall));
+    }
+
+    // Verifies that a file that is not what its ending says (a text file called .xlsx) is reported, and the list is left alone.
+    [Theory]
+    [InlineData("songs.xlsx")]
+    [InlineData("songs.docx")]
+    public void Import_OfAFakeOfficeFile_ShowsAnError(string fileName)
+    {
+        string path = Path.Combine(directory, fileName);
+        File.WriteAllText(path, "this is only text");
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, new[] { new TrackedSong("Keep", "Me") });
+
+        Assert.Null(merged);
+        Assert.True(view.Has("ShowError:"));
     }
 
     // Verifies that a file that is not there is reported.

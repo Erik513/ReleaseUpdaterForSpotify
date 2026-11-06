@@ -35,7 +35,8 @@ namespace ReleaseUpdaterGui
         public void SaveSongs(IReadOnlyList<TrackedSong> songs) => songsStore.Save(songs);
 
         /// <summary>
-        /// Writes the songs (JSON, or CSV for a .csv file) to <paramref name="path"/>. Tells the user what happened; false when nothing was written.
+        /// Writes the songs to <paramref name="path"/> in the format of its ending (.xlsx, .docx, .csv, else JSON). Tells the user what
+        /// happened; false when nothing was written.
         /// </summary>
         public bool ExportSongs(IReadOnlyList<TrackedSong> songs, string path)
         {
@@ -54,10 +55,7 @@ namespace ReleaseUpdaterGui
 
             try
             {
-                string text = TrackedSongsTransfer.Serialize(toExport, TrackedSongsTransfer.FormatForPath(path));
-
-                // (UTF-8 with a byte order mark, so that a spreadsheet reads the umlauts of a CSV right.)
-                File.WriteAllText(path, text, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+                File.WriteAllBytes(path, TrackedSongsTransfer.Write(toExport, TrackedSongsTransfer.FormatForPath(path)));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
@@ -82,8 +80,8 @@ namespace ReleaseUpdaterGui
 
             try
             {
-                import = TrackedSongsTransfer.Parse(
-                    File.ReadAllText(path),
+                import = TrackedSongsTransfer.Read(
+                    File.ReadAllBytes(path),
                     TrackedSongsTransfer.FormatForPath(path));
             }
             catch (FormatException)

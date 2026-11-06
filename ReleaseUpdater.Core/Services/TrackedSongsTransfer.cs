@@ -8,7 +8,9 @@ namespace ReleaseUpdater.Core.Services;
 public enum TrackedSongsFormat
 {
     Json,
-    Csv
+    Csv,
+    Xlsx,
+    Docx
 }
 
 /// <summary>The songs read from a file, and how many entries of it could not be used (a title or an artist was missing).</summary>
@@ -18,9 +20,9 @@ public sealed record TrackedSongsImport(IReadOnlyList<TrackedSong> Songs, int Sk
 public sealed record TrackedSongsMerge(IReadOnlyList<TrackedSong> Songs, int AddedCount, int DuplicateCount);
 
 /// <summary>
-/// Writes the tracked songs to a text file and reads them back: JSON (a list of <c>{ "title", "artist" }</c>, the shape of the
-/// app's own list) or CSV (<c>Title;Artist</c>, with quotes where a text has a delimiter, a quote or a line break - what a
-/// spreadsheet reads and writes). Pure text in, pure text out: the file itself is the caller's business.
+/// Writes the tracked songs to a file and reads them back: an Excel workbook (.xlsx), a Word document with a table (.docx),
+/// JSON (a list of <c>{ "title", "artist" }</c>, the shape of the app's own list) or CSV (<c>Title;Artist</c>, with quotes where a
+/// text has a delimiter, a quote or a line break). Bytes in, bytes out: the file itself is the caller's business.
 /// </summary>
 public static class TrackedSongsTransfer
 {
@@ -32,18 +34,57 @@ public static class TrackedSongsTransfer
 
     private static readonly char[] CsvDelimiters = { ';', ',', '\t' };
 
-    /// <summary>CSV for a file that ends in .csv, JSON for everything else.</summary>
+    /// <summary>The format of a file by its ending (.xlsx, .docx, .csv); JSON for everything else.</summary>
     public static TrackedSongsFormat FormatForPath(string path) =>
-        string.Equals(Path.GetExtension(path), ".csv", StringComparison.OrdinalIgnoreCase)
-            ? TrackedSongsFormat.Csv
-            : TrackedSongsFormat.Json;
+        Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".xlsx" => TrackedSongsFormat.Xlsx,
+            ".docx" => TrackedSongsFormat.Docx,
+            ".csv" => TrackedSongsFormat.Csv,
+            _ => TrackedSongsFormat.Json
+        };
 
+    /// <summary>The content of a file in the format. A CSV has a byte order mark so that a spreadsheet reads its umlauts right.</summary>
+    public static byte[] Write(IReadOnlyList<TrackedSong> songs, TrackedSongsFormat format) =>
+        format switch
+        {
+            TrackedSongsFormat.Xlsx => TrackedSongsXlsx.Write(songs),
+            TrackedSongsFormat.Docx => TrackedSongsDocx.Write(songs),
+            TrackedSongsFormat.Csv => new UTF8Encoding(encoderShouldEmitUTF8Identifier: true).GetPreamble()
+                .Concat(Encoding.UTF8.GetBytes(ToCsv(songs))).ToArray(),
+            _ => Encoding.UTF8.GetBytes(ToJson(songs))
+        };
+
+    /// <exception cref="FormatException">The content is not a list of songs in that format.</exception>
+    public static TrackedSongsImport Read(byte[] content, TrackedSongsFormat format) =>
+        format switch
+        {
+            TrackedSongsFormat.Xlsx => SongsFromRows(TrackedSongsXlsx.ReadRows(content)),
+            TrackedSongsFormat.Docx => SongsFromRows(TrackedSongsDocx.ReadRows(content)),
+            TrackedSongsFormat.Csv => ParseCsv(DecodeText(content)),
+            _ => ParseJson(DecodeText(content))
+        };
+
+    /// <summary>The text of a JSON or CSV file (UTF-8, with or without a byte order mark).</summary>
     public static string Serialize(IReadOnlyList<TrackedSong> songs, TrackedSongsFormat format) =>
-        format == TrackedSongsFormat.Csv ? ToCsv(songs) : ToJson(songs);
+        format switch
+        {
+            TrackedSongsFormat.Csv => ToCsv(songs),
+            TrackedSongsFormat.Json => ToJson(songs),
+            _ => throw new ArgumentException("Only JSON and CSV are text.", nameof(format))
+        };
 
     /// <exception cref="FormatException">The text is not a list of songs in that format.</exception>
     public static TrackedSongsImport Parse(string text, TrackedSongsFormat format) =>
-        format == TrackedSongsFormat.Csv ? ParseCsv(text) : ParseJson(text);
+        format switch
+        {
+            TrackedSongsFormat.Csv => ParseCsv(text),
+            TrackedSongsFormat.Json => ParseJson(text),
+            _ => throw new ArgumentException("Only JSON and CSV are text.", nameof(format))
+        };
+
+    private static string DecodeText(byte[] content) =>
+        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false).GetString(content).TrimStart('﻿');
 
     /// <summary>Adds the imported songs that are not in the list yet (same title and artist, whatever the case) behind it.</summary>
     public static TrackedSongsMerge Merge(IReadOnlyList<TrackedSong> existing, IReadOnlyList<TrackedSong> imported)
@@ -153,13 +194,20 @@ public static class TrackedSongsTransfer
     {
         text = text.TrimStart('﻿');
         char delimiter = DetectDelimiter(text);
-        List<List<string>> rows = ReadCsvRows(text, delimiter);
+
+        return SongsFromRows(ReadCsvRows(text, delimiter));
+    }
+
+    // The rows of a table (a CSV, a sheet, a Word table): title in the first column, artist in the second; a header row and
+    // empty rows are left out, incomplete rows are counted.
+    internal static TrackedSongsImport SongsFromRows(IReadOnlyList<IReadOnlyList<string>> rows)
+    {
         List<TrackedSong> songs = new();
         int skipped = 0;
 
         for (int index = 0; index < rows.Count; index++)
         {
-            List<string> row = rows[index];
+            IReadOnlyList<string> row = rows[index];
 
             // (An empty line is nothing, not a broken entry.)
             if (row.All(string.IsNullOrWhiteSpace))
@@ -184,10 +232,11 @@ public static class TrackedSongsTransfer
         return new TrackedSongsImport(songs, skipped);
     }
 
-    private static bool IsHeader(List<string> row) =>
+    // The header this class writes, and the same in German (the app is in both languages).
+    private static bool IsHeader(IReadOnlyList<string> row) =>
         row.Count >= 2 &&
-        string.Equals(row[0].Trim(), "title", StringComparison.OrdinalIgnoreCase) &&
-        string.Equals(row[1].Trim(), "artist", StringComparison.OrdinalIgnoreCase);
+        new[] { "title", "titel" }.Contains(row[0].Trim(), StringComparer.OrdinalIgnoreCase) &&
+        new[] { "artist", "interpret", "künstler" }.Contains(row[1].Trim(), StringComparer.OrdinalIgnoreCase);
 
     // The delimiter that a spreadsheet of the user's region used: the one that is most common in the first line.
     private static char DetectDelimiter(string text)
@@ -211,9 +260,9 @@ public static class TrackedSongsTransfer
         return best;
     }
 
-    private static List<List<string>> ReadCsvRows(string text, char delimiter)
+    private static List<IReadOnlyList<string>> ReadCsvRows(string text, char delimiter)
     {
-        List<List<string>> rows = new();
+        List<IReadOnlyList<string>> rows = new();
         List<string> row = new();
         StringBuilder field = new();
         bool quoted = false;

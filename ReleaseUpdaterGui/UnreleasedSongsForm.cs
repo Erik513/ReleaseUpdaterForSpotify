@@ -193,11 +193,13 @@ namespace ReleaseUpdaterGui
             });
 
             // The link of a song: no text in the list (it would make it wide), one small button per row. It is not bound to a property:
-            // CellFormatting draws it from the row. A double click opens the link (or asks for one when there is none), Ctrl + double click
-            // changes it (a right click is the grid's own, it has a menu).
+            // CellPainting draws the symbol - the VALUE of the cell is the link itself, so that copying the cell copies the address and not a
+            // symbol. A double click opens the link (or asks for one when there is none), Ctrl + double click changes it (a right click is
+            // the grid's own, it has a menu).
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = LinkColumnName,
+                DataPropertyName = nameof(TrackedSongRow.Link),
                 HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnLink),
                 ReadOnly = true,
                 SortMode = DataGridViewColumnSortMode.NotSortable,
@@ -206,6 +208,7 @@ namespace ReleaseUpdaterGui
             // The header of the column says which clicks do what (the tooltip of the header cell).
             dataGridView.Columns[LinkColumnName]!.HeaderCell.ToolTipText = AppLocalization.Get(AppStrings.UnreleasedLinkHeaderTooltip);
             dataGridView.CellFormatting += DataGridView_LinkCellFormatting;
+            dataGridView.CellPainting += DataGridView_LinkCellPainting;
             dataGridView.CellMouseDoubleClick += DataGridView_LinkCellMouseDoubleClick;
             dataGridView.DataSource = rows;
 
@@ -345,7 +348,7 @@ namespace ReleaseUpdaterGui
 
         private bool applyingColumnOrder;
 
-        // The small button of a row: the symbol of a link, bright when the song has one and dim when not; the tooltip says what a click does.
+        // The tooltip of the small button of a row says what a double click does (the text of the cell is not touched: it is the link).
         private void DataGridView_LinkCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
         {
             if (!IsSongRow(e.RowIndex) || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
@@ -356,17 +359,36 @@ namespace ReleaseUpdaterGui
             string? link = rows[e.RowIndex].Link;
             bool hasLink = !string.IsNullOrWhiteSpace(link);
 
-            e.Value = UIStyles.Symbols.Link;
-            e.CellStyle!.Font = LinkFont;
-            e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            e.CellStyle.ForeColor = hasLink
-                ? ErikwnkWFUI.Styles.UIColors.TextPrimary
-                : Blend(ErikwnkWFUI.Styles.UIColors.TextPrimary, e.CellStyle.BackColor, 0.7);
-            e.FormattingApplied = true;
-
             dataGridView[e.ColumnIndex, e.RowIndex].ToolTipText = hasLink
                 ? AppLocalization.Get(AppStrings.UnreleasedLinkTooltipOpenFormat, link!.Trim())
                 : AppLocalization.Get(AppStrings.UnreleasedLinkTooltipAdd);
+        }
+
+        // The small button of a row: the symbol of a link, bright when the song has one and dim when not. The cell is painted without its text
+        // (the address) and the symbol is drawn over it, so the cell keeps the link as its value.
+        private void DataGridView_LinkCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (!IsSongRow(e.RowIndex) || e.ColumnIndex < 0 || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
+            {
+                return;
+            }
+
+            e.Paint(e.ClipBounds, DataGridViewPaintParts.All & ~DataGridViewPaintParts.ContentForeground);
+
+            bool hasLink = !string.IsNullOrWhiteSpace(rows[e.RowIndex].Link);
+            Color color = hasLink
+                ? ErikwnkWFUI.Styles.UIColors.TextPrimary
+                : Blend(ErikwnkWFUI.Styles.UIColors.TextPrimary, e.CellStyle!.BackColor, 0.7);
+
+            TextRenderer.DrawText(
+                e.Graphics!,
+                UIStyles.Symbols.Link,
+                LinkFont,
+                e.CellBounds,
+                color,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+
+            e.Handled = true;
         }
 
         // A row that is a song: not the header, not the empty row at the end of the list - also not while that row is being filled: the list has

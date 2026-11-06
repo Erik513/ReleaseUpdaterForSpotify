@@ -260,6 +260,63 @@ public sealed class WindowRenderTests
         });
     }
 
+    // Verifies that copying cells copies the address of a link cell - not the symbol that is drawn in it - and nothing for a row without
+    // a link; and that the cells of a row come out as title, artist, link (the delete column is left out by the grid).
+    [Fact]
+    public void UnreleasedSongsForm_CopyingALinkCell_CopiesTheAddress()
+    {
+        RunOnStaThread(() =>
+        {
+            const System.Reflection.BindingFlags nonPublic = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            string directory = Path.Combine(Path.GetTempPath(), "SpotifyReleaseTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+
+            try
+            {
+                FakeUnreleasedReportWriter reportWriter = new();
+                using UnreleasedSongsForm form = new(
+                    new ReleaseUpdater.Data.Storage.TrackedSongsStore(new ReleaseUpdater.Data.Storage.AppDataPaths(directory)),
+                    reportWriter,
+                    new ReleaseUpdater.Core.Services.UnreleasedSongChecker(new FakeGateway(), reportWriter),
+                    new FakeSettingsStore());
+                using Bitmap warmUp = UITesting.Render(form);
+
+                typeof(UnreleasedSongsForm).GetMethod("ShowSongs", nonPublic)!.Invoke(
+                    form,
+                    new object[]
+                    {
+                        new[]
+                        {
+                            new ReleaseUpdater.Core.Models.TrackedSong("One", "A", "https://example.com/a"),
+                            new ReleaseUpdater.Core.Models.TrackedSong("Two", "B")
+                        }
+                    });
+
+                DataGridView grid = (DataGridView)typeof(UnreleasedSongsForm).GetField("dataGridView", nonPublic)!.GetValue(form)!;
+
+                string Copy(params (int Row, string Column)[] cells)
+                {
+                    grid.ClearSelection();
+
+                    foreach ((int row, string column) in cells)
+                    {
+                        grid.Rows[row].Cells[column].Selected = true;
+                    }
+
+                    return grid.GetClipboardContent()!.GetText().TrimEnd((char)13, (char)10);
+                }
+
+                Assert.Equal("https://example.com/a", Copy((0, "colLink")));
+                Assert.Equal(string.Empty, Copy((1, "colLink")));
+                Assert.Equal("One" + (char)9 + "A" + (char)9 + "https://example.com/a", Copy((0, "colTitle"), (0, "colArtist"), (0, "colLink")));
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        });
+    }
+
     private static IEnumerable<T> FindAll<T>(Control parent) where T : Control
     {
         foreach (Control child in parent.Controls)

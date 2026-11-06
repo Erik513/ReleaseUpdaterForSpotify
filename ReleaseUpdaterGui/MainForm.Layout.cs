@@ -188,7 +188,12 @@ namespace ReleaseUpdaterGui
             mainPanel.Controls.Add(bottomPanel);
             mainPanel.Controls.Add(propertyTable);
 
+            // The strip at the bottom with the version of the program; a green button appears in it when a newer version is
+            // known (BeginUpdateCheck), and a click on it asks, downloads and installs.
+            versionPanel = UIStyles.VersionPanels.CreateElevated();
+
             ContentPanel.Controls.Add(mainPanel);
+            ContentPanel.Controls.Add(versionPanel);
         }
 
         // Built once. The labels are given as functions, so the table follows a

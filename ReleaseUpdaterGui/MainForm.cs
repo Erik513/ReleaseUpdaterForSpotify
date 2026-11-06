@@ -69,6 +69,7 @@ namespace ReleaseUpdaterGui
         private SymbolToggle btnLogin = null!;
         private Button btnOpenReport = null!;
         private SymbolToggle btnRun = null!;
+        private ErikwnkWFUI.Controls.VersionPanel versionPanel = null!;
         private Button btnUnreleasedSongs = null!;
 
         private TextBox txtOutput = null!;
@@ -500,13 +501,11 @@ namespace ReleaseUpdaterGui
             return result == DialogResult.Yes;
         }
 
+        // Looks for a newer version once, silently (no net, a slow answer or no newer version change nothing): the strip at the bottom
+        // shows a green button when there is one.
         public void BeginUpdateCheck()
         {
-            Version currentVersion =
-                System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
-                    ?? new Version(0, 0, 0);
-
-            _ = appUpdater.CheckForUpdateAsync(currentVersion, UpdateCheckTimeout, this);
+            _ = versionPanel.CheckForUpdateAsync(appUpdater, UpdateCheckTimeout);
         }
 
         // Refreshes every piece of static (state-independent) UI text after a

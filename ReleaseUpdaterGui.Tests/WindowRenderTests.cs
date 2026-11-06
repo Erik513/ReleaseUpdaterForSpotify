@@ -25,6 +25,11 @@ public sealed class WindowRenderTests
             Assert.Equal(form.Height, picture.Height);
             Assert.True(CountDistinctColors(picture) > 8, "the picture shows more than a flat surface");
 
+            // The strip with the version at the bottom of the window.
+            ErikwnkWFUI.Controls.VersionPanel strip = Assert.Single(FindAll<ErikwnkWFUI.Controls.VersionPanel>(form));
+            Assert.False(string.IsNullOrWhiteSpace(strip.VersionText));
+            Assert.False(strip.UpdateAvailable);
+
             string? folder = Environment.GetEnvironmentVariable("RELEASEUPDATER_RENDER_DIR");
 
             if (!string.IsNullOrEmpty(folder))
@@ -96,6 +101,22 @@ public sealed class WindowRenderTests
                 UITesting.Render(form, Path.Combine(folder, "columns.png"));
             }
         });
+    }
+
+    private static IEnumerable<T> FindAll<T>(Control parent) where T : Control
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (T inner in FindAll<T>(child))
+            {
+                yield return inner;
+            }
+        }
     }
 
     private static int CountDistinctColors(Bitmap picture)

@@ -80,9 +80,58 @@ internal static class TrackedSongsDocx
             XElement table = document.Descendants(W + "tbl").FirstOrDefault() ?? throw new FormatException("The document has no table.");
             List<IReadOnlyList<string>> rows = new();
 
+            // The text of the cell above, per column of the grid: a cell that is merged downwards ("continue") is empty in the file and
+            // shows the text of the cell that began the merge.
+            List<string> above = new();
+
             foreach (XElement row in table.Elements(W + "tr"))
             {
-                rows.Add(row.Elements(W + "tc").Select(CellText).ToList());
+                List<string> cells = new();
+
+                // (A row can begin further right in the grid.)
+                int skipped = (int?)row.Element(W + "trPr")?.Element(W + "gridBefore")?.Attribute(W + "val") ?? 0;
+
+                for (int i = 0; i < skipped; i++)
+                {
+                    cells.Add(string.Empty);
+                }
+
+                foreach (XElement cell in row.Elements(W + "tc"))
+                {
+                    XElement? properties = cell.Element(W + "tcPr");
+                    int span = Math.Max(1, (int?)properties?.Element(W + "gridSpan")?.Attribute(W + "val") ?? 1);
+                    XElement? vertical = properties?.Element(W + "vMerge");
+                    int column = cells.Count;
+
+                    bool continues = vertical != null &&
+                        !string.Equals((string?)vertical.Attribute(W + "val"), "restart", StringComparison.OrdinalIgnoreCase);
+                    string text = continues
+                        ? (column < above.Count ? above[column] : string.Empty)
+                        : CellText(cell);
+
+                    // A cell that is merged to the right takes the room of its columns; its text is in the first of them, so that
+                    // what comes behind it stays in its own column.
+                    cells.Add(text);
+
+                    for (int i = 1; i < span; i++)
+                    {
+                        cells.Add(string.Empty);
+                    }
+
+                    while (above.Count < cells.Count)
+                    {
+                        above.Add(string.Empty);
+                    }
+
+                    above[column] = text;
+
+                    for (int i = 1; i < span; i++)
+                    {
+                        above[column + i] = string.Empty;
+                    }
+                }
+
+                rows.Add(cells);
             }
 
             return rows;

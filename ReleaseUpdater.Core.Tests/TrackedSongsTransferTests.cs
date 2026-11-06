@@ -130,6 +130,104 @@ public sealed class TrackedSongsTransferTests
         Assert.Equal(new[] { new TrackedSong("Two\nLines", "Artist") }, import.Songs);
     }
 
+    // ---- merged cells of a Word table ----
+
+    private const string WordNamespace = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"";
+
+    private static string Cell(string text, string properties = "") =>
+        "<w:tc><w:tcPr>" + properties + "</w:tcPr><w:p>" + (text.Length == 0 ? "" : "<w:r><w:t>" + text + "</w:t></w:r>") + "</w:p></w:tc>";
+
+    private static byte[] WordTable(params string[] rows) =>
+        Zip(("word/document.xml", "<w:document " + WordNamespace + "><w:body><w:tbl>" + string.Concat(rows) + "</w:tbl></w:body></w:document>"));
+
+    private static string Row(string cells, string rowProperties = "") =>
+        "<w:tr>" + (rowProperties.Length == 0 ? "" : "<w:trPr>" + rowProperties + "</w:trPr>") + cells + "</w:tr>";
+
+    // Verifies that a cell that is merged downwards (an artist with several songs) counts for every row it spans: the rows under the
+    // first one are empty in the file, and get the text of the cell that began the merge.
+    [Fact]
+    public void ReadDocx_FillsDownACellThatIsMergedVertically()
+    {
+        byte[] file = WordTable(
+            Row(Cell("Artist") + Cell("Title")),
+            Row(Cell("Artist A", "<w:vMerge w:val=\"restart\"/>") + Cell("Song 1")),
+            Row(Cell("", "<w:vMerge/>") + Cell("Song 2")),
+            Row(Cell("", "<w:vMerge w:val=\"continue\"/>") + Cell("Song 3")),
+            Row(Cell("Artist B") + Cell("Song 4")));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Equal(new[] { "Artist", "Artist A", "Artist A", "Artist A", "Artist B" }, Enumerable.Range(0, 5).Select(row => table.Cell(row, 0)));
+        Assert.Equal(new[] { "Title", "Song 1", "Song 2", "Song 3", "Song 4" }, Enumerable.Range(0, 5).Select(row => table.Cell(row, 1)));
+
+        TrackedSongsImport import = TrackedSongsTransfer.SongsFromTable(table, table.GuessColumns());
+        Assert.Equal(
+            new[]
+            {
+                new TrackedSong("Song 1", "Artist A"), new TrackedSong("Song 2", "Artist A"),
+                new TrackedSong("Song 3", "Artist A"), new TrackedSong("Song 4", "Artist B")
+            },
+            import.Songs);
+    }
+
+    // Verifies that a new merge begins where the file says "restart", and that a merge in another column does not mix with it.
+    [Fact]
+    public void ReadDocx_KeepsTheMergesOfDifferentColumnsApart()
+    {
+        byte[] file = WordTable(
+            Row(Cell("A1", "<w:vMerge w:val=\"restart\"/>") + Cell("B1", "<w:vMerge w:val=\"restart\"/>")),
+            Row(Cell("", "<w:vMerge/>") + Cell("B2", "<w:vMerge w:val=\"restart\"/>")),
+            Row(Cell("A3", "<w:vMerge w:val=\"restart\"/>") + Cell("", "<w:vMerge/>")));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Equal(new[] { "A1", "B1" }, new[] { table.Cell(0, 0), table.Cell(0, 1) });
+        Assert.Equal(new[] { "A1", "B2" }, new[] { table.Cell(1, 0), table.Cell(1, 1) });
+        Assert.Equal(new[] { "A3", "B2" }, new[] { table.Cell(2, 0), table.Cell(2, 1) });
+    }
+
+    // Verifies that a continuation without a beginning (a broken table) is an empty cell, not a crash.
+    [Fact]
+    public void ReadDocx_AMergeWithoutABeginning_IsEmpty()
+    {
+        ImportTable table = TrackedSongsTransfer.ReadTable(
+            WordTable(Row(Cell("", "<w:vMerge/>") + Cell("x"))),
+            TrackedSongsFormat.Docx);
+
+        Assert.Equal(string.Empty, table.Cell(0, 0));
+        Assert.Equal("x", table.Cell(0, 1));
+    }
+
+    // Verifies that a cell that is merged to the right takes the room of its columns: what comes behind it stays in its own column.
+    [Fact]
+    public void ReadDocx_ACellMergedToTheRight_KeepsTheColumnsBehindItAligned()
+    {
+        byte[] file = WordTable(
+            Row(Cell("Heading over two columns", "<w:gridSpan w:val=\"2\"/>") + Cell("Year")),
+            Row(Cell("Song 1") + Cell("Artist 1") + Cell("2020")),
+            Row(Cell("Song 2", "<w:gridSpan w:val=\"2\"/>") + Cell("2021")));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Equal(3, table.ColumnCount);
+        Assert.Equal(new[] { "Heading over two columns", "", "Year" }, new[] { table.Cell(0, 0), table.Cell(0, 1), table.Cell(0, 2) });
+        Assert.Equal(new[] { "Song 1", "Artist 1", "2020" }, new[] { table.Cell(1, 0), table.Cell(1, 1), table.Cell(1, 2) });
+        Assert.Equal(new[] { "Song 2", "", "2021" }, new[] { table.Cell(2, 0), table.Cell(2, 1), table.Cell(2, 2) });
+    }
+
+    // Verifies that a row that begins further right in the grid (cells left out in front of it) is shifted accordingly.
+    [Fact]
+    public void ReadDocx_ARowThatBeginsFurtherRight_IsShifted()
+    {
+        byte[] file = WordTable(
+            Row(Cell("Song") + Cell("Artist")),
+            Row(Cell("Song 2") + Cell("Artist 2"), "<w:gridBefore w:val=\"1\"/>"));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Equal(new[] { "", "Song 2", "Artist 2" }, new[] { table.Cell(1, 0), table.Cell(1, 1), table.Cell(1, 2) });
+    }
+
     // Verifies that files that are not what their ending says are refused, not crashed on.
     [Theory]
     [InlineData(TrackedSongsFormat.Xlsx)]

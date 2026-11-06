@@ -72,18 +72,17 @@ namespace ReleaseUpdaterGui
             cmbLanguage = UIStyles.ComboBoxes.CreateLanguagePrimary();
             cmbLanguage.TabStop = false;
 
-            txtPlaylistName = UIStyles.TextBoxes.CreateBorderless(
-                ReleaseDefaults.PlaylistName);
-            txtPlaylistName.ReadOnly = true;
-            txtPlaylistName.TabStop = false;
-
-            btnEditPlaylistName = new SymbolToggle(
-                UIStyles.Buttons.Presets.Edit,
-                UIStyles.Buttons.Presets.Save,
-                AppLocalization.Get(AppStrings.EditPlaylistName),
-                AppLocalization.Get(AppStrings.MainFormSavePlaylistName),
-                PropertyIconButtonSize,
-                BtnEditPlaylistName_Click);
+            // The two boxes that are locked until the user presses the pencil (or F2 / Enter): the check mark or Enter accepts, Escape
+            // gives the old text back. The library asks "may this be accepted?" first; the controller checks the text.
+            txtPlaylistName = UIStyles.TextBoxes.CreateLockable(
+                ReleaseDefaults.PlaylistName,
+                string.Empty,
+                locked: true,
+                colors: UIStyles.Colors.Sets.Primary);
+            txtPlaylistName.EditAccepting += (_, e) => e.Cancel = !controller.CanAcceptPlaylistName();
+            txtPlaylistName.EditAccepted += (_, _) => controller.PlaylistNameAccepted();
+            txtPlaylistName.EditCancelled += (_, _) => SetPlaylistNameError(null);
+            txtPlaylistName.LockedChanged += EditBox_LockedChanged;
 
             // Always editable (a free text, nothing that must be checked); saved a moment after the last key, like the number box.
             txtPlaylistDescription = UIStyles.TextBoxes.CreatePrimary(
@@ -103,22 +102,18 @@ namespace ReleaseUpdaterGui
             numLookbackDays.TabStop = false;
             numLookbackDays.ValueChanged += SettingsControl_Changed;
 
-            txtSpotifyClientId = UIStyles.TextBoxes.CreateBorderless(
-                string.Empty);
-            txtSpotifyClientId.PlaceholderText = AppLocalization.Get(AppStrings.MainFormClientIdPlaceholder);
-            txtSpotifyClientId.ReadOnly = true;
-            txtSpotifyClientId.TabStop = false;
+            txtSpotifyClientId = UIStyles.TextBoxes.CreateLockable(
+                string.Empty,
+                AppLocalization.Get(AppStrings.MainFormClientIdPlaceholder),
+                locked: true,
+                colors: UIStyles.Colors.Sets.Primary);
+            txtSpotifyClientId.EditAccepting += (_, e) => e.Cancel = !controller.CanAcceptSpotifyClientId();
+            txtSpotifyClientId.EditAccepted += (_, _) => controller.SpotifyClientIdAccepted();
+            txtSpotifyClientId.EditCancelled += (_, _) => SetSpotifyClientIdError(null);
+            txtSpotifyClientId.LockedChanged += EditBox_LockedChanged;
             spotifyAuthToolTip.SetToolTip(
                 txtSpotifyClientId,
                 AppLocalization.Get(AppStrings.MainFormClientIdTooltip));
-
-            btnEditSpotifyClientId = new SymbolToggle(
-                UIStyles.Buttons.Presets.Edit,
-                UIStyles.Buttons.Presets.Save,
-                AppLocalization.Get(AppStrings.EditSpotifyClientId),
-                AppLocalization.Get(AppStrings.MainFormSaveSpotifyClientId),
-                PropertyIconButtonSize,
-                BtnEditSpotifyClientId_Click);
 
             BuildPropertyTableRows();
 
@@ -226,13 +221,11 @@ namespace ReleaseUpdaterGui
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowClientId),
                 PropertyRowHeight,
-                PropertyColumn.Percent(txtSpotifyClientId, 100),
-                PropertyColumn.Absolute(btnEditSpotifyClientId.Host, PropertyIconColumnWidth));
+                PropertyColumn.Percent(txtSpotifyClientId, 100));
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowPlaylistName),
                 PropertyRowHeight,
-                PropertyColumn.Percent(txtPlaylistName, 100),
-                PropertyColumn.Absolute(btnEditPlaylistName.Host, PropertyIconColumnWidth));
+                PropertyColumn.Percent(txtPlaylistName, 100));
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowPlaylistDescription),
                 PropertyRowHeight,

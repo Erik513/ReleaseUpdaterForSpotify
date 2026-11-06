@@ -23,8 +23,6 @@ public static class AppStrings
     public const string SpotifyClientIdRequired = "Shared.SpotifyClientIdRequired";
     public const string UpdatePlaylist = "Shared.UpdatePlaylist";
     public const string Report = "Shared.Report";
-    public const string EditPlaylistName = "Shared.EditPlaylistName";
-    public const string EditSpotifyClientId = "Shared.EditSpotifyClientId";
     public const string SearchingReleases = "Shared.SearchingReleases";
     public const string LoadingSongs = "Shared.LoadingSongs";
     public const string SearchingSongs = "Shared.SearchingSongs";
@@ -50,8 +48,6 @@ public static class AppStrings
     public const string MainFormErrorLogFormat = "MainForm.ErrorLogFormat";
     public const string MainFormCancelled = "MainForm.Cancelled";
     public const string MainFormUpdateCancelledLog = "MainForm.UpdateCancelledLog";
-    public const string MainFormSavePlaylistName = "MainForm.SavePlaylistName";
-    public const string MainFormSaveSpotifyClientId = "MainForm.SaveSpotifyClientId";
     public const string MainFormInitialProgress = "MainForm.InitialProgress";
     public const string MainFormClientIdStatusAccessibleName = "MainForm.ClientIdStatusAccessibleName";
     public const string MainFormClientIdStatusInitial = "MainForm.ClientIdStatusInitial";
@@ -97,7 +93,6 @@ public static class AppStrings
     public const string ControllerToastPlaylistNameSaved = "Controller.ToastPlaylistNameSaved";
     public const string ControllerToastClientIdSaved = "Controller.ToastClientIdSaved";
     public const string ControllerInvalidClientIdMessage = "Controller.InvalidClientIdMessage";
-    public const string ControllerInvalidClientIdTitle = "Controller.InvalidClientIdTitle";
     public const string ControllerClientIdRequiredForLoginMessage = "Controller.ClientIdRequiredForLoginMessage";
     public const string ControllerClientIdRequiredForUpdateMessage = "Controller.ClientIdRequiredForUpdateMessage";
     public const string ControllerCooldownActive = "Controller.CooldownActive";
@@ -262,8 +257,6 @@ public static class AppStrings
         [SpotifyClientIdRequired] = "Spotify Client ID required",
         [UpdatePlaylist] = "Update playlist",
         [Report] = "Report",
-        [EditPlaylistName] = "Edit playlist name",
-        [EditSpotifyClientId] = "Edit Spotify Client ID",
         [SearchingReleases] = "Searching releases",
         [LoadingSongs] = "Loading songs",
         [SearchingSongs] = "Searching songs",
@@ -288,8 +281,6 @@ public static class AppStrings
         [MainFormErrorLogFormat] = "ERROR: {0}",
         [MainFormCancelled] = "Cancelled",
         [MainFormUpdateCancelledLog] = "The update was cancelled.",
-        [MainFormSavePlaylistName] = "Save playlist name",
-        [MainFormSaveSpotifyClientId] = "Save Spotify Client ID",
         [MainFormInitialProgress] = "0 / 0",
         [MainFormClientIdStatusAccessibleName] = "Spotify Client ID status",
         [MainFormClientIdStatusInitial] = "Spotify Client ID status will appear here.",
@@ -334,7 +325,6 @@ public static class AppStrings
         [ControllerToastPlaylistNameSaved] = "Playlist name saved.",
         [ControllerToastClientIdSaved] = "Spotify Client ID saved.",
         [ControllerInvalidClientIdMessage] = "Spotify Client ID must be 32 hexadecimal characters. Do not enter a Client Secret.",
-        [ControllerInvalidClientIdTitle] = "Invalid Spotify Client ID",
         [ControllerClientIdRequiredForLoginMessage] = "Please enter and save your Spotify Client ID before signing in or updating the playlist.",
         [ControllerClientIdRequiredForUpdateMessage] = "Please enter and save your Spotify Client ID before updating the playlist.",
         [ControllerCooldownActive] = "Spotify cooldown active",
@@ -472,8 +462,6 @@ public static class AppStrings
         [SpotifyClientIdRequired] = "Spotify Client-ID erforderlich",
         [UpdatePlaylist] = "Playlist aktualisieren",
         [Report] = "Bericht",
-        [EditPlaylistName] = "Playlist-Namen bearbeiten",
-        [EditSpotifyClientId] = "Spotify Client-ID bearbeiten",
         [SearchingReleases] = "Suche nach Veröffentlichungen",
         [LoadingSongs] = "Songs werden geladen",
         [SearchingSongs] = "Songs werden gesucht",
@@ -498,8 +486,6 @@ public static class AppStrings
         [MainFormErrorLogFormat] = "FEHLER: {0}",
         [MainFormCancelled] = "Abgebrochen",
         [MainFormUpdateCancelledLog] = "Die Aktualisierung wurde abgebrochen.",
-        [MainFormSavePlaylistName] = "Playlist-Namen speichern",
-        [MainFormSaveSpotifyClientId] = "Spotify Client-ID speichern",
         [MainFormInitialProgress] = "0 / 0",
         [MainFormClientIdStatusAccessibleName] = "Spotify Client-ID Status",
         [MainFormClientIdStatusInitial] = "Der Spotify Client-ID-Status wird hier angezeigt.",
@@ -544,7 +530,6 @@ public static class AppStrings
         [ControllerToastPlaylistNameSaved] = "Playlist-Name gespeichert.",
         [ControllerToastClientIdSaved] = "Spotify Client-ID gespeichert.",
         [ControllerInvalidClientIdMessage] = "Die Spotify Client-ID muss aus 32 hexadezimalen Zeichen bestehen. Gib kein Client Secret ein.",
-        [ControllerInvalidClientIdTitle] = "Ungültige Spotify Client-ID",
         [ControllerClientIdRequiredForLoginMessage] = "Bitte gib deine Spotify Client-ID ein und speichere sie, bevor du dich anmeldest oder die Playlist aktualisierst.",
         [ControllerClientIdRequiredForUpdateMessage] = "Bitte gib deine Spotify Client-ID ein und speichere sie, bevor du die Playlist aktualisierst.",
         [ControllerCooldownActive] = "Spotify-Sperrzeit aktiv",

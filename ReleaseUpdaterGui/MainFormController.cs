@@ -293,21 +293,16 @@ namespace ReleaseUpdaterGui
             }
         }
 
-        public void TogglePlaylistNameEdit()
+        // The two boxes (playlist name, Client ID) are lockable text boxes of the library: the pencil unlocks, and the check mark
+        // or Enter asks "may this be accepted?" first (EditAccepting) - the box stays open, with the reason in its frame, when not -
+        // and then tells that it was accepted (EditAccepted). The window passes those on:
+
+        /// <summary>Whether the playlist name in the box may be accepted; when not, the box shows why and stays open.</summary>
+        public bool CanAcceptPlaylistName() => ValidatePlaylistName(showMessage: true);
+
+        /// <summary>The playlist name was accepted (the box is locked): it is saved.</summary>
+        public void PlaylistNameAccepted()
         {
-            if (view.IsPlaylistNameReadOnly)
-            {
-                view.EnablePlaylistNameEditing();
-                return;
-            }
-
-            if (!ValidatePlaylistName(showMessage: true))
-            {
-                view.FocusPlaylistName();
-                return;
-            }
-
-            view.DisablePlaylistNameEditing();
             if (SaveSettings(showValidationMessage: false))
             {
                 ApplyRunAvailability(updateStatus: false);
@@ -315,26 +310,26 @@ namespace ReleaseUpdaterGui
             }
         }
 
-        public void ToggleSpotifyClientIdEdit()
+        /// <summary>Whether the Client ID in the box may be accepted; when not, the box shows why and stays open.</summary>
+        public bool CanAcceptSpotifyClientId() => ValidateSpotifyClientId(showMessage: true);
+
+        /// <summary>The Client ID was accepted (the box is locked): it is saved.</summary>
+        public void SpotifyClientIdAccepted()
         {
-            if (view.IsSpotifyClientIdReadOnly)
-            {
-                view.EnableSpotifyClientIdEditing();
-                return;
-            }
-
-            if (!ValidateSpotifyClientId(showMessage: true))
-            {
-                view.FocusSpotifyClientId();
-                return;
-            }
-
-            view.DisableSpotifyClientIdEditing();
             if (SaveSettings(showValidationMessage: false))
             {
                 ApplyRunAvailability(updateStatus: false);
                 view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastClientIdSaved));
             }
+        }
+
+        /// <summary>
+        /// A box was unlocked or locked (or an editing was cancelled): an update cannot be started while one is open, so the run button
+        /// follows. The text that is shown again after Escape is the saved one, so a message about it goes.
+        /// </summary>
+        public void EditingChanged()
+        {
+            ApplyRunAvailability(updateStatus: false);
         }
 
         public void SaveSettingsFromUi()
@@ -479,11 +474,16 @@ namespace ReleaseUpdaterGui
             bool isValid = clientId.Length == 32 &&
                 clientId.All(Uri.IsHexDigit);
 
-            if (!isValid && showMessage)
+            if (isValid)
             {
-                view.ShowWarning(
-                    AppLocalization.Get(AppStrings.ControllerInvalidClientIdMessage),
-                    AppLocalization.Get(AppStrings.ControllerInvalidClientIdTitle));
+                view.SetSpotifyClientIdError(null);
+            }
+            else if (showMessage)
+            {
+                // A red frame with the reason at the box (it goes when the user types), and the same text in the status line.
+                string message = AppLocalization.Get(AppStrings.ControllerInvalidClientIdMessage);
+                view.SetSpotifyClientIdError(message);
+                view.SetStatus(message);
             }
 
             return isValid;

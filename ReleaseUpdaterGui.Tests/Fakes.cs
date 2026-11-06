@@ -33,8 +33,6 @@ internal sealed class FakeMainView : IMainView
 
     public string PlaylistName { get; set; } = ReleaseDefaults.PlaylistName;
     public string CustomSpotifyClientId { get; set; } = string.Empty;
-    public bool IsPlaylistNameReadOnly { get; set; } = true;
-    public bool IsSpotifyClientIdReadOnly { get; set; } = true;
     public string? PlaylistId { get; set; }
     public ReleaseSettings? LastSetSettings { get; private set; }
 
@@ -77,35 +75,11 @@ internal sealed class FakeMainView : IMainView
     public void ShowCancelled() => Calls.Add("ShowCancelled");
     public void StopElapsedTimer() => Calls.Add("StopElapsedTimer");
 
-    public void EnablePlaylistNameEditing()
-    {
-        IsPlaylistNameReadOnly = false;
-        Calls.Add("EnablePlaylistNameEditing");
-    }
-
-    public void DisablePlaylistNameEditing()
-    {
-        IsPlaylistNameReadOnly = true;
-        Calls.Add("DisablePlaylistNameEditing");
-    }
-
-    public void FocusPlaylistName() => Calls.Add("FocusPlaylistName");
     public string? PlaylistNameError { get; private set; }
     public void SetPlaylistNameError(string? message) => PlaylistNameError = message;
 
-    public void EnableSpotifyClientIdEditing()
-    {
-        IsSpotifyClientIdReadOnly = false;
-        Calls.Add("EnableSpotifyClientIdEditing");
-    }
-
-    public void DisableSpotifyClientIdEditing()
-    {
-        IsSpotifyClientIdReadOnly = true;
-        Calls.Add("DisableSpotifyClientIdEditing");
-    }
-
-    public void FocusSpotifyClientId() => Calls.Add("FocusSpotifyClientId");
+    public string? SpotifyClientIdError { get; private set; }
+    public void SetSpotifyClientIdError(string? message) => SpotifyClientIdError = message;
 
     public void ShowInfo(string message, string title) => Calls.Add("ShowInfo:" + message);
     public void ShowWarning(string message, string title) => Calls.Add("ShowWarning:" + message);

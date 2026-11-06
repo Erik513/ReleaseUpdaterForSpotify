@@ -14,8 +14,6 @@ namespace ReleaseUpdaterGui
         // ---- what the user entered ----
         string PlaylistName { get; }
         string CustomSpotifyClientId { get; }
-        bool IsPlaylistNameReadOnly { get; }
-        bool IsSpotifyClientIdReadOnly { get; }
         ReleaseSettings GetSettings();
         void SetSettings(ReleaseSettings settings);
 
@@ -39,13 +37,10 @@ namespace ReleaseUpdaterGui
         void StopElapsedTimer();
 
         // ---- editing the two settings boxes ----
-        void EnablePlaylistNameEditing();
-        void DisablePlaylistNameEditing();
-        void FocusPlaylistName();
+
+        // A red frame at the box with the reason (it goes when the user types); null takes it away.
         void SetPlaylistNameError(string? message);
-        void EnableSpotifyClientIdEditing();
-        void DisableSpotifyClientIdEditing();
-        void FocusSpotifyClientId();
+        void SetSpotifyClientIdError(string? message);
 
         // ---- messages and questions ----
         void ShowInfo(string message, string title);

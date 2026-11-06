@@ -61,12 +61,10 @@ namespace ReleaseUpdaterGui
         private ProgressBar progressBar = null!;
 
         private ComboBox cmbLanguage = null!;
-        private TextBox txtPlaylistName = null!;
-        private SymbolToggle btnEditPlaylistName = null!;
+        private ErikwnkWFUI.Controls.LockableTextBox txtPlaylistName = null!;
         private NumericUpDown numLookbackDays = null!;
         private TextBox txtPlaylistDescription = null!;
-        private TextBox txtSpotifyClientId = null!;
-        private SymbolToggle btnEditSpotifyClientId = null!;
+        private ErikwnkWFUI.Controls.LockableTextBox txtSpotifyClientId = null!;
 
         private SymbolToggle btnLogin = null!;
         private Button btnOpenReport = null!;
@@ -96,16 +94,6 @@ namespace ReleaseUpdaterGui
         public string CustomSpotifyClientId
         {
             get { return txtSpotifyClientId.Text.Trim(); }
-        }
-
-        public bool IsPlaylistNameReadOnly
-        {
-            get { return txtPlaylistName.ReadOnly; }
-        }
-
-        public bool IsSpotifyClientIdReadOnly
-        {
-            get { return txtSpotifyClientId.ReadOnly; }
         }
 
         public bool IsSpotifySignedIn
@@ -453,67 +441,14 @@ namespace ReleaseUpdaterGui
             txtOutput.AppendText(message + Environment.NewLine);
         }
 
-        public void EnablePlaylistNameEditing()
-        {
-            txtPlaylistName.ReadOnly = false;
-            txtPlaylistName.TabStop = true;
-            btnEditPlaylistName.ShowSecond(true);
-            btnRun.Enabled = false;
-
-            txtPlaylistName.Focus();
-            txtPlaylistName.SelectAll();
-        }
-
-        public void DisablePlaylistNameEditing()
-        {
-            txtPlaylistName.ReadOnly = true;
-            txtPlaylistName.TabStop = false;
-            btnEditPlaylistName.ShowSecond(false);
-
-            txtPlaylistName.SelectionLength = 0;
-            btnEditPlaylistName.Focus();
-        }
-
         public void SetPlaylistNameError(string? message)
         {
-            // (The factories give the standard type; the box is the library's TextField.)
-            if (txtPlaylistName is ErikwnkWFUI.Controls.TextField field)
-            {
-                field.ErrorText = message;
-            }
+            txtPlaylistName.ErrorText = message;
         }
 
-        public void FocusPlaylistName()
+        public void SetSpotifyClientIdError(string? message)
         {
-            txtPlaylistName.Focus();
-            txtPlaylistName.SelectAll();
-        }
-
-        public void EnableSpotifyClientIdEditing()
-        {
-            txtSpotifyClientId.ReadOnly = false;
-            txtSpotifyClientId.TabStop = true;
-            btnEditSpotifyClientId.ShowSecond(true);
-            btnRun.Enabled = false;
-
-            txtSpotifyClientId.Focus();
-            txtSpotifyClientId.SelectAll();
-        }
-
-        public void DisableSpotifyClientIdEditing()
-        {
-            txtSpotifyClientId.ReadOnly = true;
-            txtSpotifyClientId.TabStop = false;
-            btnEditSpotifyClientId.ShowSecond(false);
-
-            txtSpotifyClientId.SelectionLength = 0;
-            btnEditSpotifyClientId.Focus();
-        }
-
-        public void FocusSpotifyClientId()
-        {
-            txtSpotifyClientId.Focus();
-            txtSpotifyClientId.SelectAll();
+            txtSpotifyClientId.ErrorText = message;
         }
 
         public void ShowInfo(string message, string title)
@@ -599,12 +534,6 @@ namespace ReleaseUpdaterGui
             btnLogin.SetAccessibleNames(
                 AppLocalization.Get(AppStrings.MainFormSignInAccessibleName),
                 AppLocalization.Get(AppStrings.MainFormSignOutAccessibleName));
-            btnEditPlaylistName.SetTooltips(
-                AppLocalization.Get(AppStrings.EditPlaylistName),
-                AppLocalization.Get(AppStrings.MainFormSavePlaylistName));
-            btnEditSpotifyClientId.SetTooltips(
-                AppLocalization.Get(AppStrings.EditSpotifyClientId),
-                AppLocalization.Get(AppStrings.MainFormSaveSpotifyClientId));
 
             UIStyles.Buttons.UpdateTooltip(btnOpenReport, AppLocalization.Get(AppStrings.MainFormOpenReport));
             UIStyles.Buttons.UpdateTooltip(btnUnreleasedSongs, AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
@@ -690,14 +619,13 @@ namespace ReleaseUpdaterGui
             controller.OpenReport();
         }
 
-        private void BtnEditPlaylistName_Click(object? sender, EventArgs e)
+        // A box was unlocked or locked: the run button follows (not while the settings are being loaded).
+        private void EditBox_LockedChanged(object? sender, EventArgs e)
         {
-            controller.TogglePlaylistNameEdit();
-        }
-
-        private void BtnEditSpotifyClientId_Click(object? sender, EventArgs e)
-        {
-            controller.ToggleSpotifyClientIdEdit();
+            if (!isLoadingSettings && !IsShuttingDown)
+            {
+                controller.EditingChanged();
+            }
         }
 
         private void BtnClientIdHelp_Click(object? sender, EventArgs e)
@@ -820,7 +748,7 @@ namespace ReleaseUpdaterGui
 
         private bool IsSettingEditActive()
         {
-            return !txtPlaylistName.ReadOnly || !txtSpotifyClientId.ReadOnly;
+            return !txtPlaylistName.IsLocked || !txtSpotifyClientId.IsLocked;
         }
 
         private static Color GetClientIdStatusColor(

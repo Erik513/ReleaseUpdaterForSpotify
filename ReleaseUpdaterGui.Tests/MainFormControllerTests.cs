@@ -335,7 +335,8 @@ public sealed class MainFormControllerTests
         Assert.Equal(0, store.SaveCount);
     }
 
-    // Verifies which Client IDs are accepted: none (blank) or exactly 32 hexadecimal characters.
+    // Verifies which Client IDs may be accepted: none (blank) or exactly 32 hexadecimal characters. A wrong one is refused, with the reason
+    // in the frame of the box and in the status line (no dialog); a right one clears the message.
     [Theory]
     [InlineData("", true)]
     [InlineData("   ", true)]
@@ -345,74 +346,98 @@ public sealed class MainFormControllerTests
     [InlineData("0123456789abcdef0123456789abcdef0", false)]
     [InlineData("0123456789abcdef0123456789abcdeg", false)]
     [InlineData("not a client id", false)]
-    public void ClientIdEntry_IsCheckedWhenSaved(string clientId, bool accepted)
+    public void ClientIdEntry_IsCheckedWhenAccepted(string clientId, bool accepted)
     {
         view.CustomSpotifyClientId = clientId;
-        view.IsSpotifyClientIdReadOnly = false;
 
-        CreateController().ToggleSpotifyClientIdEdit();
+        bool allowed = CreateController().CanAcceptSpotifyClientId();
 
-        Assert.Equal(accepted, view.Has("DisableSpotifyClientIdEditing"));
-        Assert.Equal(!accepted, view.Has("ShowWarning:"));
-        Assert.Equal(!accepted, view.Has("FocusSpotifyClientId"));
+        Assert.Equal(accepted, allowed);
+        Assert.Equal(!accepted, !string.IsNullOrEmpty(view.SpotifyClientIdError));
+        Assert.Equal(!accepted, view.Has("SetStatus:"));
+        Assert.False(view.Has("ShowWarning:"));
     }
 
-    // ---- the two edit buttons ----
+    // ---- the two lockable boxes ----
 
-    // Verifies that the first press on the pencil only unlocks the box.
+    // Verifies that a valid playlist name may be accepted (and a message about an earlier wrong one goes), and that nothing is saved yet:
+    // saving is what happens when the box has been locked.
     [Fact]
-    public void TogglePlaylistNameEdit_WhenLocked_Unlocks()
+    public void CanAcceptPlaylistName_WithAValidName_IsTrue_AndClearsTheMessage()
     {
-        view.IsPlaylistNameReadOnly = true;
+        view.PlaylistName = "   ";
+        CreateController().CanAcceptPlaylistName();
+        view.PlaylistName = "My releases";
 
-        CreateController().TogglePlaylistNameEdit();
+        bool allowed = CreateController().CanAcceptPlaylistName();
 
-        Assert.True(view.Has("EnablePlaylistNameEditing"));
+        Assert.True(allowed);
+        Assert.Null(view.PlaylistNameError);
         Assert.Equal(0, store.SaveCount);
     }
 
-    // Verifies that pressing the check mark with a valid name locks the box again and saves it.
-    [Fact]
-    public void TogglePlaylistNameEdit_WhenEditingWithAValidName_LocksAndSaves()
+    // Verifies that an invalid name is refused with the reason, so the box stays open for the user to correct it.
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("")]
+    public void CanAcceptPlaylistName_WithAnInvalidName_IsFalse_WithTheReason(string name)
     {
-        view.IsPlaylistNameReadOnly = false;
+        view.PlaylistName = name;
+
+        bool allowed = CreateController().CanAcceptPlaylistName();
+
+        Assert.False(allowed);
+        Assert.False(string.IsNullOrEmpty(view.PlaylistNameError));
+        Assert.True(view.Has("SetStatus:"));
+        Assert.False(view.Has("ShowWarning:"));
+        Assert.Equal(0, store.SaveCount);
+    }
+
+    // Verifies that an accepted playlist name is saved and the user is told.
+    [Fact]
+    public void PlaylistNameAccepted_Saves_AndToasts()
+    {
         view.PlaylistName = "My releases";
 
-        CreateController().TogglePlaylistNameEdit();
+        CreateController().PlaylistNameAccepted();
 
-        Assert.True(view.Has("DisablePlaylistNameEditing"));
         Assert.Equal("My releases", store.Stored.PlaylistName);
         Assert.True(view.Has("ShowToast:"));
     }
 
-    // Verifies that with an invalid name the box stays open for the user to correct it.
+    // Verifies that an accepted Client ID is saved and the user is told.
     [Fact]
-    public void TogglePlaylistNameEdit_WhenEditingWithAnInvalidName_StaysOpen()
+    public void SpotifyClientIdAccepted_Saves_AndToasts()
     {
-        view.IsPlaylistNameReadOnly = false;
-        view.PlaylistName = "   ";
+        view.CustomSpotifyClientId = Texts.ValidClientId;
 
-        CreateController().TogglePlaylistNameEdit();
+        CreateController().SpotifyClientIdAccepted();
 
-        Assert.False(string.IsNullOrEmpty(view.PlaylistNameError));
-        Assert.False(view.Has("ShowWarning:"));
-        Assert.True(view.Has("FocusPlaylistName"));
-        Assert.False(view.Has("DisablePlaylistNameEditing"));
-        Assert.Equal(0, store.SaveCount);
+        Assert.Equal(Texts.ValidClientId, store.Stored.CustomSpotifyClientId);
+        Assert.True(view.Has("ShowToast:"));
     }
 
     // Verifies that a box that locks again but cannot be saved says so (the text stays as typed).
     [Fact]
-    public void TogglePlaylistNameEdit_WhenTheSaveFails_ShowsTheStatus_AndNoSavedToast()
+    public void PlaylistNameAccepted_WhenTheSaveFails_ShowsTheStatus_AndNoSavedToast()
     {
-        view.IsPlaylistNameReadOnly = false;
         view.PlaylistName = "My releases";
         store.SaveFailure = new IOException("disk full");
 
-        CreateController().TogglePlaylistNameEdit();
+        CreateController().PlaylistNameAccepted();
 
         Assert.Contains(view.Calls, call => call.StartsWith("SetStatus:", StringComparison.Ordinal) && call.Contains("disk full"));
         Assert.False(view.Has("ShowToast:"));
+    }
+
+    // Verifies that unlocking or locking a box makes the run button look again (an update cannot be started while a box is open).
+    [Fact]
+    public void EditingChanged_UpdatesTheRunButton()
+    {
+        CreateController().EditingChanged();
+
+        Assert.True(view.Has("SetUpdateAvailability:"));
+        Assert.Equal(0, store.SaveCount);
     }
 
     // ---- sign in and out ----

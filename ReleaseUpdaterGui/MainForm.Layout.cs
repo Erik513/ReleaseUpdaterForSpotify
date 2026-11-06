@@ -192,11 +192,6 @@ namespace ReleaseUpdaterGui
             // known (BeginUpdateCheck), and a click on it asks, downloads and installs.
             versionPanel = UIStyles.VersionPanels.CreateElevated();
 
-            // Workaround for ErikwnkWFUI: the strip paints its text at the right end but is not repainted as a whole when its width
-            // changes, so while the window is resized the old texts stay behind (see docs/MIGRATION-FEEDBACK.md, "VersionPanel leaves
-            // ghosts"). To be removed when the strip does this itself.
-            versionPanel.Resize += (_, _) => versionPanel.Invalidate();
-
             ContentPanel.Controls.Add(mainPanel);
             ContentPanel.Controls.Add(versionPanel);
         }

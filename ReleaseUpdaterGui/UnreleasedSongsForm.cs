@@ -192,7 +192,8 @@ namespace ReleaseUpdaterGui
             });
 
             // The link of a song: no text in the list (it would make it wide), one small button per row. It is not bound to a property:
-            // CellFormatting draws it from the row. A click opens the link (or asks for one when there is none), a right click changes it.
+            // CellFormatting draws it from the row. A double click opens the link (or asks for one when there is none), Ctrl + double click
+            // changes it (a right click is the grid's own, it has a menu).
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = LinkColumnName,
@@ -202,7 +203,7 @@ namespace ReleaseUpdaterGui
                 Width = LinkColumnWidth
             });
             dataGridView.CellFormatting += DataGridView_LinkCellFormatting;
-            dataGridView.CellMouseClick += DataGridView_LinkCellMouseClick;
+            dataGridView.CellMouseDoubleClick += DataGridView_LinkCellMouseDoubleClick;
             dataGridView.DataSource = rows;
 
             // Cast needed since UIStyles.DataGridViews.CreateStandard()
@@ -371,7 +372,7 @@ namespace ReleaseUpdaterGui
                 (int)(from.G + ((to.G - from.G) * toShare)),
                 (int)(from.B + ((to.B - from.B) * toShare)));
 
-        private void DataGridView_LinkCellMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        private void DataGridView_LinkCellMouseDoubleClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
             // (Not the header, and not the empty row at the end of the list.)
             if (e.RowIndex < 0 || e.RowIndex >= rows.Count || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
@@ -381,13 +382,19 @@ namespace ReleaseUpdaterGui
 
             TrackedSongRow row = rows[e.RowIndex];
 
-            if (e.Button == MouseButtons.Left && !string.IsNullOrWhiteSpace(row.Link))
+            if (e.Button != MouseButtons.Left)
             {
-                controller.OpenLink(row.Link);
+                return;
             }
-            else if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
+
+            // A song without a link is asked for one; with a link, the double click opens it and Ctrl + double click changes it.
+            if (string.IsNullOrWhiteSpace(row.Link) || (ModifierKeys & Keys.Control) == Keys.Control)
             {
                 AskForLink(row, e.RowIndex);
+            }
+            else
+            {
+                controller.OpenLink(row.Link);
             }
         }
 

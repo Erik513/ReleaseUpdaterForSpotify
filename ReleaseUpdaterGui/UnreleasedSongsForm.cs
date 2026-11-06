@@ -216,11 +216,10 @@ namespace ReleaseUpdaterGui
             dataGridView.RowsRemoved += (_, _) => ApplyFixedColumnWidthsAfterLayout();
             ApplyFixedColumnWidths();
 
-            TableLayoutPanel bottomPanel = UIStyles.TableLayoutPanels.CreateTransparent(
-                columnCount: 2,
-
             // Two rows: the progress bar (as high as the buttons beside it) and the buttons, and below them the status line
             // over the whole width - a text that is too long for it moves back and forth instead of being cut.
+            TableLayoutPanel bottomPanel = UIStyles.TableLayoutPanels.CreateTransparent(
+                columnCount: 2,
                 rowCount: 2);
             bottomPanel.Dock = DockStyle.Bottom;
             bottomPanel.Height = 44 + 28;

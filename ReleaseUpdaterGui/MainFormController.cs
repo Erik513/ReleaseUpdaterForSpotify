@@ -419,6 +419,7 @@ namespace ReleaseUpdaterGui
             settings.SpotifyCooldownUntilUtc = savedSettings.SpotifyCooldownUntilUtc;
             settings.SpotifyCooldownClientId = savedSettings.SpotifyCooldownClientId;
             settings.SpotifyCooldownAccountWide = savedSettings.SpotifyCooldownAccountWide;
+            settings.UnreleasedArtistFirst = savedSettings.UnreleasedArtistFirst;
 
             try
             {

@@ -49,7 +49,8 @@ public sealed class WindowRenderTests
                 using UnreleasedSongsForm form = new(
                     new ReleaseUpdater.Data.Storage.TrackedSongsStore(new ReleaseUpdater.Data.Storage.AppDataPaths(directory)),
                     reportWriter,
-                    new ReleaseUpdater.Core.Services.UnreleasedSongChecker(new FakeGateway(), reportWriter));
+                    new ReleaseUpdater.Core.Services.UnreleasedSongChecker(new FakeGateway(), reportWriter),
+                    new FakeSettingsStore());
                 using Bitmap picture = UITesting.Render(form);
 
                 Assert.Equal(form.Width, picture.Width);

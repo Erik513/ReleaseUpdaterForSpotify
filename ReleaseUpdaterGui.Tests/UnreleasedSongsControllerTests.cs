@@ -23,8 +23,10 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
         Directory.Delete(directory, recursive: true);
     }
 
+    private readonly FakeSettingsStore settings = new();
+
     private UnreleasedSongsController CreateController() =>
-        new(view, new TrackedSongsStore(new AppDataPaths(directory)), new UnreleasedSongChecker(gateway, reportWriter), reportWriter);
+        new(view, new TrackedSongsStore(new AppDataPaths(directory)), new UnreleasedSongChecker(gateway, reportWriter), reportWriter, settings);
 
     // ---- export and import ----
 
@@ -111,6 +113,51 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
 
         Assert.Null(merged);
         Assert.True(view.Has(expectedCall));
+    }
+
+    // ---- the order of the columns ----
+
+    // Verifies that the order of the columns is kept in the settings (and read from there), and starts as Title first.
+    [Fact]
+    public void ArtistFirst_IsKeptInTheSettings()
+    {
+        Assert.False(CreateController().LoadArtistFirst());
+
+        CreateController().SaveArtistFirst(true);
+
+        Assert.True(settings.Stored.UnreleasedArtistFirst);
+        Assert.True(CreateController().LoadArtistFirst());
+
+        CreateController().SaveArtistFirst(false);
+
+        Assert.False(CreateController().LoadArtistFirst());
+    }
+
+    // Verifies that the rest of the settings is not touched by it, and that nothing is written when nothing changed.
+    [Fact]
+    public void SavingTheColumnOrder_KeepsTheOtherSettings_AndWritesOnlyChanges()
+    {
+        settings.Stored.PlaylistName = "My playlist";
+
+        CreateController().SaveArtistFirst(false);
+        Assert.Equal(0, settings.SaveCount);
+
+        CreateController().SaveArtistFirst(true);
+
+        Assert.Equal(1, settings.SaveCount);
+        Assert.Equal("My playlist", settings.Stored.PlaylistName);
+    }
+
+    // Verifies that a settings file that cannot be read or written does not crash the window (it is only a preference).
+    [Fact]
+    public void ColumnOrder_SurvivesAFileThatCannotBeWritten()
+    {
+        settings.SaveFailure = new IOException("disk full");
+
+        CreateController().SaveArtistFirst(true);
+
+        Assert.False(view.Has("ShowError:"));
+        Assert.False(CreateController().LoadArtistFirst());
     }
 
     // ---- the choice of the columns, and paste ----

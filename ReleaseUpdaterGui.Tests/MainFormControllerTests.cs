@@ -308,6 +308,17 @@ public sealed class MainFormControllerTests
         Assert.Null(store.Stored.PlaylistId);
     }
 
+    // Verifies that saving the settings of the main window keeps what only the unreleased songs window knows (the order of its columns).
+    [Fact]
+    public void SaveSettings_KeepsTheColumnOrderOfTheUnreleasedSongsWindow()
+    {
+        store.Stored.UnreleasedArtistFirst = true;
+
+        CreateController().SaveSettingsFromUi();
+
+        Assert.True(store.Stored.UnreleasedArtistFirst);
+    }
+
     // ---- checks of the entries ----
 
     // Verifies that a playlist name that is too long stops a run with a warning.

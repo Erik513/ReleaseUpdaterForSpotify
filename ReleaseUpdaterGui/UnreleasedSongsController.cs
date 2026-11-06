@@ -13,6 +13,7 @@ namespace ReleaseUpdaterGui
         private readonly TrackedSongsStore songsStore;
         private readonly UnreleasedSongChecker checker;
         private readonly IUnreleasedSongsReportWriter reportWriter;
+        private readonly ISettingsStore settingsStore;
 
         private CancellationTokenSource? runCancellation;
 
@@ -20,17 +21,56 @@ namespace ReleaseUpdaterGui
             IUnreleasedSongsView view,
             TrackedSongsStore songsStore,
             UnreleasedSongChecker checker,
-            IUnreleasedSongsReportWriter reportWriter)
+            IUnreleasedSongsReportWriter reportWriter,
+            ISettingsStore settingsStore)
         {
             this.view = view;
             this.songsStore = songsStore;
             this.checker = checker;
             this.reportWriter = reportWriter;
+            this.settingsStore = settingsStore;
         }
 
         public bool IsRunInProgress => runCancellation is not null;
 
         public IReadOnlyList<TrackedSong> LoadSongs() => songsStore.Load();
+
+        /// <summary>Whether the user put the Artist column before the Title column (kept in the settings file); false when unknown.</summary>
+        public bool LoadArtistFirst()
+        {
+            try
+            {
+                return settingsStore.Load().UnreleasedArtistFirst;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Keeps the order of the columns. A preference is not worth a message when the file cannot be written: the order is still
+        /// as the user made it for as long as the window is open.
+        /// </summary>
+        public void SaveArtistFirst(bool artistFirst)
+        {
+            try
+            {
+                ReleaseSettings settings = settingsStore.Load();
+
+                if (settings.UnreleasedArtistFirst == artistFirst)
+                {
+                    return;
+                }
+
+                settings.UnreleasedArtistFirst = artistFirst;
+                settingsStore.Save(settings);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // (see above)
+            }
+        }
 
         public void SaveSongs(IReadOnlyList<TrackedSong> songs) => songsStore.Save(songs);
 

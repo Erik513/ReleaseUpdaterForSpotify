@@ -693,7 +693,8 @@ public sealed class SpotifyReleaseUpdaterTests
                 CustomSpotifyClientId = settings.CustomSpotifyClientId,
                 SpotifyCooldownUntilUtc = settings.SpotifyCooldownUntilUtc,
                 SpotifyCooldownClientId = settings.SpotifyCooldownClientId,
-                SpotifyCooldownAccountWide = settings.SpotifyCooldownAccountWide
+                SpotifyCooldownAccountWide = settings.SpotifyCooldownAccountWide,
+                UnreleasedArtistFirst = settings.UnreleasedArtistFirst
             };
     }
 

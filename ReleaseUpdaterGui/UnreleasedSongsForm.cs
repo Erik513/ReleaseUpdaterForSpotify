@@ -29,13 +29,14 @@ namespace ReleaseUpdaterGui
         public UnreleasedSongsForm(
             TrackedSongsStore songsStore,
             IUnreleasedSongsReportWriter reportWriter,
-            ReleaseUpdater.Core.Services.UnreleasedSongChecker checker) : base(
+            ReleaseUpdater.Core.Services.UnreleasedSongChecker checker,
+            ISettingsStore settingsStore) : base(
             FormOptions.CreateStandard(
                 title: AppLocalization.Get(AppStrings.UnreleasedFormTitle),
                 titleTextAlign: ContentAlignment.MiddleCenter,
                 backColor: UIStyles.Colors.BackgroundDarkElevated))
         {
-            controller = new UnreleasedSongsController(this, songsStore, checker, reportWriter);
+            controller = new UnreleasedSongsController(this, songsStore, checker, reportWriter, settingsStore);
 
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(560, 640);
@@ -44,6 +45,7 @@ namespace ReleaseUpdaterGui
 
             BuildUi();
             LoadSongs();
+            ApplyColumnOrder(controller.LoadArtistFirst(), keep: false);
 
             FormClosing += UnreleasedSongsForm_FormClosing;
         }
@@ -207,6 +209,15 @@ namespace ReleaseUpdaterGui
                 }
             };
 
+            // The order the user gives the two columns by dragging a header is kept for the next time.
+            dataGridView.ColumnDisplayIndexChanged += (_, _) =>
+            {
+                if (!applyingColumnOrder && !IsClosing)
+                {
+                    controller.SaveArtistFirst(IsArtistFirst());
+                }
+            };
+
             dataGridView.Resize += (_, _) => ApplyFixedColumnWidths();
 
             // The vertical scroll bar appears (and goes) with the number of rows, and takes room from the width without the grid being
@@ -297,6 +308,34 @@ namespace ReleaseUpdaterGui
             ContentPanel.Controls.Add(mainPanel);
 
             ApplyFixedColumnWidths();
+        }
+
+        private bool applyingColumnOrder;
+
+        private bool IsArtistFirst() =>
+            dataGridView.Columns["colArtist"]!.DisplayIndex < dataGridView.Columns["colTitle"]!.DisplayIndex;
+
+        // Puts the Artist column before or behind the Title column (the delete column stays pinned at the right).
+        private void ApplyColumnOrder(bool artistFirst, bool keep)
+        {
+            applyingColumnOrder = true;
+
+            try
+            {
+                if (IsArtistFirst() != artistFirst)
+                {
+                    dataGridView.Columns["colArtist"]!.DisplayIndex = artistFirst ? 0 : 1;
+                }
+            }
+            finally
+            {
+                applyingColumnOrder = false;
+            }
+
+            if (keep)
+            {
+                controller.SaveArtistFirst(artistFirst);
+            }
         }
 
         private bool widthsPending;

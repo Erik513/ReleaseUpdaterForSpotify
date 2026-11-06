@@ -712,7 +712,8 @@ namespace ReleaseUpdaterGui
             using UnreleasedSongsForm form = new(
                 trackedSongsStore,
                 unreleasedSongsReportWriter,
-                unreleasedSongChecker);
+                unreleasedSongChecker,
+                settingsStore);
 
             form.ShowDialog(this);
 

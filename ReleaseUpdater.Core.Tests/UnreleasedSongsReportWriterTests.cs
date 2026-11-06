@@ -94,6 +94,39 @@ public sealed class UnreleasedSongsReportWriterTests
         }
     }
 
+    // Verifies that the source link of an entry is a link in the report (found, possible and not found alike), shown with the name of the
+    // site; that nothing but a web address is made a link; and that the text is encoded.
+    [Fact]
+    public void WriteReport_ShowsTheSourceLinkOfAnEntry_OnlyAsAWebAddress()
+    {
+        string directory = CreateTemporaryDirectory();
+
+        try
+        {
+            UnreleasedSongsReportWriter writer = new(new AppDataPaths(directory));
+            SpotifyTrackItem track = new("t", "Title", new[] { new SpotifyArtist("a", "Artist") }, "spotify:track:t", "https://open.spotify.com/track/t", null);
+
+            SongMatchResult found = new(new TrackedSong("Found", "A", "https://www.youtube.com/watch?v=1&t=2"), track, MatchConfidence.Confident);
+            SongMatchResult possible = new(new TrackedSong("Possible", "B", "www.example.com/set"), track, MatchConfidence.Partial, MatchHint.TitleOnly);
+            SongMatchResult notFound = new(new TrackedSong("Missing", "C", "https://example.org/post\"><script>x</script>"), null, MatchConfidence.None);
+            SongMatchResult dangerous = new(new TrackedSong("Danger", "D", "javascript:alert(1)"), null, MatchConfidence.None);
+            SongMatchResult plain = new(new TrackedSong("Plain", "E"), null, MatchConfidence.None);
+
+            string html = File.ReadAllText(writer.WriteReport(new[] { found, possible, notFound, dangerous, plain }));
+
+            Assert.Contains("href=\"https://www.youtube.com/watch?v=1&amp;t=2\"", html);
+            Assert.Contains(">www.youtube.com</a>", html);
+            Assert.Contains("href=\"https://www.example.com/set\"", html);
+            Assert.DoesNotContain("<script>x</script>", html);
+            Assert.DoesNotContain("javascript:", html);
+            Assert.Equal(3, html.Split("Source: <a").Length - 1);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static string CreateTemporaryDirectory()
     {
         string directory = Path.Combine(

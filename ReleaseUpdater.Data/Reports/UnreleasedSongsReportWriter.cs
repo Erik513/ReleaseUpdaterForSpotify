@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Models;
+using ReleaseUpdater.Core.Services;
 using ReleaseUpdater.Data.Storage;
 
 namespace ReleaseUpdater.Data.Reports;
@@ -214,6 +215,8 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
                 $"                  <div class=\"song-artists\">Your entry: {ReportTheme.Encode(result.Song.Title)} - {ReportTheme.Encode(result.Song.Artist)}</div>");
         }
 
+        AppendSourceLink(html, result.Song);
+
         html.AppendLine("                </div>");
         html.AppendLine("              </div>");
         html.AppendLine("            </td>");
@@ -231,6 +234,23 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
         html.AppendLine(
             $"            <td data-sort=\"{confidenceText}\"><span class=\"source-badge {confidenceCssClass}\">{confidenceText}</span></td>");
         html.AppendLine("          </tr>");
+    }
+
+    // Where the user found the song (the link of the entry): a link in the report when it is a web address - nothing else is ever made
+    // a link, whatever was typed - shown with the name of the site.
+    private static void AppendSourceLink(StringBuilder html, TrackedSong song)
+    {
+        string? address = TrackedSongLinks.Normalize(song.Link);
+
+        if (address is null)
+        {
+            return;
+        }
+
+        string site = new Uri(address).Host;
+
+        html.AppendLine(
+            $"                  <div class=\"song-artists\">Source: <a class=\"track-link\" href=\"{ReportTheme.EncodeAttribute(address)}\" target=\"_blank\" rel=\"noopener\">{ReportTheme.Encode(site)}</a></div>");
     }
 
     private static void AppendNotFoundSection(StringBuilder html, IReadOnlyList<SongMatchResult> results)
@@ -275,6 +295,7 @@ public sealed class UnreleasedSongsReportWriter : IUnreleasedSongsReportWriter
             html.AppendLine("                <div class=\"song-info\">");
             html.AppendLine($"                  <div class=\"song-title\">{ReportTheme.Encode(title)}</div>");
             html.AppendLine($"                  <div class=\"song-artists\">{ReportTheme.Encode(artist)}</div>");
+            AppendSourceLink(html, result.Song);
             html.AppendLine("                </div>");
             html.AppendLine("              </div>");
             html.AppendLine("            </td>");

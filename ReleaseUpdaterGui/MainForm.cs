@@ -72,7 +72,6 @@ namespace ReleaseUpdaterGui
         private Button btnOpenReport = null!;
         private SymbolToggle btnRun = null!;
         private Button btnUnreleasedSongs = null!;
-        private bool unreleasedOpenedByMouse;
 
         private TextBox txtOutput = null!;
         private ToolTip spotifyAuthToolTip = null!;
@@ -716,16 +715,6 @@ namespace ReleaseUpdaterGui
                 settingsStore);
 
             form.ShowDialog(this);
-
-            // Closing the window gives the focus back to the button that opened it. If the keyboard was used in this window
-            // before, Windows then draws the dotted focus rectangle on it, though the button was clicked with the mouse. After a
-            // mouse click the focus is left with the window (a keyboard user keeps the button focused).
-            if (unreleasedOpenedByMouse)
-            {
-                ActiveControl = null;
-            }
-
-            unreleasedOpenedByMouse = false;
         }
 
         private void RunAvailabilityTimer_Tick(object? sender, EventArgs e)

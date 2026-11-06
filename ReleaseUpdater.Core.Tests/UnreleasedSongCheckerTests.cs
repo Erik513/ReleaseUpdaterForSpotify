@@ -315,6 +315,117 @@ public sealed class UnreleasedSongCheckerTests
         Assert.NotEqual(MatchHint.SwappedFields, result.Hint);
     }
 
+    // ---- versions: a remix is not the original, and the other way round ----
+
+    // Verifies that the original is not taken for a remix that is tracked, whoever made the remix.
+    [Theory]
+    [InlineData("Heal (David Mackay Remix)", "Tom Odell", "Heal")]
+    [InlineData("Heal (David Mackay Remix)", "Tom Odell", "Heal (Another Producer Remix)")]
+    [InlineData("Voodoo People (ALOK Edit)", "The Prodigy", "Voodoo People")]
+    [InlineData("For You (Luch Rework)", "Fahlberg", "For You")]
+    [InlineData("Everybody Dance Now (Gabss Edit)", "Snap", "Everybody Dance Now")]
+    [InlineData("Te Ver Sofrer (2025 Version)", "David Mackay", "Te Ver Sofrer")]
+    [InlineData("Time (ALWAUTSM pt. II)", "Hans Zimmer", "Time")]
+    [InlineData("Lose Yourself To Dance (JARP, KABA, Ber Grups Remix)", "Daft Punk", "Lose Yourself To Dance")]
+    [InlineData("What Do You Mean (Ngoma Afrohouse Edit)", "Justin Bieber", "What Do You Mean?")]
+    [InlineData("Go Deep (Original Mix)", "Alex Wann", "Go Deep (Some Remix)")]
+    [InlineData("Blinding Lights", "The Weeknd", "Blinding Lights (Chromatics Remix)")]
+    [InlineData("Blinding Lights", "The Weeknd", "Blinding Lights - Chromatics Remix")]
+    public async Task AnotherVersion_IsNotAMatch(string trackedTitle, string artist, string spotifyTitle)
+    {
+        SongMatchResult result = await CheckAsync(trackedTitle, artist, spotifyTitle, artist);
+
+        Assert.Equal(MatchConfidence.None, result.Confidence);
+        Assert.False(result.IsFound);
+    }
+
+    // Verifies that the remix itself is found when it is on Spotify - the way Spotify writes it (brackets or a dash, other case, other
+    // accents, a typo in the name).
+    [Theory]
+    [InlineData("Heal (David Mackay Remix)", "Heal (David Mackay Remix)")]
+    [InlineData("Heal (David Mackay Remix)", "Heal - David Mackay Remix")]
+    [InlineData("Voodoo People (ALOK Edit)", "Voodoo People (Alok Edit)")]
+    [InlineData("Sky & Sand (PÆDE Remix)", "Sky & Sand - PAEDE Remix")]
+    [InlineData("Back To Life (Antdot & Maz Remix)", "Back To Life (Antdot, Maz Remix)")]
+    [InlineData("You're Not Alone (Simone Santagati Revision Mix)", "You're Not Alone - Simone Santagatti Revision Mix")]
+    [InlineData("Te Ver Sofrer (2025 Version)", "Te Ver Sofrer - 2025 Version")]
+    [InlineData("spirit 2.0 (david mackay & lovless youth remix)", "Spirit 2.0 (David Mackay & Lovless Youth Remix)")]
+    public async Task TheRemix_IsFound(string trackedTitle, string spotifyTitle)
+    {
+        SongMatchResult result = await CheckAsync(trackedTitle, "Some Artist", spotifyTitle, "Some Artist");
+
+        Assert.True(result.IsFound);
+    }
+
+    // Verifies that an exact remix is as sure as an exact song.
+    [Fact]
+    public async Task TheExactRemix_IsConfident()
+    {
+        SongMatchResult result = await CheckAsync("Heal (David Mackay Remix)", "Tom Odell", "Heal - David Mackay Remix", "Tom Odell");
+
+        Assert.Equal(MatchConfidence.Confident, result.Confidence);
+    }
+
+    // Verifies that "ID" (a remixer that is not known yet) matches a version of any kind - flagged as similar - and not the original.
+    [Fact]
+    public async Task IdRemix_MatchesAnyRemix_ButNotTheOriginal()
+    {
+        SongMatchResult original = await CheckAsync("No Lie (ID Remix)", "Dua Lipa", "No Lie", "Dua Lipa");
+        SongMatchResult remix = await CheckAsync("No Lie (ID Remix)", "Dua Lipa", "No Lie (Sam Smith Remix)", "Dua Lipa");
+
+        Assert.Equal(MatchConfidence.None, original.Confidence);
+        Assert.Equal(MatchConfidence.Similar, remix.Confidence);
+    }
+
+    // Verifies that "ID Version" asks for a version as well.
+    [Fact]
+    public async Task IdVersion_IsNotTheOriginal()
+    {
+        SongMatchResult original = await CheckAsync("One (ID Version)", "Axwell", "One", "Axwell");
+        SongMatchResult version = await CheckAsync("One (ID Version)", "Axwell", "One - Radio Version", "Axwell");
+
+        Assert.Equal(MatchConfidence.None, original.Confidence);
+        Assert.True(version.IsFound);
+    }
+
+    // Verifies that lengths and forms that are no other release do not matter: "Original Mix", "Extended Mix", "Radio Edit", a remaster, "feat.".
+    [Theory]
+    [InlineData("Go Deep (Original Mix)", "Go Deep")]
+    [InlineData("Go Deep (Original Mix)", "Go Deep - Original Mix")]
+    [InlineData("Go Back (Extended Mix)", "Go Back")]
+    [InlineData("Go Back (Extended Mix)", "Go Back - Radio Edit")]
+    [InlineData("Go Back", "Go Back (Extended Mix)")]
+    [InlineData("Blinding Lights", "Blinding Lights - Radio Edit")]
+    [InlineData("Blinding Lights", "Blinding Lights - Remastered 2011")]
+    [InlineData("Blinding Lights (Remastered)", "Blinding Lights")]
+    [InlineData("Song", "Song (feat. Bob)")]
+    public async Task LengthsAndForms_AreNotAnotherRelease(string trackedTitle, string spotifyTitle)
+    {
+        SongMatchResult result = await CheckAsync(trackedTitle, "Some Artist", spotifyTitle, "Some Artist");
+
+        Assert.True(result.IsFound);
+    }
+
+    // Verifies the whole run: the search of the fields only finds the original, the search of free text finds the remix, and the remix is
+    // what is reported - not the original.
+    [Fact]
+    public async Task TheRemix_IsPreferredToTheOriginal_FromBothSearches()
+    {
+        FakeGateway gateway = new();
+        gateway.AddResult("Heal (David Mackay Remix)", "Tom Odell", Track("original", "Heal", "Tom Odell"));
+        gateway.FreeTextResults.Add(Track("remix", "Heal - David Mackay Remix", "Tom Odell", "David Mackay"));
+        FakeReportWriter writer = new();
+
+        await new UnreleasedSongChecker(gateway, writer).RunAsync(
+            new[] { new TrackedSong("Heal (David Mackay Remix)", "Tom Odell") },
+            null,
+            CancellationToken.None);
+
+        SongMatchResult result = Assert.Single(writer.LastResults);
+        Assert.Equal("remix", result.Match!.Id);
+        Assert.True(result.IsFound);
+    }
+
     // ---- partial matches: only one of the two fits ----
 
     // Verifies that a title that is specific enough is a hint even when the artist is different - and that it is not counted as found.

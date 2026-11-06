@@ -14,6 +14,17 @@ namespace ReleaseUpdaterGui
         public static void Error(Form owner, string message, string title) =>
             Show(owner, message, title, MessageBoxIcon.Error);
 
+        /// <summary>A question with Yes, No and Cancel; No is the button that Enter answers (the one that loses nothing).</summary>
+        public static DialogResult AskYesNoCancel(Form owner, string message, string title) =>
+            MessageBox.Show(
+                message,
+                title,
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question,
+                owner,
+                FormSize.Medium,
+                defaultButton: MessageBoxDefault.Button2);
+
         private static void Show(Form owner, string message, string title, MessageBoxIcon icon)
         {
             MessageBox.Show(

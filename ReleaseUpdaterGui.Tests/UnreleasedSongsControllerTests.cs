@@ -160,6 +160,98 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
         Assert.False(CreateController().LoadArtistFirst());
     }
 
+    // ---- an import into a list that has songs: add or replace ----
+
+    private static TrackedSong[] InFileOrder() =>
+        new[] { new TrackedSong("Zebra", "Z"), new TrackedSong("Mango", "M"), new TrackedSong("Apple", "A"), new TrackedSong("Pear", "P") };
+
+    private string WriteFileInOrder()
+    {
+        string path = Path.Combine(directory, "ordered.csv");
+        File.WriteAllText(path, string.Join("\r\n", InFileOrder().Select(song => song.Title + ";" + song.Artist)) + "\r\n");
+
+        return path;
+    }
+
+    // Verifies that an import into an empty list (or one with only blank rows) is exactly the file, in the order of the file, with no question.
+    [Fact]
+    public void Import_IntoAnEmptyList_KeepsTheOrderOfTheFile_WithoutAsking()
+    {
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(
+            WriteFileInOrder(),
+            new[] { new TrackedSong("", ""), new TrackedSong("  ", "") });
+
+        Assert.Equal(InFileOrder(), merged);
+        Assert.False(view.Has("ChooseImportMode"));
+    }
+
+    // Verifies that with songs in the list the user is asked, and "replace" gives the file in its own order, whatever was in the list.
+    [Fact]
+    public void Import_IntoAFilledList_CanReplaceIt_InTheOrderOfTheFile()
+    {
+        view.ImportModeAnswer = ImportMode.Replace;
+        TrackedSong[] existing = { new("Pear", "P"), new("Old", "O"), new("Zebra", "Z") };
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(WriteFileInOrder(), existing);
+
+        Assert.Equal(InFileOrder(), merged);
+        Assert.True(view.Has("ChooseImportMode:3/4"));
+        Assert.True(view.Has("SetStatus:"));
+    }
+
+    // Verifies that "add" keeps the list as it is and puts only the new songs behind it, in the order of the file.
+    [Fact]
+    public void Import_IntoAFilledList_CanAddToIt()
+    {
+        view.ImportModeAnswer = ImportMode.Add;
+        TrackedSong[] existing = { new("Pear", "P"), new("Old", "O") };
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(WriteFileInOrder(), existing);
+
+        Assert.Equal(
+            new[] { new TrackedSong("Pear", "P"), new TrackedSong("Old", "O"), new TrackedSong("Zebra", "Z"), new TrackedSong("Mango", "M"), new TrackedSong("Apple", "A") },
+            merged);
+    }
+
+    // Verifies that Cancel leaves the list alone, with no message and no change of the column order.
+    [Fact]
+    public void Import_CancelledAtTheQuestion_ChangesNothing()
+    {
+        view.ImportModeAnswer = null;
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(WriteFileInOrder(), new[] { new TrackedSong("Keep", "Me") });
+
+        Assert.Null(merged);
+        Assert.False(view.Has("SetStatus:"));
+        Assert.False(view.Has("ApplyColumnOrder"));
+    }
+
+    // Verifies that a twin inside the file is left out when it replaces the list, and the rest keeps its order.
+    [Fact]
+    public void Import_Replacing_LeavesOutTwinsInsideTheFile()
+    {
+        string path = Path.Combine(directory, "twins.csv");
+        File.WriteAllText(path, "B;b\r\nA;a\r\nb;B\r\nC;c\r\n");
+        view.ImportModeAnswer = ImportMode.Replace;
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, new[] { new TrackedSong("Old", "O") });
+
+        Assert.Equal(new[] { new TrackedSong("B", "b"), new TrackedSong("A", "a"), new TrackedSong("C", "c") }, merged);
+    }
+
+    // Verifies that a paste into a list that has songs asks the same question, and replaces in the order of the copied table.
+    [Fact]
+    public void Paste_IntoAFilledList_CanReplaceIt_InTheOrderOfTheCopiedTable()
+    {
+        view.ImportModeAnswer = ImportMode.Replace;
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().PasteSongs(
+            "Zebra\tZ\nApple\tA\nMango\tM",
+            new[] { new TrackedSong("Old", "O") });
+
+        Assert.Equal(new[] { new TrackedSong("Zebra", "Z"), new TrackedSong("Apple", "A"), new TrackedSong("Mango", "M") }, merged);
+    }
+
     // ---- the list shows the columns in the order of the imported table ----
 
     // Verifies that a table with the artist in front of the title makes the list show the Artist column first (the user's choice counts).

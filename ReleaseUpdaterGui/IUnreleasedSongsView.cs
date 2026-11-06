@@ -21,6 +21,12 @@ namespace ReleaseUpdaterGui
         ImportColumnChoice? ChooseImportColumns(ImportTable table);
 
         /// <summary>
+        /// Asks what to do when songs are imported into a list that has songs already: add the new ones behind them, or replace the
+        /// list with the imported songs in the order of the file. Null when the user cancels.
+        /// </summary>
+        ImportMode? ChooseImportMode(int currentCount, int importedCount);
+
+        /// <summary>
         /// Puts the Artist column before or behind the Title column, as the imported table had them (and keeps that order for the next
         /// time, like an order the user made by dragging a header).
         /// </summary>

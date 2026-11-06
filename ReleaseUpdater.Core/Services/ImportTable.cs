@@ -2,6 +2,16 @@ using System.Text.RegularExpressions;
 
 namespace ReleaseUpdater.Core.Services;
 
+/// <summary>What an import does with the songs that are in the list already.</summary>
+public enum ImportMode
+{
+    /// <summary>The new songs are added behind the list; songs that are in it already stay where they are.</summary>
+    Add,
+
+    /// <summary>The list becomes the imported songs, in the order of the file (what was in it is dropped).</summary>
+    Replace
+}
+
 /// <summary>Which columns of an imported table hold the title and the artist, and whether the first row is a header.</summary>
 public sealed record ImportColumnChoice(int TitleColumn, int ArtistColumn, bool HasHeader);
 

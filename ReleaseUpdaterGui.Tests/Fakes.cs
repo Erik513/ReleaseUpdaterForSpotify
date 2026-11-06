@@ -139,6 +139,16 @@ internal sealed class FakeUnreleasedView : IUnreleasedSongsView
 
     public void ApplyColumnOrder(bool artistFirst) => Calls.Add("ApplyColumnOrder:" + artistFirst);
 
+    /// <summary>What the user answers when asked whether to add to the list or replace it; null = Cancel.</summary>
+    public ImportMode? ImportModeAnswer { get; set; } = ImportMode.Add;
+
+    public ImportMode? ChooseImportMode(int currentCount, int importedCount)
+    {
+        Calls.Add("ChooseImportMode:" + currentCount + "/" + importedCount);
+
+        return ImportModeAnswer;
+    }
+
     public ImportColumnChoice? ChooseImportColumns(ImportTable table)
     {
         AskedTable = table;

@@ -185,6 +185,8 @@ public static class AppStrings
     public const string UnreleasedImportInvalidFile = "Unreleased.ImportInvalidFile";
     public const string UnreleasedImportFailedFormat = "Unreleased.ImportFailedFormat";
     public const string UnreleasedPaste = "Unreleased.Paste";
+    public const string UnreleasedImportModeFormat = "Unreleased.ImportModeFormat";
+    public const string UnreleasedImportReplacedFormat = "Unreleased.ImportReplacedFormat";
     public const string UnreleasedPasteNothing = "Unreleased.PasteNothing";
     public const string UnreleasedPasteNoSongs = "Unreleased.PasteNoSongs";
     public const string ImportColumnsTitle = "ImportColumns.Title";
@@ -413,6 +415,8 @@ public static class AppStrings
         [UnreleasedImportInvalidFile] = "The file is not a list of songs (a table with the title in the first column and the artist in the second: Excel, Word or CSV; or JSON with title and artist).",
         [UnreleasedImportFailedFormat] = "The file could not be read: {0}",
         [UnreleasedPaste] = "Paste songs from the clipboard (Ctrl+V): a table copied from Excel or Word",
+        [UnreleasedImportModeFormat] = "The list has {0} songs and {1} are imported.\n\nYes: replace the list with the imported songs, in the order of the file.\nNo: add only the new songs at the end of the list.",
+        [UnreleasedImportReplacedFormat] = "The list is now the {0} imported songs, in the order of the file ({1} twins left out, {2} entries skipped).",
         [UnreleasedPasteNothing] = "The clipboard contains no text.",
         [UnreleasedPasteNoSongs] = "The clipboard contains no songs with a title and an artist.",
         [ImportColumnsTitle] = "Choose the columns",
@@ -620,6 +624,8 @@ public static class AppStrings
         [UnreleasedImportInvalidFile] = "Die Datei ist keine Songliste (eine Tabelle mit dem Titel in der ersten und dem Interpreten in der zweiten Spalte: Excel, Word oder CSV; oder JSON mit title und artist).",
         [UnreleasedImportFailedFormat] = "Die Datei konnte nicht gelesen werden: {0}",
         [UnreleasedPaste] = "Songs aus der Zwischenablage einfügen (Strg+V): eine aus Excel oder Word kopierte Tabelle",
+        [UnreleasedImportModeFormat] = "Die Liste hat {0} Songs, importiert werden {1}.\n\nJa: Liste durch die importierten Songs ersetzen, in der Reihenfolge der Datei.\nNein: nur die neuen Songs am Ende der Liste ergänzen.",
+        [UnreleasedImportReplacedFormat] = "Die Liste besteht jetzt aus den {0} importierten Songs, in der Reihenfolge der Datei ({1} doppelte weggelassen, {2} Einträge übersprungen).",
         [UnreleasedPasteNothing] = "Die Zwischenablage enthält keinen Text.",
         [UnreleasedPasteNoSongs] = "Die Zwischenablage enthält keine Songs mit Titel und Interpret.",
         [ImportColumnsTitle] = "Spalten auswählen",

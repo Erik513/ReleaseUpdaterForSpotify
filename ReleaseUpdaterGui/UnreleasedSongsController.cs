@@ -212,7 +212,9 @@ namespace ReleaseUpdaterGui
             return TrackedSongsTransfer.SongsFromTable(table, choice);
         }
 
-        // Adds the songs that are new to the list and says what happened; null when there was nothing to add.
+        // Puts the imported songs into the list and says what happened; null when there was nothing to add or the user cancelled.
+        // An empty list (or only the blank row of the grid) simply becomes the imported songs, in the order of the file. With songs in it,
+        // the user decides: add the new ones behind them, or replace the list by the imported songs, in the order of the file.
         private IReadOnlyList<TrackedSong>? Merge(TrackedSongsImport? import, IReadOnlyList<TrackedSong> current, string noSongsMessage)
         {
             if (import is null)
@@ -227,9 +229,29 @@ namespace ReleaseUpdaterGui
                 return null;
             }
 
-            TrackedSongsMerge merge = TrackedSongsTransfer.Merge(current, import.Songs);
+            List<TrackedSong> filled = current
+                .Where(song => !string.IsNullOrWhiteSpace(song.Title) || !string.IsNullOrWhiteSpace(song.Artist))
+                .ToList();
+            ImportMode mode = ImportMode.Replace;
+
+            if (filled.Count > 0)
+            {
+                ImportMode? answer = view.ChooseImportMode(filled.Count, import.Songs.Count);
+
+                if (answer is null)
+                {
+                    return null;
+                }
+
+                mode = answer.Value;
+            }
+
+            // (Replace: the imported songs alone, without a twin inside the file; Add: behind what is in the list.)
+            TrackedSongsMerge merge = TrackedSongsTransfer.Merge(
+                mode == ImportMode.Replace ? Array.Empty<TrackedSong>() : current,
+                import.Songs);
             view.SetStatus(AppLocalization.Get(
-                AppStrings.UnreleasedImportDoneFormat,
+                mode == ImportMode.Replace && filled.Count > 0 ? AppStrings.UnreleasedImportReplacedFormat : AppStrings.UnreleasedImportDoneFormat,
                 merge.AddedCount,
                 merge.DuplicateCount,
                 import.SkippedCount));

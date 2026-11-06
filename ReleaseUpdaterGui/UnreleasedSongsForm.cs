@@ -454,6 +454,21 @@ namespace ReleaseUpdaterGui
             }
         }
 
+        public ImportMode? ChooseImportMode(int currentCount, int importedCount)
+        {
+            DialogResult answer = Dialogs.AskYesNoCancel(
+                this,
+                AppLocalization.Get(AppStrings.UnreleasedImportModeFormat, currentCount, importedCount),
+                AppLocalization.Get(AppStrings.UnreleasedFormTitle));
+
+            return answer switch
+            {
+                DialogResult.Yes => ImportMode.Replace,
+                DialogResult.No => ImportMode.Add,
+                _ => null
+            };
+        }
+
         public ImportColumnChoice? ChooseImportColumns(ImportTable table)
         {
             using ImportColumnsForm dialog = new(table);

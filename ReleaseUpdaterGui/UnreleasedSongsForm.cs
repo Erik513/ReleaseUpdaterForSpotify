@@ -401,30 +401,20 @@ namespace ReleaseUpdaterGui
             }
         }
 
-        // The box for the link of a song: what is typed has to be a web address (or nothing, which takes the link away).
+        // The window for the link of a song: a web address (the button in it takes an existing link away at once).
         private void AskForLink(TrackedSongRow row, int rowIndex)
         {
-            string? answer = InputBox.Show(
+            using LinkForm dialog = new(
                 AppLocalization.Get(AppStrings.UnreleasedLinkPromptFormat, row.Title?.Trim() ?? string.Empty),
-                AppLocalization.Get(AppStrings.UnreleasedFormTitle),
-                row.Link ?? string.Empty,
-                owner: this,
-                hint: AppLocalization.Get(AppStrings.UnreleasedLinkHint),
-                placeholder: "https://",
-                maxLength: 2000,
-                validate: text => string.IsNullOrWhiteSpace(text) || TrackedSongLinks.Normalize(text) is not null
-                    ? null
-                    : AppLocalization.Get(AppStrings.UnreleasedLinkInvalid),
-                trim: true);
+                row.Link);
 
-            // (Null: the box was cancelled.)
-            if (answer is null)
+            if (dialog.ShowDialog(this) != DialogResult.OK)
             {
                 return;
             }
 
-            // (The box lets nothing but a web address through; it is kept as the address, with https:// where it was left out.)
-            row.Link = TrackedSongLinks.Normalize(answer);
+            // (The window lets nothing but a web address through; it is kept as the address, with https:// where it was left out.)
+            row.Link = dialog.Address;
             dataGridView.InvalidateRow(rowIndex);
         }
 

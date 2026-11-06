@@ -183,6 +183,9 @@ public static class AppStrings
     public const string UnreleasedPaste = "Unreleased.Paste";
     public const string UnreleasedLinkPromptFormat = "Unreleased.LinkPromptFormat";
     public const string UnreleasedLinkHint = "Unreleased.LinkHint";
+    public const string UnreleasedLinkRemove = "Unreleased.LinkRemove";
+    public const string UnreleasedLinkOk = "Unreleased.LinkOk";
+    public const string UnreleasedLinkCancel = "Unreleased.LinkCancel";
     public const string UnreleasedColumnLink = "Unreleased.ColumnLink";
     public const string UnreleasedLinkHeaderTooltip = "Unreleased.LinkHeaderTooltip";
     public const string UnreleasedImportLinksSkippedFormat = "Unreleased.ImportLinksSkippedFormat";
@@ -418,7 +421,10 @@ public static class AppStrings
         [UnreleasedImportReplacedFormat] = "The list is now the {0} imported songs, in the order of the file ({1} twins left out, {2} entries skipped).",
         [UnreleasedPasteNothing] = "The clipboard contains no text.",
         [UnreleasedLinkPromptFormat] = "Link for \"{0}\": where did you find this song?",
-        [UnreleasedLinkHint] = "A web address (https://...). Leave it empty to remove the link.",
+        [UnreleasedLinkHint] = "A web address, for example https://www.youtube.com/...",
+        [UnreleasedLinkRemove] = "Remove link",
+        [UnreleasedLinkOk] = "OK",
+        [UnreleasedLinkCancel] = "Cancel",
         [UnreleasedColumnLink] = "Link",
         [UnreleasedLinkHeaderTooltip] = "Where you found the song.\nDouble click: open the link (or add one if there is none).\nCtrl + double click: change or remove the link.",
         [UnreleasedImportLinksSkippedFormat] = "{0} entries had something in the place of the link that is no web address; they were taken without a link.",
@@ -630,7 +636,10 @@ public static class AppStrings
         [UnreleasedImportReplacedFormat] = "Die Liste besteht jetzt aus den {0} importierten Songs, in der Reihenfolge der Datei ({1} doppelte weggelassen, {2} Einträge übersprungen).",
         [UnreleasedPasteNothing] = "Die Zwischenablage enthält keinen Text.",
         [UnreleasedLinkPromptFormat] = "Link zu \"{0}\": wo hast du den Song entdeckt?",
-        [UnreleasedLinkHint] = "Eine Webadresse (https://...). Leer lassen, um den Link zu entfernen.",
+        [UnreleasedLinkHint] = "Eine Webadresse, zum Beispiel https://www.youtube.com/...",
+        [UnreleasedLinkRemove] = "Link entfernen",
+        [UnreleasedLinkOk] = "OK",
+        [UnreleasedLinkCancel] = "Abbrechen",
         [UnreleasedColumnLink] = "Link",
         [UnreleasedLinkHeaderTooltip] = "Wo du den Song entdeckt hast.\nDoppelklick: Link öffnen (oder einen hinzufügen, wenn es keinen gibt).\nStrg + Doppelklick: Link ändern oder entfernen.",
         [UnreleasedImportLinksSkippedFormat] = "Bei {0} Einträgen stand an der Stelle des Links etwas, das keine Webadresse ist; sie wurden ohne Link übernommen.",

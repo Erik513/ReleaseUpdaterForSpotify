@@ -145,6 +145,72 @@ public sealed class WindowRenderTests
         });
     }
 
+    // Verifies the window for the link of a song: with a link it has a button that takes it away at once; an invalid text is refused with
+    // the reason and the window stays open; a web address is accepted in the form that is kept; without a link there is no such button.
+    [Fact]
+    public void LinkForm_RemovesAtOnce_RefusesWhatIsNoAddress_AndKeepsTheAddress()
+    {
+        RunOnStaThread(() =>
+        {
+            const System.Reflection.BindingFlags nonPublic = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+
+            // A song that has a link: the button is there, one click removes it.
+            using (LinkForm withLink = new("Link for \"Song\": where did you find this song?", "https://example.com/a"))
+            {
+                Assert.Contains(FindAll<Button>(withLink), button => button.AccessibleName == "Remove link");
+
+                typeof(LinkForm).GetMethod("RemoveLink", nonPublic)!.Invoke(withLink, null);
+
+                Assert.True(withLink.Removed);
+                Assert.Null(withLink.Address);
+                Assert.Equal(DialogResult.OK, withLink.DialogResult);
+            }
+
+            // A text that is no web address: refused, the window stays open, the frame says why.
+            using (LinkForm editing = new("Link", "https://example.com/a"))
+            {
+                TextBox box = Assert.Single(FindAll<TextBox>(editing));
+                box.Text = "see the video";
+
+                typeof(LinkForm).GetMethod("Confirm", nonPublic)!.Invoke(editing, null);
+
+                Assert.NotEqual(DialogResult.OK, editing.DialogResult);
+                Assert.False(string.IsNullOrEmpty(((ErikwnkWFUI.Controls.TextField)box).ErrorText));
+
+                // A web address: accepted, with https:// where it was left out.
+                box.Text = " www.example.com/set ";
+                typeof(LinkForm).GetMethod("Confirm", nonPublic)!.Invoke(editing, null);
+
+                Assert.Equal(DialogResult.OK, editing.DialogResult);
+                Assert.Equal("https://www.example.com/set", editing.Address);
+                Assert.False(editing.Removed);
+            }
+
+            // A song without a link: no button to remove one; an empty box with OK is "no link".
+            using (LinkForm without = new("Link", null))
+            {
+                Assert.DoesNotContain(FindAll<Button>(without), button => button.AccessibleName == "Remove link");
+
+                typeof(LinkForm).GetMethod("Confirm", nonPublic)!.Invoke(without, null);
+
+                Assert.Equal(DialogResult.OK, without.DialogResult);
+                Assert.Null(without.Address);
+            }
+
+            // (And it can be printed.)
+            using LinkForm picture = new("Link for \"One (ID Version)\": where did you find this song?", "https://www.youtube.com/watch?v=abc");
+            using Bitmap rendered = UITesting.Render(picture);
+            string? folder = Environment.GetEnvironmentVariable("RELEASEUPDATER_RENDER_DIR");
+
+            if (!string.IsNullOrEmpty(folder))
+            {
+                UITesting.Render(picture, Path.Combine(folder, "link.png"));
+            }
+
+            Assert.True(CountDistinctColors(rendered) > 8);
+        });
+    }
+
     private static IEnumerable<T> FindAll<T>(Control parent) where T : Control
     {
         foreach (Control child in parent.Controls)

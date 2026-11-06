@@ -87,7 +87,7 @@ namespace ReleaseUpdaterGui
             string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
             List<TrackedSong> toExport = songs
                 .Where(song => !string.IsNullOrWhiteSpace(song.Title) || !string.IsNullOrWhiteSpace(song.Artist))
-                .Select(song => new TrackedSong(song.Title.Trim(), song.Artist.Trim(), string.IsNullOrWhiteSpace(song.Link) ? null : song.Link.Trim()))
+                .Select(song => new TrackedSong(song.Title.Trim(), song.Artist.Trim(), TrackedSongLinks.Normalize(song.Link)))
                 .ToList();
 
             if (toExport.Count == 0)
@@ -251,11 +251,19 @@ namespace ReleaseUpdaterGui
             TrackedSongsMerge merge = TrackedSongsTransfer.Merge(
                 mode == ImportMode.Replace ? Array.Empty<TrackedSong>() : current,
                 import.Songs);
-            view.SetStatus(AppLocalization.Get(
+            string status = AppLocalization.Get(
                 mode == ImportMode.Replace && filled.Count > 0 ? AppStrings.UnreleasedImportReplacedFormat : AppStrings.UnreleasedImportDoneFormat,
                 merge.AddedCount,
                 merge.DuplicateCount,
-                import.SkippedCount));
+                import.SkippedCount);
+
+            // A link that is no web address is not taken over: the user is told, so that nothing seems lost without a word.
+            if (import.SkippedLinkCount > 0)
+            {
+                status += " " + AppLocalization.Get(AppStrings.UnreleasedImportLinksSkippedFormat, import.SkippedLinkCount);
+            }
+
+            view.SetStatus(status);
 
             if (orderOfImportedTable is bool artistFirst)
             {

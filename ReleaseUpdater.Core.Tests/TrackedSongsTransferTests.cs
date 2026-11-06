@@ -287,6 +287,65 @@ public sealed class TrackedSongsTransferTests
         Assert.Equal(new[] { "", "Song 2", "Artist 2" }, new[] { table.Cell(1, 0), table.Cell(1, 1), table.Cell(1, 2) });
     }
 
+    // ---- only a web address is a link ----
+
+    // Verifies that what stands in the place of the link and is no web address is not taken over (the song is, without a link), and is counted.
+    [Fact]
+    public void SongsFromTable_ALinkColumnWithNotes_TakesTheSongsWithoutALink()
+    {
+        ImportTable table = new(new IReadOnlyList<string>[]
+        {
+            new[] { "Title", "Artist", "Link" },
+            new[] { "Song A", "Artist A", "see the video" },
+            new[] { "Song B", "Artist B", @"C:\Users\me\set.mp3" },
+            new[] { "Song C", "Artist C", "javascript:alert(1)" },
+            new[] { "Song D", "Artist D", "www.example.com/d" },
+            new[] { "Song E", "Artist E", "" }
+        });
+
+        TrackedSongsImport import = TrackedSongsTransfer.SongsFromTable(table, table.GuessColumns());
+
+        Assert.Equal(5, import.Songs.Count);
+        Assert.Equal(new string?[] { null, null, null, "https://www.example.com/d", null }, import.Songs.Select(song => song.Link));
+        Assert.Equal(3, import.SkippedLinkCount);
+    }
+
+    // Verifies the same for JSON, and that a valid address is kept as the address.
+    [Fact]
+    public void Json_ALinkThatIsNoWebAddress_IsNotTakenOver()
+    {
+        TrackedSongsImport import = TrackedSongsTransfer.Parse(
+            """[ { "title": "A", "artist": "B", "link": "file:///C:/x" }, { "title": "C", "artist": "D", "link": " https://example.com/y " } ]""",
+            TrackedSongsFormat.Json);
+
+        Assert.Equal(new string?[] { null, "https://example.com/y" }, import.Songs.Select(song => song.Link));
+        Assert.Equal(1, import.SkippedLinkCount);
+    }
+
+    // Verifies that nothing but an address is written to a file as a link, in every format.
+    [Theory]
+    [InlineData(TrackedSongsFormat.Json)]
+    [InlineData(TrackedSongsFormat.Csv)]
+    [InlineData(TrackedSongsFormat.Xlsx)]
+    [InlineData(TrackedSongsFormat.Docx)]
+    public void Write_LeavesOutALinkThatIsNoWebAddress(TrackedSongsFormat format)
+    {
+        TrackedSong[] songs = { new("A", "B", "not a link"), new("C", "D", "www.example.com/x") };
+
+        TrackedSongsImport import = TrackedSongsTransfer.Read(TrackedSongsTransfer.Write(songs, format), format);
+
+        Assert.Equal(new string?[] { null, "https://www.example.com/x" }, import.Songs.Select(song => song.Link));
+    }
+
+    // Verifies that a text that is no web address does not fill the gap of a song that is in the list already.
+    [Fact]
+    public void Merge_ATextThatIsNoAddress_DoesNotFillAMissingLink()
+    {
+        TrackedSongsMerge merge = TrackedSongsTransfer.Merge(new[] { new TrackedSong("A", "B") }, new[] { new TrackedSong("a", "b", "see video") });
+
+        Assert.Null(merge.Songs[0].Link);
+    }
+
     // ---- hyperlinks: a text with an address behind it ----
 
     private const string RelationshipsNamespace = "http://schemas.openxmlformats.org/package/2006/relationships";
@@ -434,7 +493,8 @@ public sealed class TrackedSongsTransferTests
         Assert.Equal("https://www.example.com/x", table.Hyperlink(1, 2));
         Assert.Null(table.Hyperlink(2, 2));
         Assert.Null(table.Hyperlink(3, 2));
-        Assert.Equal("javascript:alert(1)", table.Cell(3, 2));
+        // (What is no web address is not written as a link, and not as text in its place either.)
+        Assert.Equal(string.Empty, table.Cell(3, 2));
     }
 
     // ---- hyperlinks of an Excel sheet ----

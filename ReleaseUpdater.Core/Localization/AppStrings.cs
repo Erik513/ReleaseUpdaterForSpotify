@@ -183,6 +183,8 @@ public static class AppStrings
     public const string UnreleasedPaste = "Unreleased.Paste";
     public const string UnreleasedLinkPromptFormat = "Unreleased.LinkPromptFormat";
     public const string UnreleasedLinkHint = "Unreleased.LinkHint";
+    public const string UnreleasedColumnLink = "Unreleased.ColumnLink";
+    public const string UnreleasedImportLinksSkippedFormat = "Unreleased.ImportLinksSkippedFormat";
     public const string UnreleasedLinkInvalid = "Unreleased.LinkInvalid";
     public const string UnreleasedLinkCouldNotOpenFormat = "Unreleased.LinkCouldNotOpenFormat";
     public const string UnreleasedLinkTooltipOpenFormat = "Unreleased.LinkTooltipOpenFormat";
@@ -421,6 +423,8 @@ public static class AppStrings
         [UnreleasedPasteNothing] = "The clipboard contains no text.",
         [UnreleasedLinkPromptFormat] = "Link for \"{0}\": where did you find this song?",
         [UnreleasedLinkHint] = "A web address (https://...). Leave it empty to remove the link.",
+        [UnreleasedColumnLink] = "Link",
+        [UnreleasedImportLinksSkippedFormat] = "{0} entries had something in the place of the link that is no web address; they were taken without a link.",
         [UnreleasedLinkInvalid] = "That is not a web address. Please enter something like https://example.com/...",
         [UnreleasedLinkCouldNotOpenFormat] = "The link could not be opened: {0}",
         [UnreleasedLinkTooltipOpenFormat] = "{0}\nDouble click opens the link, Ctrl + double click changes it.",
@@ -635,6 +639,8 @@ public static class AppStrings
         [UnreleasedPasteNothing] = "Die Zwischenablage enthält keinen Text.",
         [UnreleasedLinkPromptFormat] = "Link zu \"{0}\": wo hast du den Song entdeckt?",
         [UnreleasedLinkHint] = "Eine Webadresse (https://...). Leer lassen, um den Link zu entfernen.",
+        [UnreleasedColumnLink] = "Link",
+        [UnreleasedImportLinksSkippedFormat] = "Bei {0} Einträgen stand an der Stelle des Links etwas, das keine Webadresse ist; sie wurden ohne Link übernommen.",
         [UnreleasedLinkInvalid] = "Das ist keine Webadresse. Bitte etwas wie https://example.com/... eingeben.",
         [UnreleasedLinkCouldNotOpenFormat] = "Der Link konnte nicht geöffnet werden: {0}",
         [UnreleasedLinkTooltipOpenFormat] = "{0}\nDoppelklick öffnet den Link, Strg + Doppelklick ändert ihn.",

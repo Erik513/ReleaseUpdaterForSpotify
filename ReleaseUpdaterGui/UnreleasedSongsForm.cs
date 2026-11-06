@@ -149,7 +149,8 @@ namespace ReleaseUpdaterGui
                 {
                     Title = song.Title,
                     Artist = song.Artist,
-                    Link = song.Link
+                    // (A file that was edited by hand may hold something that is no web address: that is not kept as a link.)
+                    Link = TrackedSongLinks.Normalize(song.Link)
                 });
             }
         }
@@ -160,7 +161,7 @@ namespace ReleaseUpdaterGui
                 .Select(row => new TrackedSong(
                     row.Title?.Trim() ?? string.Empty,
                     row.Artist?.Trim() ?? string.Empty,
-                    string.IsNullOrWhiteSpace(row.Link) ? null : row.Link.Trim()))
+                    TrackedSongLinks.Normalize(row.Link)))
                 .ToList();
         }
 
@@ -197,7 +198,7 @@ namespace ReleaseUpdaterGui
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = LinkColumnName,
-                HeaderText = string.Empty,
+                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnLink),
                 ReadOnly = true,
                 SortMode = DataGridViewColumnSortMode.NotSortable,
                 Width = LinkColumnWidth
@@ -336,7 +337,7 @@ namespace ReleaseUpdaterGui
         }
 
         private const string LinkColumnName = "colLink";
-        private const int LinkColumnWidth = 40;
+        private const int LinkColumnWidth = 52;
 
         private static readonly Font LinkFont = new("Segoe UI Symbol", 10f);
 
@@ -420,7 +421,8 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            row.Link = string.IsNullOrWhiteSpace(answer) ? null : answer;
+            // (The box lets nothing but a web address through; it is kept as the address, with https:// where it was left out.)
+            row.Link = TrackedSongLinks.Normalize(answer);
             dataGridView.InvalidateRow(rowIndex);
         }
 
@@ -565,7 +567,7 @@ namespace ReleaseUpdaterGui
 
             foreach (TrackedSong song in songs)
             {
-                rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist, Link = song.Link });
+                rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist, Link = TrackedSongLinks.Normalize(song.Link) });
             }
         }
 

@@ -13,8 +13,11 @@ public enum TrackedSongsFormat
     Docx
 }
 
-/// <summary>The songs read from a file, and how many entries of it could not be used (a title or an artist was missing).</summary>
-public sealed record TrackedSongsImport(IReadOnlyList<TrackedSong> Songs, int SkippedCount);
+/// <summary>
+/// The songs read from a file, how many entries of it could not be used (a title or an artist was missing), and how many had something
+/// in the place of the link that is no web address (the song is taken, without a link: better no link than a wrong one).
+/// </summary>
+public sealed record TrackedSongsImport(IReadOnlyList<TrackedSong> Songs, int SkippedCount, int SkippedLinkCount = 0);
 
 /// <summary>The list after an import: what was added, and how many of the imported songs were in it already.</summary>
 public sealed record TrackedSongsMerge(IReadOnlyList<TrackedSong> Songs, int AddedCount, int DuplicateCount);
@@ -46,6 +49,13 @@ public static class TrackedSongsTransfer
 
     /// <summary>The content of a file in the format. A CSV has a byte order mark so that a spreadsheet reads its umlauts right.</summary>
     public static byte[] Write(IReadOnlyList<TrackedSong> songs, TrackedSongsFormat format) =>
+        WriteSongs(songs.Select(WithValidLink).ToList(), format);
+
+    // The link of a song as it is kept: the address (https:// in front where it was left out), or none when the text is no web address.
+    private static TrackedSong WithValidLink(TrackedSong song) =>
+        song.Link is null ? song : song with { Link = TrackedSongLinks.Normalize(song.Link) };
+
+    private static byte[] WriteSongs(IReadOnlyList<TrackedSong> songs, TrackedSongsFormat format) =>
         format switch
         {
             TrackedSongsFormat.Xlsx => TrackedSongsXlsx.Write(songs),
@@ -129,6 +139,7 @@ public static class TrackedSongsTransfer
     {
         List<TrackedSong> songs = new();
         int skipped = 0;
+        int skippedLinks = 0;
 
         for (int index = choice.HasHeader ? 1 : 0; index < table.Rows.Count; index++)
         {
@@ -151,10 +162,18 @@ public static class TrackedSongsTransfer
                 ? table.Hyperlink(index, linkColumn) ?? table.Cell(index, linkColumn).Trim()
                 : string.Empty;
 
-            songs.Add(new TrackedSong(title, artist, link.Length == 0 ? null : link));
+            // Only a web address is a link. What else stands there (a note, "see video", a file path) is not taken over.
+            string? address = TrackedSongLinks.Normalize(link);
+
+            if (link.Length > 0 && address is null)
+            {
+                skippedLinks++;
+            }
+
+            songs.Add(new TrackedSong(title, artist, address));
         }
 
-        return new TrackedSongsImport(songs, skipped);
+        return new TrackedSongsImport(songs, skipped, skippedLinks);
     }
 
     /// <summary>Adds the imported songs that are not in the list yet (same title and artist, whatever the case) behind it.</summary>
@@ -183,7 +202,7 @@ public static class TrackedSongsTransfer
                 duplicates++;
 
                 // The song is in the list already; a link that it did not have and the import brings is not thrown away.
-                if (string.IsNullOrWhiteSpace(merged[index].Link) && !string.IsNullOrWhiteSpace(song.Link))
+                if (string.IsNullOrWhiteSpace(merged[index].Link) && TrackedSongLinks.Normalize(song.Link) is not null)
                 {
                     merged[index] = merged[index] with { Link = song.Link };
                 }
@@ -218,6 +237,7 @@ public static class TrackedSongsTransfer
 
             List<TrackedSong> songs = new();
             int skipped = 0;
+            int skippedLinks = 0;
 
             foreach (JsonElement item in json.RootElement.EnumerateArray())
             {
@@ -232,10 +252,17 @@ public static class TrackedSongsTransfer
 
                 string? link = item.ValueKind == JsonValueKind.Object ? ReadText(item, "link") : null;
 
-                songs.Add(new TrackedSong(title.Trim(), artist.Trim(), string.IsNullOrWhiteSpace(link) ? null : link.Trim()));
+                string? address = TrackedSongLinks.Normalize(link);
+
+                if (!string.IsNullOrWhiteSpace(link) && address is null)
+                {
+                    skippedLinks++;
+                }
+
+                songs.Add(new TrackedSong(title.Trim(), artist.Trim(), address));
             }
 
-            return new TrackedSongsImport(songs, skipped);
+            return new TrackedSongsImport(songs, skipped, skippedLinks);
         }
         catch (JsonException ex)
         {

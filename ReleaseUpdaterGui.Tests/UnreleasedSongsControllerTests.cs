@@ -152,7 +152,7 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
             {
                 new TrackedSong("Song A", "Artist A", "https://example.com/a"),
                 new TrackedSong("Song B", "Artist B"),
-                new TrackedSong("Song C", "Artist C", "www.example.com/c")
+                new TrackedSong("Song C", "Artist C", "https://www.example.com/c")
             },
             merged);
     }
@@ -168,6 +168,19 @@ public sealed class UnreleasedSongsControllerTests : IDisposable
         IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
 
         Assert.Equal(new[] { new TrackedSong("Song A", "Artist A", "https://other.example/a") }, merged);
+    }
+
+    // Verifies that a link column with notes in it takes the songs without a link, and tells the user how many were left out.
+    [Fact]
+    public void Import_WithNotesInTheLinkColumn_SaysThatTheyWereLeftOut()
+    {
+        string path = Path.Combine(directory, "notes.csv");
+        File.WriteAllLines(path, new[] { "Title;Artist;Link", "Song A;Artist A;see the video", "Song B;Artist B;https://example.com/b" });
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().ImportSongs(path, Array.Empty<TrackedSong>());
+
+        Assert.Equal(new[] { new TrackedSong("Song A", "Artist A"), new TrackedSong("Song B", "Artist B", "https://example.com/b") }, merged);
+        Assert.Contains(view.Calls, call => call.StartsWith("SetStatus:", StringComparison.Ordinal) && call.Contains("no web address"));
     }
 
     // Verifies that a table with three columns that is not the app's own (no names) still asks.

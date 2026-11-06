@@ -578,7 +578,19 @@ namespace ReleaseUpdaterGui
 
         private void PasteFromClipboard()
         {
-            string? text = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+            string? text;
+
+            try
+            {
+                text = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                // Another program (Excel, Word) holds the clipboard at this moment.
+                SetStatus(AppLocalization.Get(AppStrings.UnreleasedClipboardBusy));
+
+                return;
+            }
 
             ShowSongs(controller.PasteSongs(text, GetCurrentSongs()));
         }

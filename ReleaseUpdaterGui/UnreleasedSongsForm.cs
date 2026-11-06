@@ -395,7 +395,7 @@ namespace ReleaseUpdaterGui
         private void AskForLink(TrackedSongRow row, int rowIndex)
         {
             string? answer = InputBox.Show(
-                AppLocalization.Get(AppStrings.UnreleasedLinkPrompt, row.Title?.Trim() ?? string.Empty),
+                AppLocalization.Get(AppStrings.UnreleasedLinkPromptFormat, row.Title?.Trim() ?? string.Empty),
                 AppLocalization.Get(AppStrings.UnreleasedFormTitle),
                 row.Link ?? string.Empty,
                 owner: this,

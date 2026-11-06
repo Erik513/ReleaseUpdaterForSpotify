@@ -181,7 +181,7 @@ public static class AppStrings
     public const string UnreleasedImportInvalidFile = "Unreleased.ImportInvalidFile";
     public const string UnreleasedImportFailedFormat = "Unreleased.ImportFailedFormat";
     public const string UnreleasedPaste = "Unreleased.Paste";
-    public const string UnreleasedLinkPrompt = "Unreleased.LinkPrompt";
+    public const string UnreleasedLinkPromptFormat = "Unreleased.LinkPromptFormat";
     public const string UnreleasedLinkHint = "Unreleased.LinkHint";
     public const string UnreleasedLinkInvalid = "Unreleased.LinkInvalid";
     public const string UnreleasedLinkCouldNotOpenFormat = "Unreleased.LinkCouldNotOpenFormat";
@@ -419,7 +419,7 @@ public static class AppStrings
         [UnreleasedImportModeFormat] = "The list has {0} songs and {1} are imported.\n\nYes: replace the list with the imported songs, in the order of the file.\nNo: add only the new songs at the end of the list.",
         [UnreleasedImportReplacedFormat] = "The list is now the {0} imported songs, in the order of the file ({1} twins left out, {2} entries skipped).",
         [UnreleasedPasteNothing] = "The clipboard contains no text.",
-        [UnreleasedLinkPrompt] = "Link for \"{0}\": where did you find this song?",
+        [UnreleasedLinkPromptFormat] = "Link for \"{0}\": where did you find this song?",
         [UnreleasedLinkHint] = "A web address (https://...). Leave it empty to remove the link.",
         [UnreleasedLinkInvalid] = "That is not a web address. Please enter something like https://example.com/...",
         [UnreleasedLinkCouldNotOpenFormat] = "The link could not be opened: {0}",
@@ -633,7 +633,7 @@ public static class AppStrings
         [UnreleasedImportModeFormat] = "Die Liste hat {0} Songs, importiert werden {1}.\n\nJa: Liste durch die importierten Songs ersetzen, in der Reihenfolge der Datei.\nNein: nur die neuen Songs am Ende der Liste ergänzen.",
         [UnreleasedImportReplacedFormat] = "Die Liste besteht jetzt aus den {0} importierten Songs, in der Reihenfolge der Datei ({1} doppelte weggelassen, {2} Einträge übersprungen).",
         [UnreleasedPasteNothing] = "Die Zwischenablage enthält keinen Text.",
-        [UnreleasedLinkPrompt] = "Link zu \"{0}\": wo hast du den Song entdeckt?",
+        [UnreleasedLinkPromptFormat] = "Link zu \"{0}\": wo hast du den Song entdeckt?",
         [UnreleasedLinkHint] = "Eine Webadresse (https://...). Leer lassen, um den Link zu entfernen.",
         [UnreleasedLinkInvalid] = "Das ist keine Webadresse. Bitte etwas wie https://example.com/... eingeben.",
         [UnreleasedLinkCouldNotOpenFormat] = "Der Link konnte nicht geöffnet werden: {0}",

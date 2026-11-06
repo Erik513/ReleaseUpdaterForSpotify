@@ -103,6 +103,48 @@ public sealed class WindowRenderTests
         });
     }
 
+    // Verifies the behavior of the dialog for the columns: a meaning belongs to one column (choosing it for another takes it from the
+    // first), "Import" needs a title and an artist, and the link is optional.
+    [Fact]
+    public void ImportColumnsForm_ChoosingAMeaningTakesItFromTheOtherColumn()
+    {
+        RunOnStaThread(() =>
+        {
+            ImportTable table = new(new IReadOnlyList<string>[]
+            {
+                new[] { "Nr", "Titel", "Interpret", "Quelle" },
+                new[] { "1", "Song", "Artist", "https://example.com" }
+            });
+
+            using ImportColumnsForm form = new(table);
+            ComboBox[] choices = (ComboBox[])typeof(ImportColumnsForm)
+                .GetField("choices", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(form)!;
+            Button ok = (Button)typeof(ImportColumnsForm)
+                .GetField("btnOk", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(form)!;
+
+            // The proposal: title 1, artist 2, link 3.
+            Assert.Equal(new ImportColumnChoice(1, 2, true, 3), form.Choice);
+            Assert.True(ok.Enabled);
+
+            // The artist is wanted in the column of the title: the title column is skipped now, and "Import" waits for a title.
+            choices[1].SelectedIndex = 2;
+            Assert.Equal(0, choices[2].SelectedIndex);
+            Assert.False(ok.Enabled);
+
+            // A title in the first column: ready again.
+            choices[0].SelectedIndex = 1;
+            Assert.Equal(new ImportColumnChoice(0, 1, true, 3), form.Choice);
+            Assert.True(ok.Enabled);
+
+            // No link is fine.
+            choices[3].SelectedIndex = 0;
+            Assert.Null(form.Choice.LinkColumn);
+            Assert.True(ok.Enabled);
+        });
+    }
+
     private static IEnumerable<T> FindAll<T>(Control parent) where T : Control
     {
         foreach (Control child in parent.Controls)

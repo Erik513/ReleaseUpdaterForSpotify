@@ -7,21 +7,27 @@ using ReleaseUpdater.Core.Services;
 namespace ReleaseUpdaterGui
 {
     /// <summary>
-    /// Asks which columns of an imported table are the title and the artist (a table from Excel or Word often has a number or a note in
-    /// front of them). It starts with the proposal of <see cref="ImportTable.GuessColumns"/> and shows the first rows, with the chosen
-    /// columns marked in their headers.
+    /// Asks what the columns of an imported table are (a table from Excel or Word often has a number or a note in front of the title).
+    /// Above each column of a few sample rows there is one choice: skip it, or title, artist, link. It starts with the proposal of
+    /// <see cref="ImportTable.GuessColumns"/>; choosing a meaning that another column has takes it away from that one, so there is no wrong
+    /// combination. A first row that looks like a header (it names the columns) is shown dimmed and not imported.
     /// </summary>
     public sealed class ImportColumnsForm : AppForm
     {
-        private const int PreviewRows = 8;
-        private const int SampleLength = 28;
+        private const int SampleRows = 6;
+        private const int MinimumColumnWidth = 140;
+
+        // What a column can be: the position in the list of a choice.
+        private const int Skip = 0;
+        private const int Title = 1;
+        private const int Artist = 2;
+        private const int LinkRole = 3;
 
         private readonly ImportTable table;
-        private readonly ComboBox cmbTitle;
-        private readonly ComboBox cmbArtist;
-        private readonly ComboBox cmbLink;
-        private readonly CheckBox chkHeader;
-        private readonly DataGridView preview;
+        private readonly bool hasHeader;
+        private readonly ComboBox[] choices;
+        private readonly Panel scrollPanel;
+        private readonly TableLayoutPanel grid;
         private readonly Label lblHint;
         private readonly Button btnOk;
         private bool updating;
@@ -38,80 +44,97 @@ namespace ReleaseUpdaterGui
             MinimizeBox = false;
             MaximizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(640, 460);
-            MinimumSize = new Size(560, 400);
+            ClientSize = new Size(640, 360);
+            MinimumSize = new Size(480, 330);
+
+            ImportColumnChoice guess = table.GuessColumns();
+            hasHeader = guess.HasHeader;
+            int columns = Math.Max(2, table.ColumnCount);
 
             TableLayoutPanel layout = UIStyles.TableLayoutPanels.CreateStandard(
                 columnCount: 1,
-                rowCount: 5,
+                rowCount: 3,
                 colors: UIStyles.Colors.BackgroundLight);
             layout.Dock = DockStyle.Fill;
             layout.Padding = new Padding(16);
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
 
+            // One line that says what to do; the second says what happens with a header row, when there is one.
             Label intro = UIStyles.Labels.CreateStandard(
-                AppLocalization.Get(AppStrings.ImportColumnsIntroFormat, table.ColumnCount));
+                AppLocalization.Get(AppStrings.ImportColumnsIntro) +
+                (hasHeader ? Environment.NewLine + AppLocalization.Get(AppStrings.ImportColumnsHeaderSkipped) : string.Empty));
             intro.Dock = DockStyle.Fill;
+            intro.AutoSize = false;
 
-            cmbTitle = UIStyles.ComboBoxes.CreatePrimary();
-            cmbArtist = UIStyles.ComboBoxes.CreatePrimary();
-            cmbTitle.Dock = DockStyle.Fill;
-            cmbArtist.Dock = DockStyle.Fill;
-            cmbTitle.AccessibleName = AppLocalization.Get(AppStrings.ImportColumnsTitleColumn);
-            cmbArtist.AccessibleName = AppLocalization.Get(AppStrings.ImportColumnsArtistColumn);
+            // The choices over the sample rows: one table, so that each choice stands exactly over its column.
+            grid = UIStyles.TableLayoutPanels.CreateTransparent(columnCount: columns, rowCount: 1 + SampleRows);
+            grid.Dock = DockStyle.None;
+            grid.Location = Point.Empty;
 
-            // The column of the links is optional: the first entry is "none".
-            cmbLink = UIStyles.ComboBoxes.CreatePrimary();
-            cmbLink.Dock = DockStyle.Fill;
-            cmbLink.AccessibleName = AppLocalization.Get(AppStrings.ImportColumnsLinkColumn);
+            for (int column = 0; column < columns; column++)
+            {
+                grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columns));
+            }
 
-            TableLayoutPanel choices = UIStyles.TableLayoutPanels.CreateTransparent(columnCount: 4, rowCount: 2);
-            choices.Dock = DockStyle.Fill;
-            choices.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
-            choices.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            choices.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
-            choices.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            choices.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-            choices.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-            choices.Controls.Add(CreateCaption(AppStrings.ImportColumnsTitleColumn), 0, 0);
-            choices.Controls.Add(cmbTitle, 1, 0);
-            choices.Controls.Add(CreateCaption(AppStrings.ImportColumnsArtistColumn), 2, 0);
-            choices.Controls.Add(cmbArtist, 3, 0);
-            choices.Controls.Add(CreateCaption(AppStrings.ImportColumnsLinkColumn), 0, 1);
-            choices.Controls.Add(cmbLink, 1, 1);
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
 
-            TableLayoutPanel options = UIStyles.TableLayoutPanels.CreateTransparent(columnCount: 2, rowCount: 1);
-            options.Dock = DockStyle.Fill;
-            options.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 280));
-            options.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            options.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            for (int row = 0; row < SampleRows; row++)
+            {
+                grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+            }
 
-            chkHeader = UIStyles.CheckBoxes.CreatePrimary(AppLocalization.Get(AppStrings.ImportColumnsHasHeader));
-            chkHeader.Dock = DockStyle.Fill;
+            choices = new ComboBox[columns];
+
+            for (int column = 0; column < columns; column++)
+            {
+                ComboBox choice = UIStyles.ComboBoxes.CreatePrimary();
+                choice.Dock = DockStyle.Fill;
+                choice.Margin = new Padding(2, 4, 2, 6);
+                choice.Items.AddRange(new object[]
+                {
+                    AppLocalization.Get(AppStrings.ImportColumnsSkip),
+                    AppLocalization.Get(AppStrings.UnreleasedColumnTitle),
+                    AppLocalization.Get(AppStrings.UnreleasedColumnArtist),
+                    AppLocalization.Get(AppStrings.UnreleasedColumnLink)
+                });
+                choice.SelectedIndex = column == guess.TitleColumn ? Title
+                    : column == guess.ArtistColumn ? Artist
+                    : column == guess.LinkColumn ? LinkRole
+                    : Skip;
+
+                int thisColumn = column;
+                choice.SelectedIndexChanged += (_, _) => OnChoiceChanged(thisColumn);
+                choices[column] = choice;
+                grid.Controls.Add(choice, column, 0);
+            }
+
+            for (int row = 0; row < Math.Min(SampleRows, table.Rows.Count); row++)
+            {
+                for (int column = 0; column < columns; column++)
+                {
+                    // (A cell with a hyperlink behind its text is marked: the text may only say "YouTube", the address is what is used.)
+                    string text = table.Cell(row, column) + (table.Hyperlink(row, column) is null ? string.Empty : " ↗");
+                    Label cell = row == 0 && hasHeader
+                        ? UIStyles.Labels.CreateMuted(text)
+                        : UIStyles.Labels.CreateStandard(text);
+                    cell.Dock = DockStyle.Fill;
+                    cell.TextAlign = ContentAlignment.MiddleLeft;
+                    cell.Margin = new Padding(6, 0, 6, 0);
+                    grid.Controls.Add(cell, column, row + 1);
+                }
+            }
+
+            scrollPanel = UIStyles.Panels.CreateTransparent();
+            scrollPanel.Dock = DockStyle.Fill;
+            scrollPanel.AutoScroll = true;
+            scrollPanel.Controls.Add(grid);
+            scrollPanel.Resize += (_, _) => FitGrid();
 
             lblHint = UIStyles.Labels.CreateStandard(string.Empty, UIStyles.Colors.Sets.Red);
             lblHint.Dock = DockStyle.Fill;
             lblHint.TextAlign = ContentAlignment.MiddleLeft;
-
-            options.Controls.Add(chkHeader, 0, 0);
-            options.Controls.Add(lblHint, 1, 0);
-
-            preview = UIStyles.DataGridViews.CreateReadOnlyPrimary();
-            preview.Dock = DockStyle.Fill;
-            preview.AutoGenerateColumns = false;
-            preview.AllowUserToAddRows = false;
-            preview.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            preview.ColumnHeadersHeight = 32;
-            preview.TabStop = false;
-            preview.Resize += (_, _) => FitPreviewColumns();
-
-            // A preview is nothing to select in: the selection looks like the same color as the cells (no blue cell in the corner).
-            preview.DefaultCellStyle.SelectionBackColor = preview.DefaultCellStyle.BackColor;
-            preview.DefaultCellStyle.SelectionForeColor = preview.DefaultCellStyle.ForeColor;
 
             FlowLayoutPanel buttons = UIStyles.FlowLayoutPanels.CreateTransparent();
             buttons.Dock = DockStyle.Fill;
@@ -139,168 +162,81 @@ namespace ReleaseUpdaterGui
             CancelButton = btnCancel;
             AcceptButton = btnOk;
 
+            // The hint stands in the row of the buttons, at the left of them.
+            TableLayoutPanel bottom = UIStyles.TableLayoutPanels.CreateTransparent(columnCount: 2, rowCount: 1);
+            bottom.Dock = DockStyle.Fill;
+            bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260));
+            bottom.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            bottom.Controls.Add(lblHint, 0, 0);
+            bottom.Controls.Add(buttons, 1, 0);
+
             layout.Controls.Add(intro, 0, 0);
-            layout.Controls.Add(choices, 0, 1);
-            layout.Controls.Add(options, 0, 2);
-            layout.Controls.Add(preview, 0, 3);
-            layout.Controls.Add(buttons, 0, 4);
+            layout.Controls.Add(scrollPanel, 0, 1);
+            layout.Controls.Add(bottom, 0, 2);
             ContentPanel.Controls.Add(layout);
 
-            ImportColumnChoice guess = table.GuessColumns();
-            updating = true;
-            chkHeader.Checked = guess.HasHeader;
-            FillColumnLists(keepSelection: false);
-            cmbTitle.SelectedIndex = Math.Min(guess.TitleColumn, cmbTitle.Items.Count - 1);
-            cmbArtist.SelectedIndex = Math.Min(guess.ArtistColumn, cmbArtist.Items.Count - 1);
-            cmbLink.SelectedIndex = guess.LinkColumn is int linkColumn ? Math.Min(linkColumn + 1, cmbLink.Items.Count - 1) : 0;
-            updating = false;
-
-            cmbTitle.SelectedIndexChanged += (_, _) => RefreshPreview();
-            cmbArtist.SelectedIndexChanged += (_, _) => RefreshPreview();
-            cmbLink.SelectedIndexChanged += (_, _) => RefreshPreview();
-            chkHeader.CheckedChanged += (_, _) =>
-            {
-                updating = true;
-                FillColumnLists(keepSelection: true);
-                updating = false;
-                RefreshPreview();
-            };
-
-            RefreshPreview();
+            FitGrid();
+            UpdateState();
         }
 
-        /// <summary>The columns the user chose (valid after OK).</summary>
-        public ImportColumnChoice Choice =>
-            new(Math.Max(0, cmbTitle.SelectedIndex), Math.Max(0, cmbArtist.SelectedIndex), chkHeader.Checked, LinkColumn);
-
-        // The column of the links (the first entry of its list is "none").
-        private int? LinkColumn => cmbLink.SelectedIndex > 0 ? cmbLink.SelectedIndex - 1 : null;
-
-        private Label CreateCaption(string key)
+        /// <summary>What the user chose for the columns (valid after OK).</summary>
+        public ImportColumnChoice Choice
         {
-            Label label = UIStyles.Labels.CreateStandard(AppLocalization.Get(key));
-            label.Dock = DockStyle.Fill;
-            label.TextAlign = ContentAlignment.MiddleLeft;
-
-            return label;
-        }
-
-        // "Column 3: Some text" - the first row (or, with a header, the name of the column) tells what is in it.
-        private void FillColumnLists(bool keepSelection)
-        {
-            int title = cmbTitle.SelectedIndex;
-            int artist = cmbArtist.SelectedIndex;
-            int link = cmbLink.SelectedIndex;
-            List<object> items = new();
-
-            for (int column = 0; column < Math.Max(2, table.ColumnCount); column++)
+            get
             {
-                string sample = table.Cell(0, column).Trim();
-                sample = sample.Length > SampleLength ? sample.Substring(0, SampleLength) + "…" : sample;
-                string name = AppLocalization.Get(AppStrings.ImportColumnsColumnFormat, column + 1);
-                items.Add(sample.Length == 0 ? name : name + ": " + sample);
-            }
+                int title = ColumnWith(Title);
+                int artist = ColumnWith(Artist);
+                int link = ColumnWith(LinkRole);
 
-            UIStyles.ComboBoxes.ReplaceItems(cmbTitle, items, keepSelection: false);
-            UIStyles.ComboBoxes.ReplaceItems(cmbArtist, items, keepSelection: false);
-            UIStyles.ComboBoxes.ReplaceItems(
-                cmbLink,
-                new List<object> { AppLocalization.Get(AppStrings.ImportColumnsNoLink) }.Concat(items).ToList(),
-                keepSelection: false);
-
-            if (keepSelection)
-            {
-                cmbTitle.SelectedIndex = Math.Max(0, title);
-                cmbArtist.SelectedIndex = Math.Max(0, artist);
-                cmbLink.SelectedIndex = Math.Max(0, link);
+                return new ImportColumnChoice(Math.Max(0, title), Math.Max(0, artist), hasHeader, link >= 0 ? link : null);
             }
         }
 
-        // The preview shows the first rows; the headers say which column is the title and which the artist.
-        private void RefreshPreview()
+        // The column that has this meaning, -1 when none.
+        private int ColumnWith(int role) => Array.FindIndex(choices, choice => choice.SelectedIndex == role);
+
+        // A meaning is held by one column: choosing it here takes it away from the column that had it (that one is skipped now).
+        private void OnChoiceChanged(int column)
         {
             if (updating)
             {
                 return;
             }
 
-            // (The three columns are different ones; "no link" is no column.)
-            bool different = cmbTitle.SelectedIndex != cmbArtist.SelectedIndex &&
-                (LinkColumn is null || (LinkColumn != cmbTitle.SelectedIndex && LinkColumn != cmbArtist.SelectedIndex));
-            btnOk.Enabled = different;
-            lblHint.Text = different ? string.Empty : AppLocalization.Get(AppStrings.ImportColumnsSameColumn);
+            int role = choices[column].SelectedIndex;
 
-            int columns = Math.Max(2, table.ColumnCount);
-
-            preview.SuspendLayout();
-            preview.Columns.Clear();
-            preview.Rows.Clear();
-
-            for (int column = 0; column < columns; column++)
+            if (role != Skip)
             {
-                string header = AppLocalization.Get(AppStrings.ImportColumnsColumnFormat, column + 1);
+                updating = true;
 
-                if (column == cmbTitle.SelectedIndex)
+                for (int other = 0; other < choices.Length; other++)
                 {
-                    header += " → " + AppLocalization.Get(AppStrings.UnreleasedColumnTitle);
-                }
-                else if (column == cmbArtist.SelectedIndex)
-                {
-                    header += " → " + AppLocalization.Get(AppStrings.UnreleasedColumnArtist);
-                }
-                else if (column == LinkColumn)
-                {
-                    header += " → " + AppLocalization.Get(AppStrings.ImportColumnsLinkShort);
+                    if (other != column && choices[other].SelectedIndex == role)
+                    {
+                        choices[other].SelectedIndex = Skip;
+                    }
                 }
 
-                preview.Columns.Add(new DataGridViewTextBoxColumn
-                {
-                    HeaderText = header,
-                    SortMode = DataGridViewColumnSortMode.NotSortable
-                });
+                updating = false;
             }
 
-            for (int row = 0; row < Math.Min(PreviewRows, table.Rows.Count); row++)
-            {
-                object[] cells = new object[columns];
-
-                for (int column = 0; column < columns; column++)
-                {
-                    // (A cell with a hyperlink behind its text is marked: the text may only say "YouTube", the address is what is used.)
-                    cells[column] = table.Cell(row, column) + (table.Hyperlink(row, column) is null ? string.Empty : " ↗");
-                }
-
-                int index = preview.Rows.Add(cells);
-
-                // (The header row is shown in bold: it is not a song.)
-                if (row == 0 && chkHeader.Checked)
-                {
-                    preview.Rows[index].DefaultCellStyle.Font = new Font(preview.Font, FontStyle.Bold);
-                }
-            }
-
-            FitPreviewColumns();
-
-            // (No cell is selected: the blue one in the corner would look like a choice.)
-            preview.CurrentCell = null;
-            preview.ClearSelection();
-            preview.ResumeLayout();
+            UpdateState();
         }
 
-        // The columns share the width of the grid (not less than a readable width, then there is a scroll bar).
-        private void FitPreviewColumns()
+        // The song needs a title and an artist; the rest is optional.
+        private void UpdateState()
         {
-            if (preview.Columns.Count == 0)
-            {
-                return;
-            }
+            bool ready = ColumnWith(Title) >= 0 && ColumnWith(Artist) >= 0;
+            btnOk.Enabled = ready;
+            lblHint.Text = ready ? string.Empty : AppLocalization.Get(AppStrings.ImportColumnsNeedTitleAndArtist);
+        }
 
-            int width = Math.Max(110, preview.ClientSize.Width / preview.Columns.Count);
-
-            foreach (DataGridViewColumn column in preview.Columns)
-            {
-                column.Width = width;
-            }
+        // As wide as the panel, but not narrower than the columns need (then the panel scrolls); as high as its rows.
+        private void FitGrid()
+        {
+            int height = 40 + (SampleRows * 26);
+            grid.Size = new Size(Math.Max(scrollPanel.ClientSize.Width, choices.Length * MinimumColumnWidth), height);
         }
     }
 }

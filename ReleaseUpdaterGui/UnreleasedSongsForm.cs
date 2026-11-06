@@ -452,6 +452,7 @@ namespace ReleaseUpdaterGui
             // (The window lets nothing but a web address through; it is kept as the address, with https:// where it was left out.)
             row.Link = dialog.Address;
             dataGridView.InvalidateRow(rowIndex);
+            SaveQuietly();
         }
 
         public void ApplyColumnOrder(bool artistFirst)
@@ -608,6 +609,22 @@ namespace ReleaseUpdaterGui
             foreach (TrackedSong song in songs)
             {
                 rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist, Link = TrackedSongLinks.Normalize(song.Link) });
+            }
+
+            SaveQuietly();
+        }
+
+        // Keeps the list at once after an import or a link change, so that a crash does not lose it. A failure is not worth a message here:
+        // closing the window tries again and tells the user then.
+        private void SaveQuietly()
+        {
+            try
+            {
+                controller.SaveSongs(GetCurrentSongs().Where(song => song.Title.Length > 0 || song.Artist.Length > 0).ToList());
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // (see above)
             }
         }
 

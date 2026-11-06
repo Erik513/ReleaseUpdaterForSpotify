@@ -196,6 +196,102 @@ public sealed class ImportTableTests
         Assert.Equal(2, table.Rows.Count);
         Assert.Equal("Title", table.Cell(0, 0));
         Assert.Equal("A", table.Cell(1, 1));
-        Assert.Equal(new ImportColumnChoice(0, 1, true), table.GuessColumns());
+        Assert.Equal(new ImportColumnChoice(0, 1, true, 2), table.GuessColumns());
+    }
+
+    // ---- the column of links ----
+
+    // Verifies that a header that names the links ("Link", "URL", "Quelle", "Source") is found, wherever the column is.
+    [Theory]
+    [InlineData("Link")]
+    [InlineData("URL")]
+    [InlineData("Quelle")]
+    [InlineData("source")]
+    public void GuessColumns_FindsTheLinkColumnByItsHeader(string name)
+    {
+        ImportTable table = Table(
+            new[] { "Nr", name, "Titel", "Interpret" },
+            new[] { "1", "not an address, but named so", "Song", "Artist" });
+
+        ImportColumnChoice guess = table.GuessColumns();
+
+        Assert.Equal(new ImportColumnChoice(2, 3, true, 1), guess);
+    }
+
+    // Verifies that a column full of addresses is the link column without any header, and is not taken for the title or the artist.
+    [Fact]
+    public void GuessColumns_FindsAColumnFullOfAddresses_WithoutAHeader()
+    {
+        ImportTable table = Table(
+            new[] { "1", "Song A", "Artist A", "https://example.com/a" },
+            new[] { "2", "Song B", "Artist B", "www.example.com/b" },
+            new[] { "3", "Song C", "Artist C", "" },
+            new[] { "4", "Song D", "Artist D", "https://example.com/d" });
+
+        ImportColumnChoice guess = table.GuessColumns();
+
+        Assert.False(guess.HasHeader);
+        Assert.Equal(new ImportColumnChoice(1, 2, false, 3), guess);
+    }
+
+    // Verifies that a link column in front of the others (the table of the user) does not take the place of the title or the artist.
+    [Fact]
+    public void GuessColumns_ALinkColumnInFront_IsNotTheTitle()
+    {
+        ImportTable table = Table(
+            new[] { "https://example.com/a", "Song A", "Artist A" },
+            new[] { "https://example.com/b", "Song B", "Artist B" });
+
+        Assert.Equal(new ImportColumnChoice(1, 2, false, 0), table.GuessColumns());
+    }
+
+    // Verifies that a few texts that only look a little like addresses do not make a link column.
+    [Fact]
+    public void GuessColumns_AColumnWithMostlyOtherTexts_IsNoLinkColumn()
+    {
+        ImportTable table = Table(
+            new[] { "Song A", "Artist A", "see www.example.com" },
+            new[] { "Song B", "Artist B", "a note" },
+            new[] { "Song C", "Artist C", "another note" });
+
+        Assert.Null(table.GuessColumns().LinkColumn);
+    }
+
+    // Verifies that the songs of a table get their links, and that an empty cell is no link.
+    [Fact]
+    public void SongsFromTable_ReadsTheLinkColumn()
+    {
+        ImportTable table = Table(
+            new[] { "Title", "Artist", "Link" },
+            new[] { "Song A", "Artist A", " https://example.com/a " },
+            new[] { "Song B", "Artist B", "" },
+            new[] { "Song C", "Artist C" });
+
+        TrackedSongsImport import = TrackedSongsTransfer.SongsFromTable(table, table.GuessColumns());
+
+        Assert.Equal(
+            new[] { new TrackedSong("Song A", "Artist A", "https://example.com/a"), new TrackedSong("Song B", "Artist B"), new TrackedSong("Song C", "Artist C") },
+            import.Songs);
+    }
+
+    // Verifies that a table with the three names of the app in its header needs no question about the columns, in any order, and that other
+    // tables do (a fourth column, another name, a name twice, no title).
+    [Theory]
+    [InlineData("Title;Artist;Link", true)]
+    [InlineData("Titel;Interpret;URL", true)]
+    [InlineData("Artist;Title", true)]
+    [InlineData("Link;Artist;Title", true)]
+    [InlineData("Nr;Title;Artist", false)]
+    [InlineData("Title;Artist;Link;Year", false)]
+    [InlineData("Title;Title;Artist", false)]
+    [InlineData("Artist;Link;Link", false)]
+    [InlineData("Song;Link", false)]
+    [InlineData("A;B;C", false)]
+    public void HasRecognizedHeader_IsTrueOnlyForTheOwnFormat(string header, bool expected)
+    {
+        string[] names = header.Split(';');
+        ImportTable table = Table(names, names.Select(_ => "x").ToArray());
+
+        Assert.Equal(expected, table.HasRecognizedHeader());
     }
 }

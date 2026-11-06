@@ -12,8 +12,10 @@ public enum ImportMode
     Replace
 }
 
-/// <summary>Which columns of an imported table hold the title and the artist, and whether the first row is a header.</summary>
-public sealed record ImportColumnChoice(int TitleColumn, int ArtistColumn, bool HasHeader);
+/// <summary>
+/// Which columns of an imported table hold the title and the artist (and the link, when there is one), and whether the first row is a header.
+/// </summary>
+public sealed record ImportColumnChoice(int TitleColumn, int ArtistColumn, bool HasHeader, int? LinkColumn = null);
 
 /// <summary>
 /// A table that was read from a file (CSV, Excel, Word) or from the clipboard: rows of texts, not yet songs. The user may have a
@@ -24,6 +26,7 @@ public sealed class ImportTable
 {
     private static readonly string[] TitleWords = { "title", "titel", "song", "songtitel", "track", "lied", "name" };
     private static readonly string[] ArtistWords = { "artist", "interpret", "künstler", "kuenstler", "band", "sänger", "performer" };
+    private static readonly string[] LinkWords = { "link", "links", "url", "quelle", "source", "website" };
 
     // A column of numbers (a numbering "1", "2.", "#3") is not what is looked for.
     private static readonly Regex NumberLike = new(@"^[\s#]*\d+[.)]?\s*$", RegexOptions.Compiled);
@@ -44,21 +47,49 @@ public sealed class ImportTable
         row >= 0 && row < Rows.Count && column >= 0 && column < Rows[row].Count ? Rows[row][column] : string.Empty;
 
     /// <summary>
-    /// The proposal for the columns: from the header when the first row names them (Title / Titel, Artist / Interpret ...), else the
-    /// first two columns that are neither empty nor numbers.
+    /// True for a table that is exactly what the app writes: up to three columns, every cell of the first row is a name of the title, the artist
+    /// or the link (Title / Titel, Artist / Interpret, Link / URL ...), the title and the artist are both there, and each name once. No
+    /// question about the columns is needed for such a table, whatever their order.
+    /// </summary>
+    public bool HasRecognizedHeader()
+    {
+        if (Rows.Count == 0 || ColumnCount > 3 || ColumnCount < 2)
+        {
+            return false;
+        }
+
+        IReadOnlyList<string> header = Rows[0];
+
+        if (header.Count != ColumnCount || header.Any(string.IsNullOrWhiteSpace))
+        {
+            return false;
+        }
+
+        int titles = header.Count(cell => IsOneOf(cell, TitleWords));
+        int artists = header.Count(cell => IsOneOf(cell, ArtistWords));
+        int links = header.Count(cell => IsOneOf(cell, LinkWords));
+
+        return titles == 1 && artists == 1 && links <= 1 && titles + artists + links == header.Count;
+    }
+
+    /// <summary>
+    /// The proposal for the columns: from the header when the first row names them (Title / Titel, Artist / Interpret, Link / URL ...), else the
+    /// first two columns that are neither empty nor numbers nor links; the column of links is the one that is named so, or the one that is
+    /// full of addresses.
     /// </summary>
     public ImportColumnChoice GuessColumns()
     {
         int columns = Math.Max(2, ColumnCount);
         bool hasHeader = Rows.Count > 0 &&
-            Rows[0].Any(cell => IsOneOf(cell, TitleWords) || IsOneOf(cell, ArtistWords));
+            Rows[0].Any(cell => IsOneOf(cell, TitleWords) || IsOneOf(cell, ArtistWords) || IsOneOf(cell, LinkWords));
         int firstDataRow = hasHeader ? 1 : 0;
 
         int? titleByHeader = hasHeader ? FindColumn(Rows[0], TitleWords) : null;
         int? artistByHeader = hasHeader ? FindColumn(Rows[0], ArtistWords) : null;
+        int? link = (hasHeader ? FindColumn(Rows[0], LinkWords) : null) ?? FindLinkColumn(firstDataRow, columns);
 
         List<int> candidates = Enumerable.Range(0, columns)
-            .Where(column => LooksLikeText(column, firstDataRow))
+            .Where(column => column != link && LooksLikeText(column, firstDataRow))
             .ToList();
 
         int title = titleByHeader ?? FirstCandidate(candidates, exclude: artistByHeader, columns);
@@ -70,7 +101,39 @@ public sealed class ImportTable
             artist = FirstCandidate(candidates, exclude: title, columns);
         }
 
-        return new ImportColumnChoice(title, artist, hasHeader);
+        // (A column cannot be two things.)
+        if (link == title || link == artist)
+        {
+            link = null;
+        }
+
+        return new ImportColumnChoice(title, artist, hasHeader, link);
+    }
+
+    // The first column in which most of the cells that have something in them look like an address.
+    private int? FindLinkColumn(int firstDataRow, int columns)
+    {
+        for (int column = 0; column < columns; column++)
+        {
+            List<string> values = new();
+
+            for (int row = firstDataRow; row < Rows.Count; row++)
+            {
+                string cell = Cell(row, column);
+
+                if (!string.IsNullOrWhiteSpace(cell))
+                {
+                    values.Add(cell);
+                }
+            }
+
+            if (values.Count > 0 && values.Count(TrackedSongLinks.LooksLikeLink) * 5 >= values.Count * 3)
+            {
+                return column;
+            }
+        }
+
+        return null;
     }
 
     private bool LooksLikeText(int column, int firstDataRow)

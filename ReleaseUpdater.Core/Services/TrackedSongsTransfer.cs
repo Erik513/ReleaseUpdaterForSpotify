@@ -21,7 +21,7 @@ public sealed record TrackedSongsMerge(IReadOnlyList<TrackedSong> Songs, int Add
 
 /// <summary>
 /// Writes the tracked songs to a file and reads them back: an Excel workbook (.xlsx), a Word document with a table (.docx),
-/// JSON (a list of <c>{ "title", "artist" }</c>, the shape of the app's own list) or CSV (<c>Title;Artist</c>, with quotes where a
+/// JSON (a list of <c>{ "title", "artist", "link" }</c>, the shape of the app's own list) or CSV (<c>Title;Artist;Link</c>, with quotes where a
 /// text has a delimiter, a quote or a line break). Bytes in, bytes out: the file itself is the caller's business.
 /// </summary>
 public static class TrackedSongsTransfer
@@ -146,7 +146,9 @@ public static class TrackedSongsTransfer
                 continue;
             }
 
-            songs.Add(new TrackedSong(title, artist));
+            string link = choice.LinkColumn is int linkColumn ? table.Cell(index, linkColumn).Trim() : string.Empty;
+
+            songs.Add(new TrackedSong(title, artist, link.Length == 0 ? null : link));
         }
 
         return new TrackedSongsImport(songs, skipped);
@@ -156,20 +158,32 @@ public static class TrackedSongsTransfer
     public static TrackedSongsMerge Merge(IReadOnlyList<TrackedSong> existing, IReadOnlyList<TrackedSong> imported)
     {
         List<TrackedSong> merged = new(existing);
-        HashSet<string> known = new(existing.Select(Key));
+        Dictionary<string, int> indexOfKey = new();
         int added = 0;
         int duplicates = 0;
 
+        for (int i = 0; i < existing.Count; i++)
+        {
+            indexOfKey.TryAdd(Key(existing[i]), i);
+        }
+
         foreach (TrackedSong song in imported)
         {
-            if (known.Add(Key(song)))
+            if (!indexOfKey.TryGetValue(Key(song), out int index))
             {
+                indexOfKey[Key(song)] = merged.Count;
                 merged.Add(song);
                 added++;
             }
             else
             {
                 duplicates++;
+
+                // The song is in the list already; a link that it did not have and the import brings is not thrown away.
+                if (string.IsNullOrWhiteSpace(merged[index].Link) && !string.IsNullOrWhiteSpace(song.Link))
+                {
+                    merged[index] = merged[index] with { Link = song.Link };
+                }
             }
         }
 
@@ -183,7 +197,9 @@ public static class TrackedSongsTransfer
 
     private static string ToJson(IReadOnlyList<TrackedSong> songs) =>
         JsonSerializer.Serialize(
-            songs.Select(song => new { title = song.Title, artist = song.Artist }),
+            songs.Select(song => string.IsNullOrWhiteSpace(song.Link)
+                ? (object)new { title = song.Title, artist = song.Artist }
+                : new { title = song.Title, artist = song.Artist, link = song.Link.Trim() }).ToList(),
             JsonWriteOptions);
 
     private static TrackedSongsImport ParseJson(string text)
@@ -211,7 +227,9 @@ public static class TrackedSongsTransfer
                     continue;
                 }
 
-                songs.Add(new TrackedSong(title.Trim(), artist.Trim()));
+                string? link = item.ValueKind == JsonValueKind.Object ? ReadText(item, "link") : null;
+
+                songs.Add(new TrackedSong(title.Trim(), artist.Trim(), string.IsNullOrWhiteSpace(link) ? null : link.Trim()));
             }
 
             return new TrackedSongsImport(songs, skipped);
@@ -241,11 +259,11 @@ public static class TrackedSongsTransfer
     private static string ToCsv(IReadOnlyList<TrackedSong> songs)
     {
         StringBuilder builder = new();
-        builder.Append("Title;Artist\r\n");
+        builder.Append("Title;Artist;Link\r\n");
 
         foreach (TrackedSong song in songs)
         {
-            builder.Append(CsvField(song.Title)).Append(';').Append(CsvField(song.Artist)).Append("\r\n");
+            builder.Append(CsvField(song.Title)).Append(';').Append(CsvField(song.Artist)).Append(';').Append(CsvField(song.Link ?? string.Empty)).Append("\r\n");
         }
 
         return builder.ToString();
@@ -270,45 +288,14 @@ public static class TrackedSongsTransfer
         return new ImportTable(ReadCsvRows(text, DetectDelimiter(text)));
     }
 
-    // The rows of a table (a CSV, a sheet, a Word table): title in the first column, artist in the second; a header row and
-    // empty rows are left out, incomplete rows are counted.
+    // The rows of a table (a CSV, a sheet, a Word table) read with the columns that look right (see ImportTable.GuessColumns): the title and the
+    // artist, and the link when there is a column of them; a header row and empty rows are left out, incomplete rows are counted.
     internal static TrackedSongsImport SongsFromRows(IReadOnlyList<IReadOnlyList<string>> rows)
     {
-        List<TrackedSong> songs = new();
-        int skipped = 0;
+        ImportTable table = new(rows);
 
-        for (int index = 0; index < rows.Count; index++)
-        {
-            IReadOnlyList<string> row = rows[index];
-
-            // (An empty line is nothing, not a broken entry.)
-            if (row.All(string.IsNullOrWhiteSpace))
-            {
-                continue;
-            }
-
-            if (index == 0 && IsHeader(row))
-            {
-                continue;
-            }
-
-            if (row.Count < 2 || string.IsNullOrWhiteSpace(row[0]) || string.IsNullOrWhiteSpace(row[1]))
-            {
-                skipped++;
-                continue;
-            }
-
-            songs.Add(new TrackedSong(row[0].Trim(), row[1].Trim()));
-        }
-
-        return new TrackedSongsImport(songs, skipped);
+        return SongsFromTable(table, table.GuessColumns());
     }
-
-    // The header this class writes, and the same in German (the app is in both languages).
-    private static bool IsHeader(IReadOnlyList<string> row) =>
-        row.Count >= 2 &&
-        new[] { "title", "titel" }.Contains(row[0].Trim(), StringComparer.OrdinalIgnoreCase) &&
-        new[] { "artist", "interpret", "künstler" }.Contains(row[1].Trim(), StringComparer.OrdinalIgnoreCase);
 
     // The delimiter that a spreadsheet of the user's region used: the one that is most common in the first line.
     private static char DetectDelimiter(string text)

@@ -3,11 +3,13 @@ namespace ReleaseUpdater.Core.Models;
 /// <summary>
 /// A song the user is tracking as not yet released on Spotify - Title and
 /// Artist as entered by hand, so free text rather than a Spotify-verified
-/// identity.
+/// identity. The link is optional, also free text: where the user found the
+/// song (see TrackedSongLinks for what is done before it is opened).
 /// </summary>
 public sealed record TrackedSong(
     string Title,
-    string Artist);
+    string Artist,
+    string? Link = null);
 
 /// <summary>
 /// How closely a <see cref="SongMatchResult"/>'s <see cref="SongMatchResult.Match"/>

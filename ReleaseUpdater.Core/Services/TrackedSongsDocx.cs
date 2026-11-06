@@ -40,13 +40,14 @@ internal static class TrackedSongsDocx
                         new XElement(W + "left", new XAttribute(W + "w", "100"), new XAttribute(W + "type", "dxa")),
                         new XElement(W + "right", new XAttribute(W + "w", "100"), new XAttribute(W + "type", "dxa")))),
                 new XElement(W + "tblGrid",
-                    new XElement(W + "gridCol", new XAttribute(W + "w", "5200")),
-                    new XElement(W + "gridCol", new XAttribute(W + "w", "4200"))),
-                BuildRow("Title", "Artist", bold: true, header: true));
+                    new XElement(W + "gridCol", new XAttribute(W + "w", "3600")),
+                    new XElement(W + "gridCol", new XAttribute(W + "w", "2800")),
+                    new XElement(W + "gridCol", new XAttribute(W + "w", "3000"))),
+                BuildRow("Title", "Artist", "Link", bold: true, header: true));
 
             foreach (TrackedSong song in songs)
             {
-                table.Add(BuildRow(song.Title, song.Artist, bold: false, header: false));
+                table.Add(BuildRow(song.Title, song.Artist, song.Link ?? string.Empty, bold: false, header: false));
             }
 
             XDocument document = new(
@@ -142,7 +143,7 @@ internal static class TrackedSongsDocx
         }
     }
 
-    private static XElement BuildRow(string title, string artist, bool bold, bool header)
+    private static XElement BuildRow(string title, string artist, string link, bool bold, bool header)
     {
         XElement row = new(W + "tr");
 
@@ -151,7 +152,7 @@ internal static class TrackedSongsDocx
             row.Add(new XElement(W + "trPr", new XElement(W + "tblHeader")));
         }
 
-        row.Add(BuildCell(title, bold, 5200), BuildCell(artist, bold, 4200));
+        row.Add(BuildCell(title, bold, 3600), BuildCell(artist, bold, 2800), BuildCell(link, bold, 3000));
 
         return row;
     }

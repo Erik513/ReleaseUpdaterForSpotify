@@ -49,11 +49,11 @@ internal static class TrackedSongsXlsx
                 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>
                 """);
 
-            XElement data = new(Main + "sheetData", BuildRow(1, "Title", "Artist", style: 1));
+            XElement data = new(Main + "sheetData", BuildRow(1, "Title", "Artist", "Link", style: 1));
 
             for (int i = 0; i < songs.Count; i++)
             {
-                data.Add(BuildRow(i + 2, songs[i].Title, songs[i].Artist, style: 0));
+                data.Add(BuildRow(i + 2, songs[i].Title, songs[i].Artist, songs[i].Link ?? string.Empty, style: 0));
             }
 
             XDocument sheet = new(
@@ -64,7 +64,8 @@ internal static class TrackedSongsXlsx
                             new XAttribute("activePane", "bottomLeft"), new XAttribute("state", "frozen")))),
                     new XElement(Main + "cols",
                         new XElement(Main + "col", new XAttribute("min", "1"), new XAttribute("max", "1"), new XAttribute("width", "48"), new XAttribute("customWidth", "1")),
-                        new XElement(Main + "col", new XAttribute("min", "2"), new XAttribute("max", "2"), new XAttribute("width", "36"), new XAttribute("customWidth", "1"))),
+                        new XElement(Main + "col", new XAttribute("min", "2"), new XAttribute("max", "2"), new XAttribute("width", "36"), new XAttribute("customWidth", "1")),
+                        new XElement(Main + "col", new XAttribute("min", "3"), new XAttribute("max", "3"), new XAttribute("width", "48"), new XAttribute("customWidth", "1"))),
                     data));
 
             AddEntry(zip, "xl/worksheets/sheet1.xml", sheet.ToString(SaveOptions.DisableFormatting), declaration: true);
@@ -187,10 +188,11 @@ internal static class TrackedSongsXlsx
         return true;
     }
 
-    private static XElement BuildRow(int number, string title, string artist, int style) =>
+    private static XElement BuildRow(int number, string title, string artist, string link, int style) =>
         new(Main + "row", new XAttribute("r", number),
             BuildCell("A" + number, title, style),
-            BuildCell("B" + number, artist, style));
+            BuildCell("B" + number, artist, style),
+            BuildCell("C" + number, link, style));
 
     private static XElement BuildCell(string reference, string text, int style) =>
         new(Main + "c", new XAttribute("r", reference), new XAttribute("t", "inlineStr"), new XAttribute("s", style),

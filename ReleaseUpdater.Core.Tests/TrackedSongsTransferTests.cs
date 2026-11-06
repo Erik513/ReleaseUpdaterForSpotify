@@ -130,6 +130,65 @@ public sealed class TrackedSongsTransferTests
         Assert.Equal(new[] { new TrackedSong("Two\nLines", "Artist") }, import.Songs);
     }
 
+    // ---- links ----
+
+    // Verifies that the link of a song survives every format, with the songs without a link next to it, and that no link is none.
+    [Theory]
+    [InlineData(TrackedSongsFormat.Json)]
+    [InlineData(TrackedSongsFormat.Csv)]
+    [InlineData(TrackedSongsFormat.Xlsx)]
+    [InlineData(TrackedSongsFormat.Docx)]
+    public void Links_RoundTrip_InEveryFormat(TrackedSongsFormat format)
+    {
+        TrackedSong[] songs =
+        {
+            new("Song A", "Artist A", "https://example.com/watch?v=1&t=2"),
+            new("Song B", "Artist B"),
+            new("Song; C", "Artist, C", "https://example.com/a;b,c")
+        };
+
+        TrackedSongsImport import = TrackedSongsTransfer.Read(TrackedSongsTransfer.Write(songs, format), format);
+
+        Assert.Equal(songs, import.Songs);
+    }
+
+    // Verifies that a JSON list of the old shape (no link) is read, and that the link is only written where there is one.
+    [Fact]
+    public void Json_WithoutLinks_IsTheOldShape()
+    {
+        string text = TrackedSongsTransfer.Serialize(new[] { new TrackedSong("A", "B"), new TrackedSong("C", "D", "https://x.example/y") }, TrackedSongsFormat.Json);
+
+        Assert.Equal(1, text.Split("\"link\"").Length - 1);
+        Assert.Equal(
+            new[] { new TrackedSong("E", "F") },
+            TrackedSongsTransfer.Parse("""[ { "title": "E", "artist": "F" } ]""", TrackedSongsFormat.Json).Songs);
+    }
+
+    // Verifies that a table the app writes has the link as a third column with its header.
+    [Fact]
+    public void Csv_HasALinkColumn()
+    {
+        string text = TrackedSongsTransfer.Serialize(new[] { new TrackedSong("A", "B", "https://x.example") }, TrackedSongsFormat.Csv);
+
+        Assert.StartsWith("Title;Artist;Link\r\n", text);
+        Assert.Contains("A;B;https://x.example", text);
+    }
+
+    // Verifies that a song that is in the list already gets the link that the import brings, but keeps a link it has.
+    [Fact]
+    public void Merge_GivesADuplicateTheMissingLink_AndKeepsAnExistingOne()
+    {
+        TrackedSong[] existing = { new("Song A", "Artist A"), new("Song B", "Artist B", "https://mine.example") };
+        TrackedSong[] imported = { new("song a", "ARTIST A", "https://new.example/a"), new("Song B", "Artist B", "https://new.example/b") };
+
+        TrackedSongsMerge merge = TrackedSongsTransfer.Merge(existing, imported);
+
+        Assert.Equal(0, merge.AddedCount);
+        Assert.Equal(2, merge.DuplicateCount);
+        Assert.Equal("https://new.example/a", merge.Songs[0].Link);
+        Assert.Equal("https://mine.example", merge.Songs[1].Link);
+    }
+
     // ---- merged cells of a Word table ----
 
     private const string WordNamespace = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"";

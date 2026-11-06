@@ -266,7 +266,8 @@ namespace ReleaseUpdaterGui
 
                 for (int column = 0; column < columns; column++)
                 {
-                    cells[column] = table.Cell(row, column);
+                    // (A cell with a hyperlink behind its text is marked: the text may only say "YouTube", the address is what is used.)
+                    cells[column] = table.Cell(row, column) + (table.Hyperlink(row, column) is null ? string.Empty : " ↗");
                 }
 
                 int index = preview.Rows.Add(cells);

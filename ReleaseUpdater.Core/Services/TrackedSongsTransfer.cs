@@ -59,8 +59,8 @@ public static class TrackedSongsTransfer
     public static TrackedSongsImport Read(byte[] content, TrackedSongsFormat format) =>
         format switch
         {
-            TrackedSongsFormat.Xlsx => SongsFromRows(TrackedSongsXlsx.ReadRows(content)),
-            TrackedSongsFormat.Docx => SongsFromRows(TrackedSongsDocx.ReadRows(content)),
+            TrackedSongsFormat.Xlsx => FromTable(TrackedSongsXlsx.ReadTable(content)),
+            TrackedSongsFormat.Docx => FromTable(TrackedSongsDocx.ReadTable(content)),
             TrackedSongsFormat.Csv => ParseCsv(DecodeText(content)),
             _ => ParseJson(DecodeText(content))
         };
@@ -95,8 +95,8 @@ public static class TrackedSongsTransfer
     public static ImportTable ReadTable(byte[] content, TrackedSongsFormat format) =>
         format switch
         {
-            TrackedSongsFormat.Xlsx => new ImportTable(TrackedSongsXlsx.ReadRows(content)),
-            TrackedSongsFormat.Docx => new ImportTable(TrackedSongsDocx.ReadRows(content)),
+            TrackedSongsFormat.Xlsx => TrackedSongsXlsx.ReadTable(content),
+            TrackedSongsFormat.Docx => TrackedSongsDocx.ReadTable(content),
             TrackedSongsFormat.Csv => ParseDelimitedText(DecodeText(content)),
             _ => throw new ArgumentException("JSON is not a table.", nameof(format))
         };
@@ -146,7 +146,10 @@ public static class TrackedSongsTransfer
                 continue;
             }
 
-            string link = choice.LinkColumn is int linkColumn ? table.Cell(index, linkColumn).Trim() : string.Empty;
+            // The hyperlink behind the text of the cell is the address (the text may only say "Link"); without one, the text is.
+            string link = choice.LinkColumn is int linkColumn
+                ? table.Hyperlink(index, linkColumn) ?? table.Cell(index, linkColumn).Trim()
+                : string.Empty;
 
             songs.Add(new TrackedSong(title, artist, link.Length == 0 ? null : link));
         }
@@ -290,12 +293,11 @@ public static class TrackedSongsTransfer
 
     // The rows of a table (a CSV, a sheet, a Word table) read with the columns that look right (see ImportTable.GuessColumns): the title and the
     // artist, and the link when there is a column of them; a header row and empty rows are left out, incomplete rows are counted.
-    internal static TrackedSongsImport SongsFromRows(IReadOnlyList<IReadOnlyList<string>> rows)
-    {
-        ImportTable table = new(rows);
+    internal static TrackedSongsImport SongsFromRows(IReadOnlyList<IReadOnlyList<string>> rows) =>
+        FromTable(new ImportTable(rows));
 
-        return SongsFromTable(table, table.GuessColumns());
-    }
+    private static TrackedSongsImport FromTable(ImportTable table) =>
+        SongsFromTable(table, table.GuessColumns());
 
     // The delimiter that a spreadsheet of the user's region used: the one that is most common in the first line.
     private static char DetectDelimiter(string text)

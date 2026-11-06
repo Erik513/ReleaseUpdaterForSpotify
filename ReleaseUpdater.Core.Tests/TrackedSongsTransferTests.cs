@@ -287,6 +287,207 @@ public sealed class TrackedSongsTransferTests
         Assert.Equal(new[] { "", "Song 2", "Artist 2" }, new[] { table.Cell(1, 0), table.Cell(1, 1), table.Cell(1, 2) });
     }
 
+    // ---- hyperlinks: a text with an address behind it ----
+
+    private const string RelationshipsNamespace = "http://schemas.openxmlformats.org/package/2006/relationships";
+    private const string HyperlinkType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+
+    private static string LinkCell(string text, string relationshipId) =>
+        "<w:tc><w:p><w:hyperlink r:id=\"" + relationshipId + "\" w:history=\"1\"><w:r><w:t>" + text + "</w:t></w:r></w:hyperlink></w:p></w:tc>";
+
+    private static byte[] WordWithLinks(string rows, params (string Id, string Target)[] relationships) =>
+        Zip(
+            ("word/document.xml",
+                "<w:document " + WordNamespace + " xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body><w:tbl>" + rows + "</w:tbl></w:body></w:document>"),
+            ("word/_rels/document.xml.rels",
+                "<Relationships xmlns=\"" + RelationshipsNamespace + "\">" +
+                string.Concat(relationships.Select(r => "<Relationship Id=\"" + r.Id + "\" Type=\"" + HyperlinkType + "\" Target=\"" + r.Target + "\" TargetMode=\"External\"/>")) +
+                "<Relationship Id=\"rId99\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>"));
+
+    // Verifies a Word table the way the user has it: a column "Quelle" whose texts ("YouTube") are hyperlinks - the address behind the
+    // text is the link of the song, not the text.
+    [Fact]
+    public void ReadDocx_ATextWithAHyperlink_GivesTheAddress()
+    {
+        byte[] file = WordWithLinks(
+            Row(Cell("Nr") + Cell("Titel") + Cell("Interpret") + Cell("Quelle")) +
+            Row(Cell("1") + Cell("Song A") + Cell("Artist A") + LinkCell("YouTube", "rId1")) +
+            Row(Cell("2") + Cell("Song B") + Cell("Artist B") + Cell("")) +
+            Row(Cell("3") + Cell("Song C") + Cell("Artist C") + LinkCell("Post", "rId2")),
+            ("rId1", "https://www.youtube.com/watch?v=abc"),
+            ("rId2", "https://www.instagram.com/p/xyz/"));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+        TrackedSongsImport import = TrackedSongsTransfer.SongsFromTable(table, table.GuessColumns());
+
+        Assert.Equal("YouTube", table.Cell(1, 3));
+        Assert.Equal("https://www.youtube.com/watch?v=abc", table.Hyperlink(1, 3));
+        Assert.Null(table.Hyperlink(2, 3));
+        Assert.Equal(
+            new[]
+            {
+                new TrackedSong("Song A", "Artist A", "https://www.youtube.com/watch?v=abc"),
+                new TrackedSong("Song B", "Artist B"),
+                new TrackedSong("Song C", "Artist C", "https://www.instagram.com/p/xyz/")
+            },
+            import.Songs);
+    }
+
+    // Verifies that a column of short texts that are all hyperlinks is found as the link column even without a header (and a column of
+    // titles that are all hyperlinks is not).
+    [Fact]
+    public void GuessColumns_AColumnOfShortHyperlinkedTexts_IsTheLinkColumn_WithoutAHeader()
+    {
+        byte[] file = WordWithLinks(
+            Row(Cell("Song A") + Cell("Artist A") + LinkCell("YouTube", "rId1")) +
+            Row(Cell("Song B") + Cell("Artist B") + LinkCell("SoundCloud", "rId2")),
+            ("rId1", "https://example.com/a"),
+            ("rId2", "https://example.com/b"));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Equal(new ImportColumnChoice(0, 1, false, 2), table.GuessColumns());
+    }
+
+    // Verifies that titles that all carry a hyperlink (long texts) do not become the link column: the title stays the title.
+    [Fact]
+    public void GuessColumns_LinkedTitles_AreNotTheLinkColumn()
+    {
+        byte[] file = WordWithLinks(
+            Row(LinkCell("A rather long title of the first song", "rId1") + Cell("Artist A")) +
+            Row(LinkCell("Another rather long title of a song", "rId2") + Cell("Artist B")),
+            ("rId1", "https://example.com/a"),
+            ("rId2", "https://example.com/b"));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Null(table.GuessColumns().LinkColumn);
+    }
+
+    // Verifies the fields of Word: a simple HYPERLINK field, and one that is made of several runs.
+    [Fact]
+    public void ReadDocx_HyperlinkFields_GiveTheAddress()
+    {
+        byte[] file = Zip(("word/document.xml",
+            "<w:document " + WordNamespace + "><w:body><w:tbl>" +
+            Row(Cell("Song A") + Cell("Artist A") +
+                "<w:tc><w:p><w:fldSimple w:instr=\" HYPERLINK &quot;https://example.com/simple&quot; \"><w:r><w:t>Simple</w:t></w:r></w:fldSimple></w:p></w:tc>") +
+            Row(Cell("Song B") + Cell("Artist B") +
+                "<w:tc><w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> HYPERLINK </w:instrText></w:r>" +
+                "<w:r><w:instrText>\"https://example.com/complex\"</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>" +
+                "<w:r><w:t>Complex</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p></w:tc>") +
+            "</w:tbl></w:body></w:document>"));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Equal("https://example.com/simple", table.Hyperlink(0, 2));
+        Assert.Equal("https://example.com/complex", table.Hyperlink(1, 2));
+        Assert.Equal("Complex", table.Cell(1, 2));
+    }
+
+    // Verifies that a link of a cell that is merged downwards counts for every row it spans, like its text.
+    [Fact]
+    public void ReadDocx_AHyperlinkInAMergedCell_CountsForEveryRow()
+    {
+        byte[] file = WordWithLinks(
+            Row("<w:tc><w:tcPr><w:vMerge w:val=\"restart\"/></w:tcPr><w:p><w:hyperlink r:id=\"rId1\"><w:r><w:t>Set</w:t></w:r></w:hyperlink></w:p></w:tc>" + Cell("Song 1")) +
+            Row(Cell("", "<w:vMerge/>") + Cell("Song 2")),
+            ("rId1", "https://example.com/set"));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Equal("https://example.com/set", table.Hyperlink(0, 0));
+        Assert.Equal("https://example.com/set", table.Hyperlink(1, 0));
+        Assert.Equal("Set", table.Cell(1, 0));
+    }
+
+    // Verifies that a hyperlink that points inside the document (a bookmark) or has no target is no link.
+    [Fact]
+    public void ReadDocx_AnInternalHyperlink_IsNoLink()
+    {
+        byte[] file = Zip(("word/document.xml",
+            "<w:document " + WordNamespace + "><w:body><w:tbl>" +
+            Row(Cell("Song") + "<w:tc><w:p><w:hyperlink w:anchor=\"bookmark1\"><w:r><w:t>Jump</w:t></w:r></w:hyperlink></w:p></w:tc>") +
+            "</w:tbl></w:body></w:document>"));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Null(table.Hyperlink(0, 1));
+        Assert.Equal("Jump", table.Cell(0, 1));
+    }
+
+    // Verifies that a Word file that the app writes has real hyperlinks (relationships), so that Word and the reader of the app both see them.
+    [Fact]
+    public void WrittenWordFile_HasHyperlinkRelationships()
+    {
+        byte[] file = TrackedSongsTransfer.Write(
+            new[] { new TrackedSong("A", "B", "www.example.com/x"), new TrackedSong("C", "D"), new TrackedSong("E", "F", "javascript:alert(1)") },
+            TrackedSongsFormat.Docx);
+
+        using System.IO.Compression.ZipArchive zip = new(new MemoryStream(file));
+        using StreamReader reader = new(zip.GetEntry("word/_rels/document.xml.rels")!.Open());
+        string relationships = reader.ReadToEnd();
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Docx);
+
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(relationships, "Target="));
+        Assert.Contains("https://www.example.com/x", relationships);
+        Assert.Equal("https://www.example.com/x", table.Hyperlink(1, 2));
+        Assert.Null(table.Hyperlink(2, 2));
+        Assert.Null(table.Hyperlink(3, 2));
+        Assert.Equal("javascript:alert(1)", table.Cell(3, 2));
+    }
+
+    // ---- hyperlinks of an Excel sheet ----
+
+    // Verifies a sheet with hyperlinks (the address is in the relationships of the sheet) and the function HYPERLINK.
+    [Fact]
+    public void ReadXlsx_Hyperlinks_GiveTheAddress()
+    {
+        byte[] file = Zip(
+            ("xl/workbook.xml", """<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"""),
+            ("xl/_rels/workbook.xml.rels", """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>"""),
+            ("xl/worksheets/_rels/sheet1.xml.rels", """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://www.youtube.com/watch?v=abc" TargetMode="External"/></Relationships>"""),
+            ("xl/worksheets/sheet1.xml",
+                """<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData>""" +
+                """<row r="1"><c r="A1" t="inlineStr"><is><t>Titel</t></is></c><c r="B1" t="inlineStr"><is><t>Interpret</t></is></c><c r="C1" t="inlineStr"><is><t>Quelle</t></is></c></row>""" +
+                """<row r="2"><c r="A2" t="inlineStr"><is><t>Song A</t></is></c><c r="B2" t="inlineStr"><is><t>Artist A</t></is></c><c r="C2" t="inlineStr"><is><t>YouTube</t></is></c></row>""" +
+                """<row r="3"><c r="A3" t="inlineStr"><is><t>Song B</t></is></c><c r="B3" t="inlineStr"><is><t>Artist B</t></is></c><c r="C3" t="str"><f>HYPERLINK("https://soundcloud.com/x/set","SoundCloud")</f><v>SoundCloud</v></c></row>""" +
+                """<row r="4"><c r="A4" t="inlineStr"><is><t>Song C</t></is></c><c r="B4" t="inlineStr"><is><t>Artist C</t></is></c></row>""" +
+                """</sheetData><hyperlinks><hyperlink ref="C2" r:id="rId5"/></hyperlinks></worksheet>"""));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Xlsx);
+        TrackedSongsImport import = TrackedSongsTransfer.SongsFromTable(table, table.GuessColumns());
+
+        Assert.Equal(
+            new[]
+            {
+                new TrackedSong("Song A", "Artist A", "https://www.youtube.com/watch?v=abc"),
+                new TrackedSong("Song B", "Artist B", "https://soundcloud.com/x/set"),
+                new TrackedSong("Song C", "Artist C")
+            },
+            import.Songs);
+    }
+
+    // Verifies that a hyperlink of a merged range (an artist's page for several songs) counts for every row of it.
+    [Fact]
+    public void ReadXlsx_AHyperlinkInAMergedRange_CountsForEveryRow()
+    {
+        byte[] file = Zip(
+            ("xl/workbook.xml", """<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"""),
+            ("xl/_rels/workbook.xml.rels", """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>"""),
+            ("xl/worksheets/_rels/sheet1.xml.rels", """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/set" TargetMode="External"/></Relationships>"""),
+            ("xl/worksheets/sheet1.xml",
+                """<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData>""" +
+                """<row r="1"><c r="A1" t="inlineStr"><is><t>Song 1</t></is></c><c r="B1" t="inlineStr"><is><t>Set</t></is></c></row>""" +
+                """<row r="2"><c r="A2" t="inlineStr"><is><t>Song 2</t></is></c></row>""" +
+                """</sheetData><mergeCells count="1"><mergeCell ref="B1:B2"/></mergeCells><hyperlinks><hyperlink ref="B1" r:id="rId5"/></hyperlinks></worksheet>"""));
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Xlsx);
+
+        Assert.Equal("https://example.com/set", table.Hyperlink(0, 1));
+        Assert.Equal("https://example.com/set", table.Hyperlink(1, 1));
+    }
+
     // ---- merged cells of an Excel sheet ----
 
     private static byte[] Sheet(string rows, string merges = "") =>

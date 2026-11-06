@@ -31,9 +31,30 @@ public sealed class ImportTable
     // A column of numbers (a numbering "1", "2.", "#3") is not what is looked for.
     private static readonly Regex NumberLike = new(@"^[\s#]*\d+[.)]?\s*$", RegexOptions.Compiled);
 
-    public ImportTable(IReadOnlyList<IReadOnlyList<string>> rows)
+    /// <param name="rows">The texts of the cells.</param>
+    /// <param name="hyperlinks">
+    /// The addresses that the cells link to, where they do (a Word or Excel cell with a text and a hyperlink behind it): the same shape as
+    /// <paramref name="rows"/>, null for a cell without one; null when the table has none at all.
+    /// </param>
+    public ImportTable(IReadOnlyList<IReadOnlyList<string>> rows, IReadOnlyList<IReadOnlyList<string?>>? hyperlinks = null)
     {
         Rows = rows;
+        Hyperlinks = hyperlinks;
+    }
+
+    public IReadOnlyList<IReadOnlyList<string?>>? Hyperlinks { get; }
+
+    /// <summary>The address behind the text of a cell (a hyperlink of Word or Excel), or null.</summary>
+    public string? Hyperlink(int row, int column)
+    {
+        if (Hyperlinks is null || row < 0 || row >= Hyperlinks.Count || column < 0 || column >= Hyperlinks[row].Count)
+        {
+            return null;
+        }
+
+        string? address = Hyperlinks[row][column];
+
+        return string.IsNullOrWhiteSpace(address) ? null : address.Trim();
     }
 
     public IReadOnlyList<IReadOnlyList<string>> Rows { get; }
@@ -110,22 +131,14 @@ public sealed class ImportTable
         return new ImportColumnChoice(title, artist, hasHeader, link);
     }
 
-    // The first column in which most of the cells that have something in them look like an address.
+    // The column of the links. First one in which most of the cells that have something in them look like an address; else (a Word table
+    // with a column of short texts - "Link", "YouTube" - that each have a hyperlink behind them) the last column in which most of the
+    // cells have a hyperlink and the texts are short: a column of titles that are all links is not meant.
     private int? FindLinkColumn(int firstDataRow, int columns)
     {
         for (int column = 0; column < columns; column++)
         {
-            List<string> values = new();
-
-            for (int row = firstDataRow; row < Rows.Count; row++)
-            {
-                string cell = Cell(row, column);
-
-                if (!string.IsNullOrWhiteSpace(cell))
-                {
-                    values.Add(cell);
-                }
-            }
+            List<string> values = ValuesOfColumn(column, firstDataRow);
 
             if (values.Count > 0 && values.Count(TrackedSongLinks.LooksLikeLink) * 5 >= values.Count * 3)
             {
@@ -133,8 +146,42 @@ public sealed class ImportTable
             }
         }
 
-        return null;
+        int? byHyperlink = null;
+
+        for (int column = 0; column < columns; column++)
+        {
+            List<string> values = ValuesOfColumn(column, firstDataRow);
+            int linked = Enumerable.Range(firstDataRow, Math.Max(0, Rows.Count - firstDataRow)).Count(row => Hyperlink(row, column) is not null);
+
+            if (values.Count > 0 && linked * 5 >= values.Count * 3 && values.Average(value => value.Trim().Length) <= ShortLinkTextLength)
+            {
+                byHyperlink = column;
+            }
+        }
+
+        return byHyperlink;
     }
+
+    // The texts of the cells of a column that have something in them (below the header).
+    private List<string> ValuesOfColumn(int column, int firstDataRow)
+    {
+        List<string> values = new();
+
+        for (int row = firstDataRow; row < Rows.Count; row++)
+        {
+            string cell = Cell(row, column);
+
+            if (!string.IsNullOrWhiteSpace(cell))
+            {
+                values.Add(cell);
+            }
+        }
+
+        return values;
+    }
+
+    // A text like "Link", "Quelle", "YouTube", "SoundCloud set 2": not a title.
+    private const int ShortLinkTextLength = 18;
 
     private bool LooksLikeText(int column, int firstDataRow)
     {

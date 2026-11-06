@@ -75,7 +75,14 @@ internal static class TrackedSongsXlsx
     }
 
     /// <exception cref="FormatException">The content is not an Excel workbook.</exception>
-    public static IReadOnlyList<IReadOnlyList<string>> ReadRows(byte[] content)
+    public static IReadOnlyList<IReadOnlyList<string>> ReadRows(byte[] content) => ReadTable(content).Rows;
+
+    /// <summary>
+    /// The first sheet with the text of every cell and the address behind it where the cell has a hyperlink (a hyperlink of the sheet, or
+    /// the function HYPERLINK).
+    /// </summary>
+    /// <exception cref="FormatException">The content is not an Excel workbook.</exception>
+    public static ImportTable ReadTable(byte[] content)
     {
         try
         {
@@ -85,7 +92,9 @@ internal static class TrackedSongsXlsx
             string sheetPath = FindFirstSheet(zip);
             List<string> sharedStrings = ReadSharedStrings(zip);
             XDocument sheet = Load(zip, sheetPath) ?? throw new FormatException("The sheet is missing.");
+            Dictionary<(int Row, int Column), string> linkOfCell = ReadSheetHyperlinks(zip, sheetPath, sheet);
             List<List<string>> rows = new();
+            List<List<string?>> hyperlinks = new();
 
             // Rows that are not in the file at all are empty rows and left out; the number a row has in the sheet (the "r" of the
             // merged ranges) is kept for each one that is there.
@@ -97,6 +106,7 @@ internal static class TrackedSongsXlsx
                 sheetRow = (int?)row.Attribute("r") ?? sheetRow + 1;
                 indexOfSheetRow[sheetRow] = rows.Count;
                 List<string> cells = new();
+                List<string?> links = new();
 
                 foreach (XElement cell in row.Elements(Main + "c"))
                 {
@@ -105,20 +115,28 @@ internal static class TrackedSongsXlsx
                     while (cells.Count < column)
                     {
                         cells.Add(string.Empty);
+                        links.Add(null);
                     }
 
                     if (cells.Count == column)
                     {
                         cells.Add(CellText(cell, sharedStrings));
+                        links.Add(
+                            linkOfCell.TryGetValue((sheetRow, column), out string? target)
+                                ? target
+                                : AddressOfFunction((string?)cell.Element(Main + "f")));
                     }
                 }
 
                 rows.Add(cells);
+                hyperlinks.Add(links);
             }
 
-            FillMergedCells(sheet, rows, indexOfSheetRow);
+            FillMergedCells(sheet, rows, indexOfSheetRow, hyperlinks);
 
-            return rows.Select(row => (IReadOnlyList<string>)row).ToList();
+            return new ImportTable(
+                rows.Select(row => (IReadOnlyList<string>)row).ToList(),
+                hyperlinks.Select(row => (IReadOnlyList<string?>)row).ToList());
         }
         catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException or FormatException or InvalidOperationException)
         {
@@ -126,10 +144,78 @@ internal static class TrackedSongsXlsx
         }
     }
 
+    // The hyperlinks of the sheet by cell (sheet row, column): the "ref" of a hyperlink (a cell or a range) and the address in the
+    // relationships of the sheet.
+    private static Dictionary<(int Row, int Column), string> ReadSheetHyperlinks(ZipArchive zip, string sheetPath, XDocument sheet)
+    {
+        Dictionary<(int Row, int Column), string> result = new();
+        int slash = sheetPath.LastIndexOf('/');
+        string relationshipsPath = sheetPath[..(slash + 1)] + "_rels/" + sheetPath[(slash + 1)..] + ".rels";
+        XDocument? relationships = Load(zip, relationshipsPath);
+
+        if (relationships is null)
+        {
+            return result;
+        }
+
+        Dictionary<string, string> targets = relationships.Descendants(PackageRel + "Relationship")
+            .Where(relation => ((string?)relation.Attribute("Type") ?? string.Empty).EndsWith("/hyperlink", StringComparison.OrdinalIgnoreCase))
+            .Where(relation => relation.Attribute("Id") is not null && relation.Attribute("Target") is not null)
+            .ToDictionary(relation => (string)relation.Attribute("Id")!, relation => (string)relation.Attribute("Target")!, StringComparer.Ordinal);
+
+        foreach (XElement hyperlink in sheet.Descendants(Main + "hyperlink"))
+        {
+            string? id = (string?)hyperlink.Attribute(Rel + "id");
+            string[] ends = ((string?)hyperlink.Attribute("ref") ?? string.Empty).Split(':');
+
+            if (id is null || !targets.TryGetValue(id, out string? target) || string.IsNullOrWhiteSpace(target) ||
+                !TryParseCellReference(ends[0], out int firstRow, out int firstColumn))
+            {
+                continue;
+            }
+
+            int lastRow = firstRow;
+            int lastColumn = firstColumn;
+
+            if (ends.Length == 2 && TryParseCellReference(ends[1], out int endRow, out int endColumn))
+            {
+                lastRow = endRow;
+                lastColumn = endColumn;
+            }
+
+            // (A range of a few cells; a whole column or sheet is not meant to be walked.)
+            for (int row = firstRow; row <= Math.Min(lastRow, firstRow + 2000); row++)
+            {
+                for (int column = firstColumn; column <= Math.Min(lastColumn, firstColumn + 50); column++)
+                {
+                    result[(row, column)] = target.Trim();
+                }
+            }
+        }
+
+        return result;
+    }
+
+    // The function HYPERLINK("https://...", "text") of a cell: the address.
+    private static string? AddressOfFunction(string? formula)
+    {
+        if (string.IsNullOrWhiteSpace(formula))
+        {
+            return null;
+        }
+
+        System.Text.RegularExpressions.Match match = HyperlinkFunction.Match(formula);
+
+        return match.Success ? match.Groups[1].Value.Trim() : null;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex HyperlinkFunction =
+        new(@"^\s*=?\s*HYPERLINK\(\s*""([^""]+)""", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     // Excel keeps the value of a merged range in its top left cell only; the other cells of the range are empty in the file. A range
     // merged downwards (an artist with several songs) counts for every row it spans, so the value is put into the cells under it.
     // A range that spans several columns keeps its value in the first column; the columns behind stay as they are.
-    private static void FillMergedCells(XDocument sheet, List<List<string>> rows, Dictionary<int, int> indexOfSheetRow)
+    private static void FillMergedCells(XDocument sheet, List<List<string>> rows, Dictionary<int, int> indexOfSheetRow, List<List<string?>> hyperlinks)
     {
         foreach (XElement merge in sheet.Descendants(Main + "mergeCell"))
         {
@@ -145,6 +231,7 @@ internal static class TrackedSongsXlsx
             }
 
             string text = rows[firstIndex][column];
+            string? link = hyperlinks[firstIndex][column];
 
             for (int row = firstRow + 1; row <= lastRow; row++)
             {
@@ -155,13 +242,16 @@ internal static class TrackedSongsXlsx
                 }
 
                 List<string> cells = rows[index];
+                List<string?> links = hyperlinks[index];
 
                 while (cells.Count <= column)
                 {
                     cells.Add(string.Empty);
+                    links.Add(null);
                 }
 
                 cells[column] = text;
+                links[column] = link;
             }
         }
     }

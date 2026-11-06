@@ -12,7 +12,14 @@ namespace ReleaseUpdaterGui
 {
     public sealed class UnreleasedSongsForm : AppForm, IUnreleasedSongsView
     {
+        // The columns are read by name, not by position (the user can drag the headers).
+        private const string TitleColumnName = "colTitle";
+        private const string ArtistColumnName = "colArtist";
+        private const string LinkColumnName = "colLink";
+        private const int LinkColumnWidth = 52;
+
         private static readonly Size ActionIconButtonSize = new(48, 34);
+        private static readonly Font LinkFont = new("Segoe UI Symbol", 10f);
 
         private readonly UnreleasedSongsController controller;
         private readonly BindingList<TrackedSongRow> rows = new();
@@ -25,6 +32,9 @@ namespace ReleaseUpdaterGui
         private Button btnImport = null!;
         private Button btnPaste = null!;
         private Button btnExport = null!;
+
+        // True while the code (not the user) moves the columns: that is not saved as the user's choice.
+        private bool applyingColumnOrder;
 
         public UnreleasedSongsForm(
             TrackedSongsStore songsStore,
@@ -181,19 +191,19 @@ namespace ReleaseUpdaterGui
             dataGridView.ColumnHeadersHeight = 32;
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colTitle",
+                Name = TitleColumnName,
                 DataPropertyName = nameof(TrackedSongRow.Title),
                 HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnTitle)
             });
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colArtist",
+                Name = ArtistColumnName,
                 DataPropertyName = nameof(TrackedSongRow.Artist),
                 HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnArtist)
             });
 
-            // The link of a song: no text in the list (it would make it wide), one small button per row. It is not bound to a property:
-            // CellPainting draws the symbol - the VALUE of the cell is the link itself, so that copying the cell copies the address and not a
+            // The link of a song: no text in the list (it would make it wide), one small button per row. It is bound to the link, but its text is
+            // never shown: CellPainting draws the symbol - the VALUE of the cell is the link itself, so that copying the cell copies the address and not a
             // symbol. A double click opens the link (or asks for one when there is none), Ctrl + double click changes it (a right click is
             // the grid's own, it has a menu).
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
@@ -207,7 +217,7 @@ namespace ReleaseUpdaterGui
             });
             // The header of the column says which clicks do what (the tooltip of the header cell).
             dataGridView.Columns[LinkColumnName]!.HeaderCell.ToolTipText = AppLocalization.Get(AppStrings.UnreleasedLinkHeaderTooltip);
-            dataGridView.CellFormatting += DataGridView_LinkCellFormatting;
+            dataGridView.CellFormatting += UpdateLinkTooltip;
             dataGridView.CellPainting += DataGridView_LinkCellPainting;
             dataGridView.CellMouseDoubleClick += DataGridView_LinkCellMouseDoubleClick;
             dataGridView.DataSource = rows;
@@ -256,7 +266,6 @@ namespace ReleaseUpdaterGui
             // (Asked for after the grid has laid itself out: only then does it know whether it shows the bar.)
             dataGridView.RowsAdded += (_, _) => ApplyFixedColumnWidthsAfterLayout();
             dataGridView.RowsRemoved += (_, _) => ApplyFixedColumnWidthsAfterLayout();
-            ApplyFixedColumnWidths();
 
             // Two rows: the progress bar (as high as the buttons beside it) and the buttons, and below them the status line
             // over the whole width - a text that is too long for it moves back and forth instead of being cut.
@@ -341,15 +350,8 @@ namespace ReleaseUpdaterGui
             ApplyFixedColumnWidths();
         }
 
-        private const string LinkColumnName = "colLink";
-        private const int LinkColumnWidth = 52;
-
-        private static readonly Font LinkFont = new("Segoe UI Symbol", 10f);
-
-        private bool applyingColumnOrder;
-
         // The tooltip of the small button of a row says what a double click does (the text of the cell is not touched: it is the link).
-        private void DataGridView_LinkCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+        private void UpdateLinkTooltip(object? sender, DataGridViewCellFormattingEventArgs e)
         {
             if (!IsSongRow(e.RowIndex) || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
             {
@@ -461,7 +463,7 @@ namespace ReleaseUpdaterGui
         }
 
         private bool IsArtistFirst() =>
-            dataGridView.Columns["colArtist"]!.DisplayIndex < dataGridView.Columns["colTitle"]!.DisplayIndex;
+            dataGridView.Columns[ArtistColumnName]!.DisplayIndex < dataGridView.Columns[TitleColumnName]!.DisplayIndex;
 
         // Puts the Artist column before or behind the Title column (the delete column stays pinned at the right).
         private void ApplyColumnOrder(bool artistFirst, bool keep)
@@ -472,7 +474,7 @@ namespace ReleaseUpdaterGui
             {
                 if (IsArtistFirst() != artistFirst)
                 {
-                    dataGridView.Columns["colArtist"]!.DisplayIndex = artistFirst ? 0 : 1;
+                    dataGridView.Columns[ArtistColumnName]!.DisplayIndex = artistFirst ? 0 : 1;
                 }
             }
             finally

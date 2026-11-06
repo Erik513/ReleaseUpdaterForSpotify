@@ -84,10 +84,17 @@ internal static class TrackedSongsXlsx
             string sheetPath = FindFirstSheet(zip);
             List<string> sharedStrings = ReadSharedStrings(zip);
             XDocument sheet = Load(zip, sheetPath) ?? throw new FormatException("The sheet is missing.");
-            List<IReadOnlyList<string>> rows = new();
+            List<List<string>> rows = new();
+
+            // Rows that are not in the file at all are empty rows and left out; the number a row has in the sheet (the "r" of the
+            // merged ranges) is kept for each one that is there.
+            Dictionary<int, int> indexOfSheetRow = new();
+            int sheetRow = 0;
 
             foreach (XElement row in sheet.Descendants(Main + "row"))
             {
+                sheetRow = (int?)row.Attribute("r") ?? sheetRow + 1;
+                indexOfSheetRow[sheetRow] = rows.Count;
                 List<string> cells = new();
 
                 foreach (XElement cell in row.Elements(Main + "c"))
@@ -108,12 +115,76 @@ internal static class TrackedSongsXlsx
                 rows.Add(cells);
             }
 
-            return rows;
+            FillMergedCells(sheet, rows, indexOfSheetRow);
+
+            return rows.Select(row => (IReadOnlyList<string>)row).ToList();
         }
         catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException or FormatException or InvalidOperationException)
         {
             throw new FormatException("The file is not an Excel workbook.", ex);
         }
+    }
+
+    // Excel keeps the value of a merged range in its top left cell only; the other cells of the range are empty in the file. A range
+    // merged downwards (an artist with several songs) counts for every row it spans, so the value is put into the cells under it.
+    // A range that spans several columns keeps its value in the first column; the columns behind stay as they are.
+    private static void FillMergedCells(XDocument sheet, List<List<string>> rows, Dictionary<int, int> indexOfSheetRow)
+    {
+        foreach (XElement merge in sheet.Descendants(Main + "mergeCell"))
+        {
+            string[] ends = ((string?)merge.Attribute("ref") ?? string.Empty).Split(':');
+
+            if (ends.Length != 2 ||
+                !TryParseCellReference(ends[0], out int firstRow, out int column) ||
+                !TryParseCellReference(ends[1], out int lastRow, out _) ||
+                !indexOfSheetRow.TryGetValue(firstRow, out int firstIndex) ||
+                column >= rows[firstIndex].Count)
+            {
+                continue;
+            }
+
+            string text = rows[firstIndex][column];
+
+            for (int row = firstRow + 1; row <= lastRow; row++)
+            {
+                // (A row that is not in the file has no cells at all: nothing to fill.)
+                if (!indexOfSheetRow.TryGetValue(row, out int index))
+                {
+                    continue;
+                }
+
+                List<string> cells = rows[index];
+
+                while (cells.Count <= column)
+                {
+                    cells.Add(string.Empty);
+                }
+
+                cells[column] = text;
+            }
+        }
+    }
+
+    // "B7" -> row 7, column 1 (the first column is 0).
+    private static bool TryParseCellReference(string reference, out int row, out int column)
+    {
+        row = 0;
+        column = 0;
+        int letters = 0;
+
+        while (letters < reference.Length && char.IsLetter(reference[letters]))
+        {
+            letters++;
+        }
+
+        if (letters == 0 || !int.TryParse(reference.AsSpan(letters), out row) || row < 1)
+        {
+            return false;
+        }
+
+        column = ColumnIndex(reference, 0);
+
+        return true;
     }
 
     private static XElement BuildRow(int number, string title, string artist, int style) =>

@@ -228,6 +228,110 @@ public sealed class TrackedSongsTransferTests
         Assert.Equal(new[] { "", "Song 2", "Artist 2" }, new[] { table.Cell(1, 0), table.Cell(1, 1), table.Cell(1, 2) });
     }
 
+    // ---- merged cells of an Excel sheet ----
+
+    private static byte[] Sheet(string rows, string merges = "") =>
+        Zip(
+            ("xl/workbook.xml", """<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>"""),
+            ("xl/_rels/workbook.xml.rels", """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>"""),
+            ("xl/worksheets/sheet1.xml",
+                "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>" + rows + "</sheetData>" + merges + "</worksheet>"));
+
+    private static string XlsxCell(string reference, string text) =>
+        text.Length == 0 ? "" : "<c r=\"" + reference + "\" t=\"inlineStr\"><is><t>" + text + "</t></is></c>";
+
+    private static string XlsxRow(int number, params string[] texts) =>
+        "<row r=\"" + number + "\">" + string.Concat(texts.Select((text, column) => XlsxCell((char)('A' + column) + number.ToString(), text))) + "</row>";
+
+    // Verifies that a range merged downwards (an artist with several songs) counts for every row it spans.
+    [Fact]
+    public void ReadXlsx_FillsDownAMergedRange()
+    {
+        byte[] file = Sheet(
+            XlsxRow(1, "Artist", "Title") +
+            XlsxRow(2, "Artist A", "Song 1") +
+            XlsxRow(3, "", "Song 2") +
+            XlsxRow(4, "", "Song 3") +
+            XlsxRow(5, "Artist B", "Song 4"),
+            "<mergeCells count=\"1\"><mergeCell ref=\"A2:A4\"/></mergeCells>");
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Xlsx);
+
+        Assert.Equal(new[] { "Artist", "Artist A", "Artist A", "Artist A", "Artist B" }, Enumerable.Range(0, 5).Select(row => table.Cell(row, 0)));
+        Assert.Equal(
+            new[] { "Song 1", "Song 2", "Song 3", "Song 4" },
+            TrackedSongsTransfer.SongsFromTable(table, table.GuessColumns()).Songs.Select(song => song.Title));
+        Assert.All(
+            TrackedSongsTransfer.SongsFromTable(table, table.GuessColumns()).Songs.Take(3),
+            song => Assert.Equal("Artist A", song.Artist));
+    }
+
+    // Verifies that a merged range uses the real row numbers of the sheet, also when empty rows in front of it are not in the file.
+    [Fact]
+    public void ReadXlsx_UsesTheRowNumbersOfTheSheet_ForMergedRanges()
+    {
+        byte[] file = Sheet(
+            XlsxRow(3, "Artist A", "Song 1") +
+            XlsxRow(4, "", "Song 2") +
+            XlsxRow(7, "Artist B", "Song 3"),
+            "<mergeCells count=\"1\"><mergeCell ref=\"A3:A4\"/></mergeCells>");
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Xlsx);
+
+        // (The first rows of the sheet are empty and left out: the table begins with the first row that has something in it.)
+        Assert.Equal(3, table.Rows.Count);
+        Assert.Equal(new[] { "Artist A", "Artist A", "Artist B" }, Enumerable.Range(0, 3).Select(row => table.Cell(row, 0)));
+    }
+
+    // Verifies that a merged range over a row that is not in the file at all does not create anything (and does not crash).
+    [Fact]
+    public void ReadXlsx_AMergedRangeOverMissingRows_IsHarmless()
+    {
+        byte[] file = Sheet(
+            XlsxRow(1, "Artist A", "Song 1") +
+            XlsxRow(4, "", "Song 4"),
+            "<mergeCells count=\"2\"><mergeCell ref=\"A1:A4\"/><mergeCell ref=\"Z9:Z12\"/></mergeCells>");
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Xlsx);
+
+        Assert.Equal(2, table.Rows.Count);
+        Assert.Equal("Artist A", table.Cell(1, 0));
+    }
+
+    // Verifies that a range merged to the right leaves the columns behind it in their own column.
+    [Fact]
+    public void ReadXlsx_ARangeMergedToTheRight_KeepsTheColumnsBehindItAligned()
+    {
+        byte[] file = Sheet(
+            "<row r=\"1\">" + XlsxCell("A1", "Heading") + XlsxCell("C1", "Year") + "</row>" +
+            "<row r=\"2\">" + XlsxCell("A2", "Song") + XlsxCell("B2", "Artist") + XlsxCell("C2", "2020") + "</row>",
+            "<mergeCells count=\"1\"><mergeCell ref=\"A1:B1\"/></mergeCells>");
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Xlsx);
+
+        Assert.Equal(new[] { "Heading", "", "Year" }, new[] { table.Cell(0, 0), table.Cell(0, 1), table.Cell(0, 2) });
+        Assert.Equal(new[] { "Song", "Artist", "2020" }, new[] { table.Cell(1, 0), table.Cell(1, 1), table.Cell(1, 2) });
+    }
+
+    // Verifies that nonsense in a merged range (a broken reference) is ignored instead of making the import fail.
+    [Theory]
+    [InlineData("")]
+    [InlineData("A2")]
+    [InlineData("A:A")]
+    [InlineData("2:4")]
+    [InlineData("A0:A3")]
+    public void ReadXlsx_IgnoresABrokenMergeReference(string reference)
+    {
+        byte[] file = Sheet(
+            XlsxRow(1, "Artist A", "Song 1") + XlsxRow(2, "", "Song 2"),
+            "<mergeCells count=\"1\"><mergeCell ref=\"" + reference + "\"/></mergeCells>");
+
+        ImportTable table = TrackedSongsTransfer.ReadTable(file, TrackedSongsFormat.Xlsx);
+
+        Assert.Equal(2, table.Rows.Count);
+        Assert.Equal(string.Empty, table.Cell(1, 0));
+    }
+
     // Verifies that files that are not what their ending says are refused, not crashed on.
     [Theory]
     [InlineData(TrackedSongsFormat.Xlsx)]

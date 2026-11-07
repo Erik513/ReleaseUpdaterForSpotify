@@ -507,6 +507,39 @@ otepad.exe")]
         Assert.Equal(new[] { new TrackedSong("Song A", "Artist A") }, merged);
     }
 
+    // Verifies that a table copied from Word (the clipboard has its HTML next to the text) brings the address behind a hyperlink along:
+    // the text says only "YT" (the column of the links is found by its hyperlinks: most cells have one).
+    [Fact]
+    public void Paste_OfATableFromWord_TakesTheHyperlinkFromTheHtml()
+    {
+        string html = "<!--StartFragment--><table>"
+            + "<tr><td>Platform</td><td>Name</td><td>Original Artists</td></tr>"
+            + "<tr><td><a href='https://youtu.be/abc'>YT</a></td><td>Song A</td><td>Artist A</td></tr>"
+            + "<tr><td><a href='https://youtu.be/def'>YT</a></td><td>Song B</td><td>Artist B</td></tr>"
+            + "</table><!--EndFragment-->";
+
+        IReadOnlyList<TrackedSong>? merged = CreateController().PasteSongs(
+            "Platform	Name	Original Artists",
+            Array.Empty<TrackedSong>(),
+            html);
+
+        Assert.Equal(
+            new[] { new TrackedSong("Song A", "Artist A", "https://youtu.be/abc"), new TrackedSong("Song B", "Artist B", "https://youtu.be/def") },
+            merged);
+    }
+
+    // Verifies that a paste with HTML but without a table in it (text copied from a web page) falls back to the plain text.
+    [Fact]
+    public void Paste_WithHtmlThatHasNoTable_UsesTheText()
+    {
+        IReadOnlyList<TrackedSong>? merged = CreateController().PasteSongs(
+            "Song A	Artist A",
+            Array.Empty<TrackedSong>(),
+            "<html><body><p>Song A Artist A</p></body></html>");
+
+        Assert.Equal(new[] { new TrackedSong("Song A", "Artist A") }, merged);
+    }
+
     // Verifies that a table copied from Excel or Word (tabs, one line per row, a numbering column) can be pasted.
     [Fact]
     public void Paste_OfACopiedTable_AsksForTheColumns_AndAddsTheSongs()

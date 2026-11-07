@@ -264,6 +264,60 @@ public sealed class WindowRenderTests
         });
     }
 
+    // Verifies that an import or a paste can be undone: the list is as it was before, the list is kept at once (also after the undo), and
+    // no cell is selected after either (the grid would select the first one when it is filled).
+    [Fact]
+    public void UnreleasedSongsForm_AnImportCanBeUndone_AndLeavesNoCellSelected()
+    {
+        RunOnStaThread(() =>
+        {
+            const System.Reflection.BindingFlags nonPublic = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            string directory = Path.Combine(Path.GetTempPath(), "SpotifyReleaseTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+
+            try
+            {
+                ReleaseUpdater.Data.Storage.TrackedSongsStore store = new(new ReleaseUpdater.Data.Storage.AppDataPaths(directory));
+                FakeUnreleasedReportWriter reportWriter = new();
+                using UnreleasedSongsForm form = new(
+                    store,
+                    reportWriter,
+                    new ReleaseUpdater.Core.Services.UnreleasedSongChecker(new FakeGateway(), reportWriter),
+                    new FakeSettingsStore());
+                using Bitmap warmUp = UITesting.Render(form);
+                DataGridView grid = (DataGridView)typeof(UnreleasedSongsForm).GetField("dataGridView", nonPublic)!.GetValue(form)!;
+                System.Reflection.MethodInfo showSongs = typeof(UnreleasedSongsForm).GetMethod("ShowSongs", nonPublic)!;
+                System.Reflection.MethodInfo undo = typeof(UnreleasedSongsForm).GetMethod("UndoImport", nonPublic)!;
+
+                List<string> Titles() => Enumerable.Range(0, grid.Rows.Count)
+                    .Where(row => !grid.Rows[row].IsNewRow)
+                    .Select(row => (string)grid.Rows[row].Cells["colTitle"].Value)
+                    .ToList();
+
+                showSongs.Invoke(form, new object[] { new[] { new ReleaseUpdater.Core.Models.TrackedSong("Old", "A") } });
+                showSongs.Invoke(form, new object[] { new[] { new ReleaseUpdater.Core.Models.TrackedSong("New 1", "B"), new ReleaseUpdater.Core.Models.TrackedSong("New 2", "C") } });
+
+                Assert.Equal(new[] { "New 1", "New 2" }, Titles());
+                Assert.Null(grid.CurrentCell);
+                Assert.Equal(new[] { "New 1", "New 2" }, store.Load().Select(song => song.Title));
+
+                undo.Invoke(form, null);
+
+                Assert.Equal(new[] { "Old" }, Titles());
+                Assert.Null(grid.CurrentCell);
+                Assert.Equal(new[] { "Old" }, store.Load().Select(song => song.Title));
+
+                // (One step only: a second undo changes nothing.)
+                undo.Invoke(form, null);
+                Assert.Equal(new[] { "Old" }, Titles());
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        });
+    }
+
     // Verifies that the empty row at the end of the list has no link: not when it is waiting, and not while it is being filled (the list
     // has an item for it then, but it is still the "new" row of the grid); a row that is a song has one.
     [Fact]

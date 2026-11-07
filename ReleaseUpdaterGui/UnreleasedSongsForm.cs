@@ -387,9 +387,9 @@ namespace ReleaseUpdaterGui
             e.Paint(e.ClipBounds, DataGridViewPaintParts.All & ~DataGridViewPaintParts.ContentForeground);
 
             bool hasLink = !string.IsNullOrWhiteSpace(rows[e.RowIndex].Link);
-            Color color = hasLink
-                ? ErikwnkWFUI.Styles.UIColors.TextPrimary
-                : Blend(ErikwnkWFUI.Styles.UIColors.TextPrimary, e.CellStyle!.BackColor, 0.7);
+            // (The text color of the cell, not a fixed one: the grid dims it while a search runs, and the symbol dims with it.)
+            Color text = e.CellStyle!.ForeColor;
+            Color color = hasLink ? text : Blend(text, e.CellStyle.BackColor, 0.7);
 
             TextRenderer.DrawText(
                 e.Graphics!,

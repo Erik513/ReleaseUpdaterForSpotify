@@ -116,9 +116,13 @@ namespace ReleaseUpdaterGui
                 {
                     // (A cell with a hyperlink behind its text is marked: the text may only say "YouTube", the address is what is used.)
                     string text = table.Cell(row, column) + (table.Hyperlink(row, column) is null ? string.Empty : " ↗");
+
+                    // One line per cell: a text that is too long moves back and forth while the mouse is not over it (the library's way, as
+                    // in the status line) - it must not wrap into a second line, which makes the cell stand out of its row.
+                    ErikwnkWFUI.Controls.LabelScroll scroll = ErikwnkWFUI.Controls.LabelScroll.BackAndForth(pauseOnHover: true);
                     Label cell = row == 0 && hasHeader
-                        ? UIStyles.Labels.CreateMuted(text)
-                        : UIStyles.Labels.CreateStandard(text);
+                        ? UIStyles.Labels.CreateMuted(text, scroll: scroll)
+                        : UIStyles.Labels.CreateStandard(text, scroll: scroll);
                     cell.Dock = DockStyle.Fill;
                     cell.TextAlign = ContentAlignment.MiddleLeft;
                     cell.Margin = new Padding(6, 0, 6, 0);

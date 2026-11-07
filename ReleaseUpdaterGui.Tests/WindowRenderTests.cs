@@ -85,7 +85,7 @@ public sealed class WindowRenderTests
             {
                 new[] { "Nr", "Titel", "Jahr", "Interpret" },
                 new[] { "1", "Some Song", "2020", "Some Artist" },
-                new[] { "2", "Another Song With A Rather Long Title", "2021", "Another Artist" }
+                new[] { "2", "Timeless (&ME and Rampa / Keinemusik Remix) - Extended Mix With A Very Long Name", "2021", "Another Artist" }
             });
 
             using ImportColumnsForm form = new(table);

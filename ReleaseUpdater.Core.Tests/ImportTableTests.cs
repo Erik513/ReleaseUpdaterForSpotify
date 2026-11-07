@@ -197,6 +197,45 @@ public sealed class ImportTableTests
         Assert.Equal("https://youtu.be/abc?a=1&b=2", table.Hyperlink(0, 0));
     }
 
+    // Verifies the cells as real Excel puts them on the clipboard (copied from Excel 2026-11-07): the copied part starts inside the table
+    // (before the column widths), and the attribute of a link may stand on a line of its own.
+    [Fact]
+    public void ParseClipboardHtml_ReadsWhatExcelPutsOnTheClipboard()
+    {
+        string html = """
+<table border=0 cellpadding=0 cellspacing=0 width=240>
+<!--StartFragment-->
+ <col width=80 span=3 style='width:60pt'>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 width=80 style='height:15.0pt;width:60pt'>Platform</td>
+  <td width=80 style='width:60pt'>Name</td>
+  <td width=80 style='width:60pt'>Original Artists</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl64 style='height:15.0pt'><a
+  href="https://youtu.be/abc?a=1&amp;b=2">YT</a></td>
+  <td>One (ID Version)</td>
+  <td>Axwell</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl64 style='height:15.0pt'><a href="https://youtu.be/def">YT</a></td>
+  <td>Go Back</td>
+  <td>Presi On, Kuuda</td>
+ </tr>
+<!--EndFragment-->
+</table>
+""";
+
+        ImportTable? table = TrackedSongsTransfer.ParseClipboardHtml(html);
+
+        Assert.NotNull(table);
+        Assert.Equal(3, table!.Rows.Count);
+        Assert.Equal("Presi On, Kuuda", table.Cell(2, 2));
+        Assert.Equal("https://youtu.be/abc?a=1&b=2", table.Hyperlink(1, 0));
+        Assert.Equal("https://youtu.be/def", table.Hyperlink(2, 0));
+        Assert.Null(table.Hyperlink(1, 1));
+    }
+
     // Verifies that the clipboard without a table (or without anything) gives no table, so that the plain text is used.
     [Theory]
     [InlineData(null)]

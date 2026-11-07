@@ -28,6 +28,7 @@ namespace ReleaseUpdaterGui
         private static readonly Size ActionIconButtonSize = new(48, 34);
         private const int PropertyIconColumnWidth = 54;
         private const int PropertyRowHeight = 34;
+        private const int DescriptionLines = 3;
 
         private readonly AppDataPaths dataPaths;
         private readonly JsonSettingsStore settingsStore;
@@ -63,7 +64,7 @@ namespace ReleaseUpdaterGui
         private ComboBox cmbLanguage = null!;
         private ErikwnkWFUI.Controls.LockableTextBox txtPlaylistName = null!;
         private NumericUpDown numLookbackDays = null!;
-        private TextBox txtPlaylistDescription = null!;
+        private ErikwnkWFUI.Controls.LockableTextBox txtPlaylistDescription = null!;
         private ErikwnkWFUI.Controls.LockableTextBox txtSpotifyClientId = null!;
 
         private SymbolToggle btnLogin = null!;
@@ -747,7 +748,7 @@ namespace ReleaseUpdaterGui
 
         private bool IsSettingEditActive()
         {
-            return !txtPlaylistName.IsLocked || !txtSpotifyClientId.IsLocked;
+            return !txtPlaylistName.IsLocked || !txtPlaylistDescription.IsLocked || !txtSpotifyClientId.IsLocked;
         }
 
         private static Color GetClientIdStatusColor(

@@ -91,6 +91,7 @@ public static class AppStrings
     public const string ControllerToastOpeningReport = "Controller.ToastOpeningReport";
     public const string ControllerCouldNotOpenReportFormat = "Controller.CouldNotOpenReportFormat";
     public const string ControllerToastPlaylistNameSaved = "Controller.ToastPlaylistNameSaved";
+    public const string ControllerToastPlaylistDescriptionSaved = "Controller.ToastPlaylistDescriptionSaved";
     public const string ControllerToastClientIdSaved = "Controller.ToastClientIdSaved";
     public const string ControllerInvalidClientIdMessage = "Controller.InvalidClientIdMessage";
     public const string ControllerClientIdRequiredForLoginMessage = "Controller.ClientIdRequiredForLoginMessage";
@@ -336,6 +337,7 @@ public static class AppStrings
         [ControllerToastOpeningReport] = "Opening HTML report.",
         [ControllerCouldNotOpenReportFormat] = "Could not open the report: {0}",
         [ControllerToastPlaylistNameSaved] = "Playlist name saved.",
+        [ControllerToastPlaylistDescriptionSaved] = "Playlist description saved.",
         [ControllerToastClientIdSaved] = "Spotify Client ID saved.",
         [ControllerInvalidClientIdMessage] = "Spotify Client ID must be 32 hexadecimal characters. Do not enter a Client Secret.",
         [ControllerClientIdRequiredForLoginMessage] = "Please enter and save your Spotify Client ID before signing in or updating the playlist.",
@@ -554,6 +556,7 @@ public static class AppStrings
         [ControllerToastOpeningReport] = "HTML-Bericht wird geöffnet.",
         [ControllerCouldNotOpenReportFormat] = "Der Bericht konnte nicht geöffnet werden: {0}",
         [ControllerToastPlaylistNameSaved] = "Playlist-Name gespeichert.",
+        [ControllerToastPlaylistDescriptionSaved] = "Playlist-Beschreibung gespeichert.",
         [ControllerToastClientIdSaved] = "Spotify Client-ID gespeichert.",
         [ControllerInvalidClientIdMessage] = "Die Spotify Client-ID muss aus 32 hexadezimalen Zeichen bestehen. Gib kein Client Secret ein.",
         [ControllerClientIdRequiredForLoginMessage] = "Bitte gib deine Spotify Client-ID ein und speichere sie, bevor du dich anmeldest oder die Playlist aktualisierst.",

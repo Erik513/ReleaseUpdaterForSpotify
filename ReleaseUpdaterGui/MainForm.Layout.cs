@@ -84,12 +84,17 @@ namespace ReleaseUpdaterGui
             txtPlaylistName.EditCancelled += (_, _) => SetPlaylistNameError(null);
             txtPlaylistName.LockedChanged += EditBox_LockedChanged;
 
-            // Always editable (a free text, nothing that must be checked); saved a moment after the last key, like the number box.
-            txtPlaylistDescription = UIStyles.TextBoxes.CreatePrimary(
+            // A box of three lines, locked like the name (Enter is a new line, Ctrl + Enter or the check mark accepts, Escape gives the
+            // old text back). A free text: nothing that must be checked, so there is no EditAccepting.
+            txtPlaylistDescription = UIStyles.TextBoxes.CreateLockableMultiline(
                 string.Empty,
-                AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionPlaceholder));
+                AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionPlaceholder),
+                lines: DescriptionLines,
+                locked: true,
+                colors: UIStyles.Colors.Sets.Primary);
             txtPlaylistDescription.MaxLength = ReleaseDefaults.MaxPlaylistDescriptionLength;
-            txtPlaylistDescription.TextChanged += SettingsControl_Changed;
+            txtPlaylistDescription.EditAccepted += (_, _) => controller.PlaylistDescriptionAccepted();
+            txtPlaylistDescription.LockedChanged += EditBox_LockedChanged;
             spotifyAuthToolTip.SetToolTip(
                 txtPlaylistDescription,
                 AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionTooltip));
@@ -233,7 +238,7 @@ namespace ReleaseUpdaterGui
                 PropertyColumn.Percent(txtPlaylistName, 100));
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowPlaylistDescription),
-                PropertyRowHeight,
+                Math.Max(PropertyRowHeight, txtPlaylistDescription.Height + 8),
                 PropertyColumn.Percent(txtPlaylistDescription, 100));
             propertyTable.AddRow(
                 () => AppLocalization.Get(AppStrings.MainFormRowLookbackDays),

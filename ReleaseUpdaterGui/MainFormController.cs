@@ -310,6 +310,15 @@ namespace ReleaseUpdaterGui
             }
         }
 
+        /// <summary>The playlist description was accepted (the box is locked): it is saved. (Nothing to check: any text up to the length of the box.)</summary>
+        public void PlaylistDescriptionAccepted()
+        {
+            if (SaveSettings(showValidationMessage: false))
+            {
+                view.ShowToast(AppLocalization.Get(AppStrings.ControllerToastPlaylistDescriptionSaved));
+            }
+        }
+
         /// <summary>Whether the Client ID in the box may be accepted; when not, the box shows why and stays open.</summary>
         public bool CanAcceptSpotifyClientId() => ValidateSpotifyClientId(showMessage: true);
 

@@ -15,11 +15,8 @@ namespace ReleaseUpdaterGui
         // The columns are read by name, not by position (the user can drag the headers).
         private const string TitleColumnName = "colTitle";
         private const string ArtistColumnName = "colArtist";
-        private const string LinkColumnName = "colLink";
-        private const int LinkColumnWidth = 52;
 
         private static readonly Size ActionIconButtonSize = new(48, 34);
-        private static readonly Font LinkFont = new("Segoe UI Symbol", 10f);
 
         private readonly UnreleasedSongsController controller;
         private readonly BindingList<TrackedSongRow> rows = new();
@@ -209,25 +206,14 @@ namespace ReleaseUpdaterGui
                 FillWeight = 50
             });
 
-            // The link of a song: no text in the list (it would make it wide), one small button per row. It is bound to the link, but its text is
-            // never shown: CellPainting draws the symbol - the VALUE of the cell is the link itself, so that copying the cell copies the address and not a
-            // symbol. A double click opens the link (or asks for one when there is none), Ctrl + double click changes it (a right click is
-            // the grid's own, it has a menu).
-            dataGridView.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = LinkColumnName,
-                DataPropertyName = nameof(TrackedSongRow.Link),
-                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnLink),
-                ReadOnly = true,
-                SortMode = DataGridViewColumnSortMode.NotSortable,
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
-                Width = LinkColumnWidth
-            });
-            // The header of the column says which clicks do what (the tooltip of the header cell).
-            dataGridView.Columns[LinkColumnName]!.HeaderCell.ToolTipText = AppLocalization.Get(AppStrings.UnreleasedLinkHeaderTooltip);
-            dataGridView.CellFormatting += UpdateLinkTooltip;
-            dataGridView.CellPainting += DataGridView_LinkCellPainting;
-            dataGridView.CellMouseDoubleClick += DataGridView_LinkCellMouseDoubleClick;
+            // The link of a song: one small button per row (see UnreleasedLinkColumn for what it does).
+            dataGridView.Columns.Add(UnreleasedLinkColumn.CreateColumn(nameof(TrackedSongRow.Link)));
+            new UnreleasedLinkColumn(
+                dataGridView,
+                IsSongRow,
+                rowIndex => rows[rowIndex].Link,
+                rowIndex => AskForLink(rows[rowIndex], rowIndex),
+                controller.OpenLink).Attach();
             dataGridView.DataSource = rows;
 
             // Cast needed since UIStyles.DataGridViews.CreateStandard()
@@ -235,7 +221,7 @@ namespace ReleaseUpdaterGui
             // ShowDeleteRowColumn only exists on ErikwnkWFUI's own subclass.
             ErikwnkWFUI.Controls.DataGridView libraryGrid = (ErikwnkWFUI.Controls.DataGridView)dataGridView;
             libraryGrid.ShowDeleteRowColumn = true;
-            libraryGrid.SetColumnReorderable(dataGridView.Columns[LinkColumnName]!.Index, false);
+            libraryGrid.SetColumnReorderable(dataGridView.Columns[UnreleasedLinkColumn.Name]!.Index, false);
 
             // The library grid resizes and reorders its columns itself and
             // ignores the standard DataGridViewColumn.Resizable. This form
@@ -355,49 +341,6 @@ namespace ReleaseUpdaterGui
 
         }
 
-        // The tooltip of the small button of a row says what a double click does (the text of the cell is not touched: it is the link).
-        private void UpdateLinkTooltip(object? sender, DataGridViewCellFormattingEventArgs e)
-        {
-            if (!IsSongRow(e.RowIndex) || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
-            {
-                return;
-            }
-
-            string? link = rows[e.RowIndex].Link;
-            bool hasLink = !string.IsNullOrWhiteSpace(link);
-
-            dataGridView[e.ColumnIndex, e.RowIndex].ToolTipText = hasLink
-                ? AppLocalization.Get(AppStrings.UnreleasedLinkTooltipOpenFormat, link!.Trim())
-                : AppLocalization.Get(AppStrings.UnreleasedLinkTooltipAdd);
-        }
-
-        // The small button of a row: the symbol of a link, bright when the song has one and dim when not. The cell is painted without its text
-        // (the address) and the symbol is drawn over it, so the cell keeps the link as its value.
-        private void DataGridView_LinkCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
-        {
-            if (!IsSongRow(e.RowIndex) || e.ColumnIndex < 0 || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
-            {
-                return;
-            }
-
-            e.Paint(e.ClipBounds, DataGridViewPaintParts.All & ~DataGridViewPaintParts.ContentForeground);
-
-            bool hasLink = !string.IsNullOrWhiteSpace(rows[e.RowIndex].Link);
-            // (The text color of the cell, not a fixed one: the grid dims it while a search runs, and the symbol dims with it.)
-            Color text = e.CellStyle!.ForeColor;
-            Color color = hasLink ? text : Blend(text, e.CellStyle.BackColor, 0.7);
-
-            TextRenderer.DrawText(
-                e.Graphics!,
-                UIStyles.Symbols.Link,
-                LinkFont,
-                e.CellBounds,
-                color,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
-
-            e.Handled = true;
-        }
-
         // A row that is a song: not the header, not the empty row at the end of the list - also not while that row is being filled: the list has
         // an item for it then, but it is still the row "new" of the grid - and one with a title or an artist in it. Only such a row has a link.
         private bool IsSongRow(int rowIndex)
@@ -410,38 +353,6 @@ namespace ReleaseUpdaterGui
             TrackedSongRow row = rows[rowIndex];
 
             return !string.IsNullOrWhiteSpace(row.Title) || !string.IsNullOrWhiteSpace(row.Artist);
-        }
-
-        private static Color Blend(Color from, Color to, double toShare) =>
-            Color.FromArgb(
-                (int)(from.R + ((to.R - from.R) * toShare)),
-                (int)(from.G + ((to.G - from.G) * toShare)),
-                (int)(from.B + ((to.B - from.B) * toShare)));
-
-        private void DataGridView_LinkCellMouseDoubleClick(object? sender, DataGridViewCellMouseEventArgs e)
-        {
-            // (Not the header, and not the empty row at the end of the list.)
-            if (!IsSongRow(e.RowIndex) || dataGridView.Columns[e.ColumnIndex].Name != LinkColumnName)
-            {
-                return;
-            }
-
-            TrackedSongRow row = rows[e.RowIndex];
-
-            if (e.Button != MouseButtons.Left)
-            {
-                return;
-            }
-
-            // A song without a link is asked for one; with a link, the double click opens it and Ctrl + double click changes it.
-            if (string.IsNullOrWhiteSpace(row.Link) || (ModifierKeys & Keys.Control) == Keys.Control)
-            {
-                AskForLink(row, e.RowIndex);
-            }
-            else
-            {
-                controller.OpenLink(row.Link);
-            }
         }
 
         // The window for the link of a song: a web address (the button in it takes an existing link away at once).
@@ -507,20 +418,15 @@ namespace ReleaseUpdaterGui
 
         private void BtnImport_Click(object? sender, EventArgs e)
         {
-            using OpenFileDialog dialog = new()
-            {
-                Title = AppLocalization.Get(AppStrings.UnreleasedImport),
-                Filter = GetFileFilter(includeCombined: true),
-                CheckFileExists = true
-            };
+            string? path = UnreleasedFileDialogs.AskImportPath(this);
 
-            if (dialog.ShowDialog(this) != DialogResult.OK)
+            if (path is null)
             {
                 return;
             }
 
             // (Rows that are still being typed are part of the list, so they are kept.)
-            ShowSongs(controller.ImportSongs(dialog.FileName, GetCurrentSongs()));
+            ShowSongs(controller.ImportSongs(path, GetCurrentSongs()));
         }
 
         private void PasteFromClipboard()
@@ -624,31 +530,12 @@ namespace ReleaseUpdaterGui
 
         private void BtnExport_Click(object? sender, EventArgs e)
         {
-            using SaveFileDialog dialog = new()
-            {
-                Title = AppLocalization.Get(AppStrings.UnreleasedExport),
-                Filter = GetFileFilter(includeCombined: false),
-                DefaultExt = "docx",
-                AddExtension = true,
-                FileName = "unreleased-songs",
-                OverwritePrompt = true
-            };
+            string? path = UnreleasedFileDialogs.AskExportPath(this);
 
-            if (dialog.ShowDialog(this) == DialogResult.OK)
+            if (path is not null)
             {
-                controller.ExportSongs(GetCurrentSongs(), dialog.FileName);
+                controller.ExportSongs(GetCurrentSongs(), path);
             }
-        }
-
-        // Word first (the default of a save), then Excel, CSV and JSON; an open dialog can also show all of them at once.
-        private static string GetFileFilter(bool includeCombined)
-        {
-            string songs = AppLocalization.Get(AppStrings.UnreleasedFileFilterSongs);
-            string filter = "Word (*.docx)|*.docx|Excel (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv|JSON (*.json)|*.json";
-
-            return includeCombined
-                ? songs + " (*.docx;*.xlsx;*.csv;*.json)|*.docx;*.xlsx;*.csv;*.json|" + filter
-                : filter;
         }
 
         private void BtnOpenReport_Click(object? sender, EventArgs e)

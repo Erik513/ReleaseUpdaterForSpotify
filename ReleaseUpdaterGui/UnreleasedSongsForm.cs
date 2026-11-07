@@ -578,6 +578,10 @@ namespace ReleaseUpdaterGui
             {
                 rows.Add(new TrackedSongRow { Title = song.Title, Artist = song.Artist, Link = TrackedSongLinks.Normalize(song.Link) });
             }
+
+            // (The grid selects the first cell when the list is filled; after an import nothing should look selected.)
+            dataGridView.CurrentCell = null;
+            dataGridView.ClearSelection();
         }
 
         // Keeps the list at once after an import or a link change, so that a crash does not lose it. A failure is not worth a message here:

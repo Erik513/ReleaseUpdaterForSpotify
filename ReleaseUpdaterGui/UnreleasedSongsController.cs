@@ -155,11 +155,14 @@ namespace ReleaseUpdaterGui
         /// returns <paramref name="current"/> with the new ones behind it. Null, after telling the user why, when there is nothing to add or
         /// the user cancels the choice of the columns.
         /// </summary>
-        public IReadOnlyList<TrackedSong>? PasteSongs(string? clipboardText, IReadOnlyList<TrackedSong> current)
+        public IReadOnlyList<TrackedSong>? PasteSongs(string? clipboardText, IReadOnlyList<TrackedSong> current, string? clipboardHtml = null)
         {
             orderOfImportedTable = null;
 
-            if (string.IsNullOrWhiteSpace(clipboardText))
+            // A table from Word or Excel comes as HTML too, and only that knows the address behind a hyperlink (the text has the words).
+            ImportTable? htmlTable = TrackedSongsTransfer.ParseClipboardHtml(clipboardHtml);
+
+            if (htmlTable is null && string.IsNullOrWhiteSpace(clipboardText))
             {
                 view.ShowInfo(
                     AppLocalization.Get(AppStrings.UnreleasedPasteNothing),
@@ -169,7 +172,7 @@ namespace ReleaseUpdaterGui
             }
 
             return Merge(
-                ReadChosenColumns(TrackedSongsTransfer.ParseClipboardText(clipboardText)),
+                ReadChosenColumns(htmlTable ?? TrackedSongsTransfer.ParseClipboardText(clipboardText!)),
                 current,
                 AppStrings.UnreleasedPasteNoSongs);
         }

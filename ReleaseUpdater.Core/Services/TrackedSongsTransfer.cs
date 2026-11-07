@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -132,6 +133,65 @@ public static class TrackedSongsTransfer
                     .Select(line => (IReadOnlyList<string>)line.Split(delimiter))
                     .ToList());
         }
+    }
+
+    private static readonly Regex HtmlRow = new(@"<tr\b[^>]*>(.*?)</tr\s*>", RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex HtmlCell = new(@"<t[dh]\b[^>]*>(.*?)</t[dh]\s*>", RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex HtmlLink = new(@"<a\b[^>]*?\bhref\s*=\s*(?:""([^""]*)""|'([^']*)'|([^\s>]+))", RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex HtmlTag = new(@"<[^>]*>", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+    private static readonly Regex HtmlComment = new(@"<!--(?!StartFragment|EndFragment).*?-->", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+    private static readonly Regex Whitespace = new(@"\s+", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The cells of a table that was copied from Word or Excel (the "HTML Format" of the clipboard), with the address behind the text
+    /// of a cell that is a hyperlink - the plain text of the clipboard has the words only. Null when there is no table in it.
+    /// </summary>
+    public static ImportTable? ParseClipboardHtml(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return null;
+        }
+
+        // The clipboard format has a header; the copied part stands between two comments.
+        int start = html.IndexOf("<!--StartFragment-->", StringComparison.Ordinal);
+        int end = html.IndexOf("<!--EndFragment-->", StringComparison.Ordinal);
+
+        if (start >= 0 && end > start)
+        {
+            html = html.Substring(start, end - start);
+        }
+
+        html = HtmlComment.Replace(html, string.Empty);
+
+        List<IReadOnlyList<string>> rows = new();
+        List<IReadOnlyList<string?>> links = new();
+
+        foreach (Match row in HtmlRow.Matches(html))
+        {
+            List<string> cells = new();
+            List<string?> cellLinks = new();
+
+            foreach (Match cell in HtmlCell.Matches(row.Groups[1].Value))
+            {
+                string inner = cell.Groups[1].Value;
+                Match link = HtmlLink.Match(inner);
+                string? address = link.Success
+                    ? System.Net.WebUtility.HtmlDecode(link.Groups[1].Success ? link.Groups[1].Value : link.Groups[2].Success ? link.Groups[2].Value : link.Groups[3].Value).Trim()
+                    : null;
+
+                cells.Add(Whitespace.Replace(System.Net.WebUtility.HtmlDecode(HtmlTag.Replace(inner, string.Empty)), " ").Trim());
+                cellLinks.Add(string.IsNullOrEmpty(address) ? null : address);
+            }
+
+            if (cells.Count > 0)
+            {
+                rows.Add(cells);
+                links.Add(cellLinks);
+            }
+        }
+
+        return rows.Count == 0 ? null : new ImportTable(rows, links);
     }
 
     /// <summary>The songs in the two columns that the user chose, without the header row when there is one.</summary>

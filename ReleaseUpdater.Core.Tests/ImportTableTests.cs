@@ -141,6 +141,72 @@ public sealed class ImportTableTests
         Assert.Equal("Artist B", table.Cell(1, 2));
     }
 
+    // Verifies a table copied from Word (the "HTML Format" of the clipboard): the address behind a hyperlink is found, the text of the
+    // cells is clean (no tags, entities decoded, line breaks folded), and what is outside the copied part is not read.
+    [Fact]
+    public void ParseClipboardHtml_ReadsCellsAndTheAddressBehindAHyperlink()
+    {
+        string nl = Environment.NewLine;
+        string html = "Version:1.0" + nl + "StartHTML:0000000105" + nl + "<html><body><table><tr><td>outside</td></tr></table>" + nl + "<!--StartFragment-->"
+            + "<table border=1><tr><td><p>Platform</p></td><td><p>Name</p></td></tr>"
+            + "<!--[if gte mso 9]><xml>conditional</xml><![endif]-->"
+            + "<tr><td><p><a href='https://youtu.be/abc?a=1&amp;b=2'><span style='color:blue'>YT</span></a></p></td><td><p>One (ID" + nl + " Version) &amp; more</p></td></tr>"
+            + "<tr><td>no link</td><td>Two</td></tr></table><!--EndFragment--></body></html>";
+
+        ImportTable? table = TrackedSongsTransfer.ParseClipboardHtml(html);
+
+        Assert.NotNull(table);
+        Assert.Equal(3, table!.Rows.Count);
+        Assert.Equal("YT", table.Cell(1, 0));
+        Assert.Equal("One (ID Version) & more", table.Cell(1, 1));
+        Assert.Equal("https://youtu.be/abc?a=1&b=2", table.Hyperlink(1, 0));
+        Assert.Null(table.Hyperlink(2, 0));
+        Assert.Null(table.Hyperlink(0, 0));
+    }
+
+    // Verifies a row as real Word puts it on the clipboard (copied from Word 2026-11-07): attributes in double quotes, the link around a part of
+    // the text, the empty <o:p> tags of Word.
+    [Fact]
+    public void ParseClipboardHtml_ReadsWhatWordPutsOnTheClipboard()
+    {
+        string html = """
+<!--StartFragment-->
+<table class=MsoNormalTable border=0 cellspacing=0 cellpadding=0 style='border-collapse:collapse;mso-table-layout-alt:fixed'>
+ <tr style='mso-yfti-irow:0;mso-yfti-firstrow:yes;mso-yfti-lastrow:yes'>
+  <td width=202 valign=top style='width:151.2pt'>
+  <p class=MsoNormal><a href="https://youtu.be/abc?a=1&amp;b=2">Y</a>T<o:p></o:p></p>
+  </td>
+  <td width=202 valign=top style='width:151.2pt'>
+  <p class=MsoNormal>One (ID Version)<o:p></o:p></p>
+  </td>
+  <td width=202 valign=top style='width:151.2pt'>
+  <p class=MsoNormal>Axwell<o:p></o:p></p>
+  </td>
+ </tr>
+</table>
+<!--EndFragment-->
+""";
+
+        ImportTable? table = TrackedSongsTransfer.ParseClipboardHtml(html);
+
+        Assert.NotNull(table);
+        Assert.Single(table!.Rows);
+        Assert.Equal("YT", table.Cell(0, 0));
+        Assert.Equal("One (ID Version)", table.Cell(0, 1));
+        Assert.Equal("Axwell", table.Cell(0, 2));
+        Assert.Equal("https://youtu.be/abc?a=1&b=2", table.Hyperlink(0, 0));
+    }
+
+    // Verifies that the clipboard without a table (or without anything) gives no table, so that the plain text is used.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("<html><body><p>just text</p></body></html>")]
+    public void ParseClipboardHtml_WithoutATable_GivesNull(string? html)
+    {
+        Assert.Null(TrackedSongsTransfer.ParseClipboardHtml(html));
+    }
+
     // Verifies that a cell with a line break (Excel puts it in quotes) stays one cell.
     [Fact]
     public void ParseClipboardText_KeepsQuotedCellsTogether()

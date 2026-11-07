@@ -526,10 +526,12 @@ namespace ReleaseUpdaterGui
         private void PasteFromClipboard()
         {
             string? text;
+            string? html = null;
 
             try
             {
                 text = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+                html = Clipboard.ContainsText(TextDataFormat.Html) ? Clipboard.GetText(TextDataFormat.Html) : null;
             }
             catch (System.Runtime.InteropServices.ExternalException)
             {
@@ -539,7 +541,7 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            ShowSongs(controller.PasteSongs(text, GetCurrentSongs()));
+            ShowSongs(controller.PasteSongs(text, GetCurrentSongs(), html));
         }
 
         // The list after an import or a paste (null: nothing changed).

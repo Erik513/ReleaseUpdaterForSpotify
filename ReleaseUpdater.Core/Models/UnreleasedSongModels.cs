@@ -9,7 +9,14 @@ namespace ReleaseUpdater.Core.Models;
 public sealed record TrackedSong(
     string Title,
     string Artist,
-    string? Link = null);
+    string? Link = null)
+{
+    /// <summary>True when there is something in the title or the artist (the blank row at the end of the list has nothing).</summary>
+    public bool HasContent => !string.IsNullOrWhiteSpace(Title) || !string.IsNullOrWhiteSpace(Artist);
+
+    /// <summary>True when both title and artist are filled in: only such a song can be searched for.</summary>
+    public bool IsComplete => !string.IsNullOrWhiteSpace(Title) && !string.IsNullOrWhiteSpace(Artist);
+}
 
 /// <summary>
 /// How closely a <see cref="SongMatchResult"/>'s <see cref="SongMatchResult.Match"/>

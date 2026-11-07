@@ -552,7 +552,7 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            undoSnapshot = GetCurrentSongs().Where(song => song.Title.Length > 0 || song.Artist.Length > 0).ToList();
+            undoSnapshot = GetCurrentSongs().Where(song => song.HasContent).ToList();
             SetStatus(lblStatus.Text + AppLocalization.Get(AppStrings.UnreleasedUndoHint));
             LoadRows(songs);
             SaveQuietly();
@@ -592,7 +592,7 @@ namespace ReleaseUpdaterGui
         {
             try
             {
-                controller.SaveSongs(GetCurrentSongs().Where(song => song.Title.Length > 0 || song.Artist.Length > 0).ToList());
+                controller.SaveSongs(GetCurrentSongs().Where(song => song.HasContent).ToList());
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -669,7 +669,7 @@ namespace ReleaseUpdaterGui
             // native "type here to add a row" placeholder always leaves one of
             // these at the end, and there's nothing useful to persist from it.
             IReadOnlyList<TrackedSong> songsToSave = GetCurrentSongs()
-                .Where(song => song.Title.Length > 0 || song.Artist.Length > 0)
+                .Where(song => song.HasContent)
                 .ToList();
 
             try

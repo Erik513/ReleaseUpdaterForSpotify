@@ -86,7 +86,7 @@ namespace ReleaseUpdaterGui
         {
             string title = AppLocalization.Get(AppStrings.UnreleasedFormTitle);
             List<TrackedSong> toExport = songs
-                .Where(song => !string.IsNullOrWhiteSpace(song.Title) || !string.IsNullOrWhiteSpace(song.Artist))
+                .Where(song => song.HasContent)
                 .Select(song => new TrackedSong(song.Title.Trim(), song.Artist.Trim(), TrackedSongLinks.Normalize(song.Link)))
                 .ToList();
 
@@ -234,7 +234,7 @@ namespace ReleaseUpdaterGui
             }
 
             List<TrackedSong> filled = current
-                .Where(song => !string.IsNullOrWhiteSpace(song.Title) || !string.IsNullOrWhiteSpace(song.Artist))
+                .Where(song => song.HasContent)
                 .ToList();
             ImportMode mode = ImportMode.Replace;
 
@@ -285,9 +285,7 @@ namespace ReleaseUpdaterGui
             }
 
             List<TrackedSong> validSongs = songs
-                .Where(song =>
-                    !string.IsNullOrWhiteSpace(song.Title) &&
-                    !string.IsNullOrWhiteSpace(song.Artist))
+                .Where(song => song.IsComplete)
                 .ToList();
 
             if (validSongs.Count == 0)

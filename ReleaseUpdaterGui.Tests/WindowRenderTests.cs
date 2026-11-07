@@ -211,6 +211,59 @@ public sealed class WindowRenderTests
         });
     }
 
+    // Verifies that the columns always fit the grid (Title and Artist fill what the others leave): no horizontal scroll bar, with few rows,
+    // with many (the vertical bar takes room) and after the window is made narrower.
+    [Fact]
+    public void UnreleasedSongsForm_ColumnsAlwaysFitTheGrid()
+    {
+        RunOnStaThread(() =>
+        {
+            const System.Reflection.BindingFlags nonPublic = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            string directory = Path.Combine(Path.GetTempPath(), "SpotifyReleaseTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+
+            try
+            {
+                FakeUnreleasedReportWriter reportWriter = new();
+                using UnreleasedSongsForm form = new(
+                    new ReleaseUpdater.Data.Storage.TrackedSongsStore(new ReleaseUpdater.Data.Storage.AppDataPaths(directory)),
+                    reportWriter,
+                    new ReleaseUpdater.Core.Services.UnreleasedSongChecker(new FakeGateway(), reportWriter),
+                    new FakeSettingsStore());
+                using Bitmap warmUp = UITesting.Render(form);
+                DataGridView grid = (DataGridView)typeof(UnreleasedSongsForm).GetField("dataGridView", nonPublic)!.GetValue(form)!;
+
+                void AssertFits(string when)
+                {
+                    int total = grid.Columns.Cast<DataGridViewColumn>().Where(column => column.Visible).Sum(column => column.Width);
+                    Assert.True(total <= grid.DisplayRectangle.Width, when + ": columns " + total + " wider than " + grid.DisplayRectangle.Width);
+                    Assert.True(Math.Abs(grid.Columns["colTitle"]!.Width - grid.Columns["colArtist"]!.Width) <= 1, when + ": unequal");
+                }
+
+                AssertFits("empty");
+
+                List<ReleaseUpdater.Core.Models.TrackedSong> songs = new();
+
+                for (int i = 0; i < 60; i++)
+                {
+                    songs.Add(new ReleaseUpdater.Core.Models.TrackedSong("Song " + i, "Artist " + i));
+                }
+
+                typeof(UnreleasedSongsForm).GetMethod("ShowSongs", nonPublic)!.Invoke(form, new object[] { songs });
+                using Bitmap many = UITesting.Render(form);
+                AssertFits("many rows");
+
+                form.ClientSize = new Size(form.ClientSize.Width - 120, form.ClientSize.Height);
+                using Bitmap narrow = UITesting.Render(form);
+                AssertFits("narrow");
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        });
+    }
+
     // Verifies that the empty row at the end of the list has no link: not when it is waiting, and not while it is being filled (the list
     // has an item for it then, but it is still the "new" row of the grid); a row that is a song has one.
     [Fact]

@@ -196,13 +196,17 @@ namespace ReleaseUpdaterGui
             {
                 Name = TitleColumnName,
                 DataPropertyName = nameof(TrackedSongRow.Title),
-                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnTitle)
+                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnTitle),
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+                FillWeight = 50
             });
             dataGridView.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = ArtistColumnName,
                 DataPropertyName = nameof(TrackedSongRow.Artist),
-                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnArtist)
+                HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnArtist),
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+                FillWeight = 50
             });
 
             // The link of a song: no text in the list (it would make it wide), one small button per row. It is bound to the link, but its text is
@@ -216,6 +220,7 @@ namespace ReleaseUpdaterGui
                 HeaderText = AppLocalization.Get(AppStrings.UnreleasedColumnLink),
                 ReadOnly = true,
                 SortMode = DataGridViewColumnSortMode.NotSortable,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
                 Width = LinkColumnWidth
             });
             // The header of the column says which clicks do what (the tooltip of the header cell).
@@ -234,9 +239,9 @@ namespace ReleaseUpdaterGui
 
             // The library grid resizes and reorders its columns itself and
             // ignores the standard DataGridViewColumn.Resizable. This form
-            // sizes its two columns by hand to fill the width
-            // (ApplyFixedColumnWidths), so the user must not drag their
-            // widths. The order of Title and Artist can be changed by
+            // splits the width between Title and Artist with AutoSizeMode.Fill
+            // (FillWeight 50 each; the grid keeps them right when a scroll bar
+            // comes and goes), so the user must not drag their widths. The order of Title and Artist can be changed by
             // dragging a header (the delete column stays pinned at the
             // right); the rows are read by column name, not by position.
             libraryGrid.AllowColumnResizing = false;
@@ -267,14 +272,6 @@ namespace ReleaseUpdaterGui
                     controller.SaveArtistFirst(IsArtistFirst());
                 }
             };
-
-            dataGridView.Resize += (_, _) => ApplyFixedColumnWidths();
-
-            // The vertical scroll bar appears (and goes) with the number of rows, and takes room from the width without the grid being
-            // resized: the columns have to follow, or they are wider than what is left and a horizontal scroll bar appears.
-            // (Asked for after the grid has laid itself out: only then does it know whether it shows the bar.)
-            dataGridView.RowsAdded += (_, _) => ApplyFixedColumnWidthsAfterLayout();
-            dataGridView.RowsRemoved += (_, _) => ApplyFixedColumnWidthsAfterLayout();
 
             // Two rows: the progress bar (as high as the buttons beside it) and the buttons, and below them the status line
             // over the whole width - a text that is too long for it moves back and forth instead of being cut.
@@ -356,7 +353,6 @@ namespace ReleaseUpdaterGui
 
             ContentPanel.Controls.Add(mainPanel);
 
-            ApplyFixedColumnWidths();
         }
 
         // The tooltip of the small button of a row says what a double click does (the text of the cell is not touched: it is the link).
@@ -494,67 +490,6 @@ namespace ReleaseUpdaterGui
             if (keep)
             {
                 controller.SaveArtistFirst(artistFirst);
-            }
-        }
-
-        private bool widthsPending;
-
-        private void ApplyFixedColumnWidthsAfterLayout()
-        {
-            if (widthsPending || !dataGridView.IsHandleCreated)
-            {
-                return;
-            }
-
-            widthsPending = true;
-
-            dataGridView.BeginInvoke(() =>
-            {
-                widthsPending = false;
-                ApplyFixedColumnWidths();
-            });
-        }
-
-        // AutoSizeColumnsMode.Fill (the usual way to split a grid's width
-        // between columns) left the column headers nearly invisible in this
-        // control, so the widths are recalculated by hand instead - a fixed
-        // 50/50 split, kept in sync with the grid's own size via its
-        // Resize event.
-        private void ApplyFixedColumnWidths()
-        {
-            if (dataGridView.Columns.Count < 2)
-            {
-                return;
-            }
-
-            // The delete-row column manages its own fixed width - only the
-            // Title/Artist split below needs to leave room for it.
-            int reservedWidth = ((ErikwnkWFUI.Controls.DataGridView)dataGridView).ShowDeleteRowColumn
-                ? ErikwnkWFUI.Controls.DataGridView.DeleteRowColumnWidth
-                : 0;
-
-            // The column of the link buttons has a width of its own, too.
-            reservedWidth += LinkColumnWidth;
-            // (The DisplayRectangle is the width that is left of the client area when a scroll bar is shown.)
-            int availableWidth = dataGridView.DisplayRectangle.Width - reservedWidth;
-
-            if (availableWidth <= 0)
-            {
-                return;
-            }
-
-            int firstColumnWidth = availableWidth / 2;
-            int secondColumnWidth = availableWidth - firstColumnWidth;
-
-            // (Only a change is set: setting a width lays the grid out again, which comes back here.)
-            if (dataGridView.Columns[0].Width != Math.Max(1, firstColumnWidth))
-            {
-                dataGridView.Columns[0].Width = Math.Max(1, firstColumnWidth);
-            }
-
-            if (dataGridView.Columns[1].Width != Math.Max(1, secondColumnWidth))
-            {
-                dataGridView.Columns[1].Width = Math.Max(1, secondColumnWidth);
             }
         }
 

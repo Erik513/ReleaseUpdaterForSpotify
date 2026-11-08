@@ -10,6 +10,7 @@ A small Windows app that keeps one Spotify playlist stocked with new releases fr
 - Checks every artist you follow for new albums and singles released within a configurable lookback window (1–20 days)
 - Also finds new tracks where a followed artist appears as a featured collaborator
 - Deduplicates everything it finds and replaces the contents of one **private** playlist you choose
+- Speaks English and German (the language box in the settings)
 - Writes a sortable HTML report of what was added, and what got skipped as a duplicate
 - Keeps a list of songs you are waiting for and checks Spotify for them (the search icon): titles and artists are matched loosely, so a typo, a "feat." or a "- Remastered" does not hide a release; every match is marked as confident or similar
 - Remembers where you found a waiting song: one link per row (double click opens it, Ctrl + double click changes it); only real web addresses are kept
@@ -27,10 +28,10 @@ The published build is self-contained: it bundles the .NET runtime, so there's n
 ## Getting started
 
 1. Download the latest release from the [Releases page](../../releases) and run `Release Updater for Spotify.exe`.
-2. Click the Client ID status indicator — it opens a short guide and copies the redirect URI you'll need.
+2. Click the status button at the top (the red one, while the Client ID is missing) — it opens a short guide and copies the redirect URI you'll need.
 3. Create a free app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), paste in the redirect URI, and copy the app's Client ID back into Release Updater for Spotify.
 4. Sign in with your Spotify account.
-5. Pick a playlist name and lookback window, then click **Update playlist**.
+5. Pick a playlist name and lookback window (and, if you like, a short description — the pencil unlocks a box until you confirm it), then press the green play button to update the playlist. The same button stops a run that is in progress.
 
 ## Why do I need my own Client ID?
 

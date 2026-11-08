@@ -15,11 +15,12 @@ public sealed record ReleaseCandidate(
 
 public sealed record ReleaseTrack(
     string Title,
-    string Artists,
+    IReadOnlyList<SpotifyArtist> Artists,
     string Uri,
     string SpotifyUrl,
     DateOnly ReleaseDate,
     string Album,
+    string AlbumId,
     ReleaseTrackSource Source,
     bool IsFollowedArtistTrack,
     string? AlbumImageUrl = null);

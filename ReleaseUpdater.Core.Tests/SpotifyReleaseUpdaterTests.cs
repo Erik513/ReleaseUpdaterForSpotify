@@ -61,6 +61,33 @@ public sealed class SpotifyReleaseUpdaterTests
         Assert.Single(reportWriter.LastDuplicateTracks);
     }
 
+    // Verifies that the description the user entered is what is written to the playlist, and that an empty one gives the automatic text.
+    [Theory]
+    [InlineData("  My own text  ", "My own text")]
+    [InlineData("", "Automatically generated playlist with releases from followed artists and collaborations from the last 7 days.")]
+    [InlineData(null, "Automatically generated playlist with releases from followed artists and collaborations from the last 7 days.")]
+    public async Task RunAsync_WritesTheDescriptionOfTheUser_OrTheAutomaticOne(string? entered, string expected)
+    {
+        SpotifyArtist artist = Artist("artist-1", "Artist One");
+        FakeSpotifyGateway spotify = new();
+        FakeSettingsStore settingsStore = Settings(new ReleaseSettings
+        {
+            PlaylistId = "playlist-1",
+            PlaylistName = "Target Playlist",
+            PlaylistDescription = entered,
+            ReleaseLookbackDays = 7
+        });
+        SpotifyReleaseUpdater updater = CreateUpdater(spotify, settingsStore, new FakeReportWriter());
+
+        spotify.FollowedArtists.Add(artist);
+        spotify.AddPlaylist(new SpotifyPlaylist("playlist-1", "Target Playlist", spotify.CurrentUser.Id));
+        spotify.AlbumsByArtistId[artist.Id] = new List<SpotifyAlbum>();
+
+        await updater.RunAsync(new ProgressRecorder(), CancellationToken.None);
+
+        Assert.Equal(expected, spotify.Descriptions.Single());
+    }
+
     // Verifies that an existing playlist is cleared when no current songs are found.
     [Fact]
     public async Task RunAsync_ClearsExistingPlaylistWhenNoSongsAreFound()
@@ -283,6 +310,43 @@ public sealed class SpotifyReleaseUpdaterTests
         Assert.Equal(0, spotify.CreatePlaylistCalls);
     }
 
+    // Verifies that an "appears_on" release's other tracks - by artists the user
+    // doesn't follow - don't get pulled in alongside the one that actually features
+    // the followed artist.
+    [Fact]
+    public async Task RunAsync_OnlyIncludesTracksThatActuallyFeatureTheFollowedArtist()
+    {
+        SpotifyArtist followedArtist = Artist("artist-1", "Followed Artist");
+        SpotifyArtist otherArtist = Artist("artist-2", "Unrelated Artist");
+        SpotifyAlbum compilation = Album("compilation-1", "Various Artists Compilation", Today.AddDays(-1));
+        FakeSpotifyGateway spotify = new();
+        SpotifyReleaseUpdater updater = CreateUpdater(
+            spotify,
+            Settings(new ReleaseSettings
+            {
+                PlaylistName = "Target Playlist",
+                ReleaseLookbackDays = 10
+            }),
+            new FakeReportWriter());
+
+        spotify.FollowedArtists.Add(followedArtist);
+        spotify.AlbumsByArtistId[followedArtist.Id] = new List<SpotifyAlbum> { compilation };
+        spotify.TracksByAlbumId[compilation.Id] = new List<SpotifyTrackItem>
+        {
+            Track("track-feature", "Featured Song", "spotify:track:feature", null, followedArtist),
+            Track("track-unrelated", "Unrelated Song", "spotify:track:unrelated", null, otherArtist)
+        };
+
+        PlaylistUpdateResult result = await updater.RunAsync(
+            new ProgressRecorder(),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.UniqueTrackCount);
+        Assert.Equal(
+            new[] { "spotify:track:feature" },
+            spotify.ReplacedTrackUris.Single());
+    }
+
     // Verifies that duplicate track detection survives casing and whitespace differences.
     [Fact]
     public async Task RunAsync_DeduplicatesTracksCaseInsensitivelyAndTrimsText()
@@ -455,6 +519,7 @@ public sealed class SpotifyReleaseUpdaterTests
         public Dictionary<string, List<SpotifyAlbum>> AlbumsByArtistId { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, List<SpotifyTrackItem>> TracksByAlbumId { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, List<SpotifyTrackItem>> SearchResultsByArtistName { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, List<SpotifyTrackItem>> SearchResultsByTitleArtist { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, SpotifyPlaylist> PlaylistsById { get; } = new(StringComparer.Ordinal);
         public List<SpotifyPlaylist> UserPlaylists { get; } = new();
         public List<string> AlbumTrackCalls { get; } = new();
@@ -510,10 +575,30 @@ public sealed class SpotifyReleaseUpdaterTests
 
         public Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksByArtistAsync(
             string artistName,
+            int fromYear,
+            int toYear,
             CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(
                 SearchResultsByArtistName.TryGetValue(artistName, out List<SpotifyTrackItem>? tracks)
+                    ? tracks
+                    : Array.Empty<SpotifyTrackItem>());
+        }
+
+        public Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksAsync(
+            string query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(Array.Empty<SpotifyTrackItem>());
+
+        public Task<IReadOnlyList<SpotifyTrackItem>> SearchTrackByTitleArtistAsync(
+            string title,
+            string artist,
+            CancellationToken cancellationToken)
+        {
+            string key = title + "|" + artist;
+
+            return Task.FromResult<IReadOnlyList<SpotifyTrackItem>>(
+                SearchResultsByTitleArtist.TryGetValue(key, out List<SpotifyTrackItem>? tracks)
                     ? tracks
                     : Array.Empty<SpotifyTrackItem>());
         }
@@ -530,12 +615,15 @@ public sealed class SpotifyReleaseUpdaterTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SpotifyPlaylist>>(UserPlaylists);
 
+        public List<string> Descriptions { get; } = new();
+
         public Task<string> CreatePlaylistAsync(
             string name,
             string description,
             CancellationToken cancellationToken)
         {
             CreatePlaylistCalls++;
+            Descriptions.Add(description);
             string playlistId = $"created-playlist-{CreatePlaylistCalls}";
             AddPlaylist(new SpotifyPlaylist(playlistId, name, CurrentUser.Id));
 
@@ -548,6 +636,8 @@ public sealed class SpotifyReleaseUpdaterTests
             string description,
             CancellationToken cancellationToken)
         {
+            Descriptions.Add(description);
+
             if (PlaylistsById.TryGetValue(playlistId, out SpotifyPlaylist? playlist))
             {
                 SpotifyPlaylist updatedPlaylist = playlist with { Name = name };
@@ -603,10 +693,13 @@ public sealed class SpotifyReleaseUpdaterTests
             {
                 PlaylistId = settings.PlaylistId,
                 PlaylistName = settings.PlaylistName,
+                PlaylistDescription = settings.PlaylistDescription,
                 ReleaseLookbackDays = settings.ReleaseLookbackDays,
                 CustomSpotifyClientId = settings.CustomSpotifyClientId,
                 SpotifyCooldownUntilUtc = settings.SpotifyCooldownUntilUtc,
-                SpotifyCooldownClientId = settings.SpotifyCooldownClientId
+                SpotifyCooldownClientId = settings.SpotifyCooldownClientId,
+                SpotifyCooldownAccountWide = settings.SpotifyCooldownAccountWide,
+                UnreleasedArtistFirst = settings.UnreleasedArtistFirst
             };
     }
 

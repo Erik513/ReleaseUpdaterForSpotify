@@ -1,4 +1,3 @@
-using System.Text.Json;
 using ReleaseUpdater.Core.Abstractions;
 using ReleaseUpdater.Core.Models;
 
@@ -6,12 +5,6 @@ namespace ReleaseUpdater.Data.Storage;
 
 public sealed class FileTokenStore : ISpotifyTokenStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-    };
-
     private readonly AppDataPaths paths;
 
     public FileTokenStore(AppDataPaths paths)
@@ -26,28 +19,14 @@ public sealed class FileTokenStore : ISpotifyTokenStore
     {
         paths.EnsureDirectory();
 
-        try
-        {
-            if (!File.Exists(paths.TokenPath))
-            {
-                return null;
-            }
-
-            string json = File.ReadAllText(paths.TokenPath);
-            return JsonSerializer.Deserialize<SpotifyToken>(json, JsonOptions);
-        }
-        catch
-        {
-            return null;
-        }
+        return JsonFile.TryRead<SpotifyToken>(paths.TokenPath);
     }
 
     public void Save(SpotifyToken token)
     {
         paths.EnsureDirectory();
 
-        string json = JsonSerializer.Serialize(token, JsonOptions);
-        AtomicFile.WriteAllText(paths.TokenPath, json);
+        JsonFile.Write(paths.TokenPath, token);
     }
 
     public void Clear()

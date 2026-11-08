@@ -23,10 +23,11 @@ public static class SpotifyRunPolicy
 
         return normalized.SpotifyCooldownUntilUtc is DateTimeOffset cooldownUntil &&
             cooldownUntil > now.ToUniversalTime() &&
-            string.Equals(
-                normalized.SpotifyCooldownClientId,
-                normalized.EffectiveSpotifyClientId,
-                StringComparison.OrdinalIgnoreCase);
+            (normalized.SpotifyCooldownAccountWide ||
+                string.Equals(
+                    normalized.SpotifyCooldownClientId,
+                    normalized.EffectiveSpotifyClientId,
+                    StringComparison.OrdinalIgnoreCase));
     }
 
     public static DateTimeOffset GetCooldownUntil(
@@ -47,7 +48,8 @@ public static class SpotifyRunPolicy
         ReleaseSettings settings,
         DateTimeOffset now,
         TimeSpan retryAfter,
-        bool ignoreCooldown = ReleaseDefaults.LogicTestModeEnabled)
+        bool ignoreCooldown = ReleaseDefaults.LogicTestModeEnabled,
+        bool quotaExceeded = false)
     {
         if (ignoreCooldown)
         {
@@ -62,6 +64,7 @@ public static class SpotifyRunPolicy
         }
 
         normalized.SpotifyCooldownClientId = normalized.EffectiveSpotifyClientId;
+        normalized.SpotifyCooldownAccountWide = quotaExceeded;
         normalized.SpotifyCooldownUntilUtc = GetCooldownUntil(
             normalized,
             now,

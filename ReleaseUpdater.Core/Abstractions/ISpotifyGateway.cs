@@ -19,6 +19,21 @@ public interface ISpotifyGateway
 
     Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksByArtistAsync(
         string artistName,
+        int fromYear,
+        int toYear,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SpotifyTrackItem>> SearchTrackByTitleArtistAsync(
+        string title,
+        string artist,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A search of free text (no title: / artist: fields): finds a track whatever the order of the words, and the spelling that Spotify
+    /// is lenient about. The tracks come as the search ranks them.
+    /// </summary>
+    Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksAsync(
+        string query,
         CancellationToken cancellationToken);
 
     Task<SpotifyPlaylist?> TryGetPlaylistAsync(

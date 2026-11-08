@@ -9,16 +9,21 @@ internal sealed class SpotifyApiRateLimiter
     private readonly Queue<DateTimeOffset> requestStarts = new();
     private readonly int robustRequestBudget;
     private readonly TimeSpan robustWindow;
-    private bool isRobustMode;
+    private readonly TimeSpan robustModeDecay;
+    private DateTimeOffset? robustModeExpiresAt;
 
     public SpotifyApiRateLimiter()
         : this(
             ReleaseDefaults.SpotifyRobustRequestBudget,
-            TimeSpan.FromSeconds(ReleaseDefaults.SpotifyRobustWindowSeconds))
+            TimeSpan.FromSeconds(ReleaseDefaults.SpotifyRobustWindowSeconds),
+            TimeSpan.FromSeconds(ReleaseDefaults.SpotifyRobustModeDecaySeconds))
     {
     }
 
-    public SpotifyApiRateLimiter(int robustRequestBudget, TimeSpan robustWindow)
+    public SpotifyApiRateLimiter(
+        int robustRequestBudget,
+        TimeSpan robustWindow,
+        TimeSpan robustModeDecay)
     {
         if (robustRequestBudget <= 0)
         {
@@ -34,21 +39,32 @@ internal sealed class SpotifyApiRateLimiter
                 "Rate-limit window must be greater than zero.");
         }
 
+        if (robustModeDecay <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(robustModeDecay),
+                "Robust-mode decay must be greater than zero.");
+        }
+
         this.robustRequestBudget = robustRequestBudget;
         this.robustWindow = robustWindow;
+        this.robustModeDecay = robustModeDecay;
     }
 
+    /// <summary>
+    /// Enters (or extends) robust mode. Every trip refreshes the decay window, so
+    /// throttling persists while errors keep happening but lapses on its own once
+    /// Spotify has been quiet for a while - it's not a one-way switch for the rest
+    /// of the run.
+    /// </summary>
     public bool EnableRobustMode()
     {
         lock (modeLock)
         {
-            if (isRobustMode)
-            {
-                return false;
-            }
-
-            isRobustMode = true;
-            return true;
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            bool wasActive = IsRobustModeActive(now);
+            robustModeExpiresAt = now + robustModeDecay;
+            return !wasActive;
         }
     }
 
@@ -95,8 +111,13 @@ internal sealed class SpotifyApiRateLimiter
     {
         lock (modeLock)
         {
-            return isRobustMode;
+            return IsRobustModeActive(DateTimeOffset.UtcNow);
         }
+    }
+
+    private bool IsRobustModeActive(DateTimeOffset now)
+    {
+        return robustModeExpiresAt is DateTimeOffset expiresAt && now < expiresAt;
     }
 
     private void RemoveExpiredRequests(DateTimeOffset now)

@@ -1,4 +1,6 @@
+using ErikwnkCore;
 using ReleaseUpdater.Core.Abstractions;
+using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
 
 namespace ReleaseUpdater.Core.Services;
@@ -36,7 +38,7 @@ public sealed class SpotifyReleaseUpdater
 
         ReleaseSettings settings = settingsStore.Load().Normalize();
 
-        ReportStatus(progress, "Loading followed artists");
+        ReportStatus(progress, AppLocalization.Get(AppStrings.CoreLoadingFollowedArtists));
         IReadOnlyList<SpotifyArtist> allArtists =
             await spotify.GetFollowedArtistsAsync(cancellationToken);
 
@@ -48,9 +50,9 @@ public sealed class SpotifyReleaseUpdater
             .Select(artist => artist.Id)
             .ToHashSet(StringComparer.Ordinal);
 
-        ReportMessage(progress, $"Followed artists: {allArtists.Count}");
-        ReportMessage(progress, $"Processed artists: {artists.Count}");
-        ReportMessage(progress, $"Lookback: last {settings.ReleaseLookbackDays} days");
+        ReportMessage(progress, AppLocalization.Get(AppStrings.CoreFollowedArtistsFormat, allArtists.Count));
+        ReportMessage(progress, AppLocalization.Get(AppStrings.CoreProcessedArtistsFormat, artists.Count));
+        ReportMessage(progress, AppLocalization.Get(AppStrings.CoreLookbackFormat, settings.ReleaseLookbackDays));
 
         IReadOnlyList<ReleaseCandidate> releases =
             await GetRecentReleasesAsync(
@@ -86,30 +88,43 @@ public sealed class SpotifyReleaseUpdater
         (IReadOnlyList<ReleaseTrack> uniqueTracks, IReadOnlyList<ReleaseTrack> duplicates) =
             RemoveDuplicateTracks(allTracks);
 
-        ReportMessage(progress, $"Found releases: {releases.Count}");
-        ReportMessage(progress, $"Found songs: {allTracks.Count}");
-        ReportMessage(progress, $"After duplicate filter: {uniqueTracks.Count}");
-        ReportMessage(progress, $"Duplicates: {duplicates.Count}");
+        ReportMessage(progress, AppLocalization.Get(AppStrings.CoreFoundReleasesFormat, releases.Count));
+        ReportMessage(progress, AppLocalization.Get(AppStrings.CoreFoundSongsFormat, allTracks.Count));
+        ReportMessage(progress, AppLocalization.Get(AppStrings.CoreAfterDuplicateFilterFormat, uniqueTracks.Count));
+        ReportMessage(progress, AppLocalization.Get(AppStrings.CoreDuplicatesFormat, duplicates.Count));
 
         if (uniqueTracks.Count == 0)
         {
-            ReportStatus(progress, "Checking playlist");
-            string? existingPlaylistId = await GetPlaylistIdAsync(
-                settings,
-                progress,
-                createIfMissing: false,
-                cancellationToken);
-
-            if (!string.IsNullOrWhiteSpace(existingPlaylistId))
+            // LogicTestModeEnabled is a compile-time toggle for local testing, so the
+            // compiler correctly (but harmlessly) flags whichever branch is currently
+            // dead as unreachable - the flip side lights back up the moment someone
+            // switches the constant to test the other path.
+#pragma warning disable CS0162
+            if (ReleaseDefaults.LogicTestModeEnabled)
             {
-                ReportStatus(progress, "Updating playlist");
-                await spotify.ReplacePlaylistTracksAsync(
-                    existingPlaylistId,
-                    Array.Empty<string>(),
-                    cancellationToken);
+                ReportMessage(progress, AppLocalization.Get(AppStrings.CoreTestModePlaylistNotModified));
             }
+            else
+            {
+                ReportStatus(progress, AppLocalization.Get(AppStrings.CoreCheckingPlaylist));
+                string? existingPlaylistId = await GetPlaylistIdAsync(
+                    settings,
+                    progress,
+                    createIfMissing: false,
+                    cancellationToken);
 
-            ReportStatus(progress, "No new songs");
+                if (!string.IsNullOrWhiteSpace(existingPlaylistId))
+                {
+                    ReportStatus(progress, AppLocalization.Get(AppStrings.CoreUpdatingPlaylist));
+                    await spotify.ReplacePlaylistTracksAsync(
+                        existingPlaylistId,
+                        Array.Empty<string>(),
+                        cancellationToken);
+                }
+            }
+#pragma warning restore CS0162
+
+            ReportStatus(progress, AppLocalization.Get(AppStrings.NoNewSongs));
             string reportPath = reportWriter.WriteReport(
                 uniqueTracks,
                 duplicates,
@@ -124,29 +139,39 @@ public sealed class SpotifyReleaseUpdater
                 reportPath);
         }
 
-        ReportStatus(progress, "Checking playlist");
-        string playlistId = await GetOrCreatePlaylistIdAsync(
-            settings,
-            progress,
-            cancellationToken);
+        // See the comment above the equivalent branch earlier in this method.
+#pragma warning disable CS0162
+        if (ReleaseDefaults.LogicTestModeEnabled)
+        {
+            ReportMessage(progress, AppLocalization.Get(AppStrings.CoreTestModePlaylistNotModified));
+        }
+        else
+        {
+            ReportStatus(progress, AppLocalization.Get(AppStrings.CoreCheckingPlaylist));
+            string playlistId = await GetOrCreatePlaylistIdAsync(
+                settings,
+                progress,
+                cancellationToken);
 
-        ReportStatus(progress, "Updating playlist");
-        await spotify.ReplacePlaylistTracksAsync(
-            playlistId,
-            uniqueTracks.Select(track => track.Uri).ToList(),
-            cancellationToken);
+            ReportStatus(progress, AppLocalization.Get(AppStrings.CoreUpdatingPlaylist));
+            await spotify.ReplacePlaylistTracksAsync(
+                playlistId,
+                uniqueTracks.Select(track => track.Uri).ToList(),
+                cancellationToken);
+        }
+#pragma warning restore CS0162
 
         string finalReportPath = reportWriter.WriteReport(
             uniqueTracks,
             duplicates,
             settings.ReleaseLookbackDays);
 
-        ReportStatus(progress, "Done");
+        ReportStatus(progress, AppLocalization.Get(AppStrings.Done));
         ReportMessage(
             progress,
             uniqueTracks.Count == 1
-                ? "Done. 1 song was added to the playlist."
-                : $"Done. {uniqueTracks.Count} songs were added to the playlist.");
+                ? AppLocalization.Get(AppStrings.CoreDoneSingularSong)
+                : AppLocalization.Get(AppStrings.CoreDoneMultipleSongsFormat, uniqueTracks.Count));
 
         return new PlaylistUpdateResult(
             artists.Count,
@@ -172,7 +197,7 @@ public sealed class SpotifyReleaseUpdater
 
         ReportMessage(
             progress,
-            $"Logic test mode: artists limited to {ReleaseDefaults.LogicTestArtistLimit}.");
+            AppLocalization.Get(AppStrings.CoreTestModeArtistsLimitedFormat, ReleaseDefaults.LogicTestArtistLimit));
 
         return artists
             .Take(ReleaseDefaults.LogicTestArtistLimit)
@@ -194,7 +219,7 @@ public sealed class SpotifyReleaseUpdater
 
         ReportMessage(
             progress,
-            $"Logic test mode: releases limited to {ReleaseDefaults.LogicTestReleaseLimit}.");
+            AppLocalization.Get(AppStrings.CoreTestModeReleasesLimitedFormat, ReleaseDefaults.LogicTestReleaseLimit));
 
         return releases
             .Take(ReleaseDefaults.LogicTestReleaseLimit)
@@ -213,14 +238,15 @@ public sealed class SpotifyReleaseUpdater
         List<ReleaseCandidate> releases = new();
         DateOnly cutoffDate = clock.Today.AddDays(-days);
 
-        ReportStatus(progress, "Searching releases");
+        string searchingReleasesStatus = AppLocalization.Get(AppStrings.SearchingReleases);
+        ReportStatus(progress, searchingReleasesStatus);
 
         for (int index = 0; index < artists.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             SpotifyArtist artist = artists[index];
-            ReportProgress(progress, "Searching releases", index + 1, artists.Count);
+            ReportProgress(progress, searchingReleasesStatus, index + 1, artists.Count);
 
             IReadOnlyList<SpotifyAlbum> albums =
                 await spotify.GetArtistAlbumsAsync(artist.Id, cancellationToken);
@@ -255,14 +281,15 @@ public sealed class SpotifyReleaseUpdater
     {
         List<ReleaseTrack> tracks = new();
 
-        ReportStatus(progress, "Loading songs");
+        string loadingSongsStatus = AppLocalization.Get(AppStrings.LoadingSongs);
+        ReportStatus(progress, loadingSongsStatus);
 
         for (int index = 0; index < releases.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             ReleaseCandidate release = releases[index];
-            ReportProgress(progress, "Loading songs", index + 1, releases.Count);
+            ReportProgress(progress, loadingSongsStatus, index + 1, releases.Count);
 
             IReadOnlyList<SpotifyTrackItem> albumTracks =
                 await spotify.GetAlbumTracksAsync(release.AlbumId, cancellationToken);
@@ -276,13 +303,23 @@ public sealed class SpotifyReleaseUpdater
                 bool isFollowedArtistTrack = trackArtistIds
                     .Any(followedArtistIds.Contains);
 
+                // An "appears_on" release can be someone else's album or a
+                // various-artists compilation with many tracks that don't involve
+                // the followed artist at all - only the ones that actually credit
+                // them belong in the playlist.
+                if (!isFollowedArtistTrack)
+                {
+                    continue;
+                }
+
                 tracks.Add(new ReleaseTrack(
                     track.Title,
-                    JoinArtistNames(track.Artists),
+                    track.Artists,
                     track.Uri,
                     track.SpotifyUrl,
                     release.ReleaseDate,
                     release.AlbumName,
+                    release.AlbumId,
                     ReleaseTrackSource.ArtistAlbums,
                     isFollowedArtistTrack,
                     release.AlbumImageUrl));
@@ -303,18 +340,25 @@ public sealed class SpotifyReleaseUpdater
     {
         List<ReleaseTrack> tracks = new();
         DateOnly cutoffDate = clock.Today.AddDays(-days);
+        int fromYear = cutoffDate.Year;
+        int toYear = clock.Today.Year;
 
-        ReportStatus(progress, "Searching songs");
+        string searchingSongsStatus = AppLocalization.Get(AppStrings.SearchingSongs);
+        ReportStatus(progress, searchingSongsStatus);
 
         for (int index = 0; index < artists.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             SpotifyArtist artist = artists[index];
-            ReportProgress(progress, "Searching songs", index + 1, artists.Count);
+            ReportProgress(progress, searchingSongsStatus, index + 1, artists.Count);
 
             IReadOnlyList<SpotifyTrackItem> searchResults =
-                await spotify.SearchTracksByArtistAsync(artist.Name, cancellationToken);
+                await spotify.SearchTracksByArtistAsync(
+                    artist.Name,
+                    fromYear,
+                    toYear,
+                    cancellationToken);
 
             foreach (SpotifyTrackItem item in searchResults)
             {
@@ -333,11 +377,12 @@ public sealed class SpotifyReleaseUpdater
 
                 tracks.Add(new ReleaseTrack(
                     item.Title,
-                    JoinArtistNames(item.Artists),
+                    item.Artists,
                     item.Uri,
                     item.SpotifyUrl,
                     item.Album.ReleaseDate.Value,
                     item.Album.Name,
+                    item.Album.Id,
                     ReleaseTrackSource.Search,
                     true,
                     item.Album.ImageUrl));
@@ -362,7 +407,7 @@ public sealed class SpotifyReleaseUpdater
             cancellationToken);
 
         return playlistId
-            ?? throw new InvalidOperationException("Spotify playlist could not be created.");
+            ?? throw new InvalidOperationException(AppLocalization.Get(AppStrings.CorePlaylistCouldNotBeCreated));
     }
 
     private async Task<string?> GetPlaylistIdAsync(
@@ -372,7 +417,7 @@ public sealed class SpotifyReleaseUpdater
         CancellationToken cancellationToken)
     {
         SpotifyUser currentUser = await spotify.GetCurrentUserAsync(cancellationToken);
-        string description = CreatePlaylistDescription(settings.ReleaseLookbackDays);
+        string description = CreatePlaylistDescription(settings);
         IReadOnlyList<SpotifyPlaylist> userPlaylists =
             await spotify.GetCurrentUserPlaylistsAsync(cancellationToken);
 
@@ -389,7 +434,7 @@ public sealed class SpotifyReleaseUpdater
             {
                 if (playlist.Name != settings.PlaylistName)
                 {
-                    ReportMessage(progress, "Saved playlist will be renamed.");
+                    ReportMessage(progress, AppLocalization.Get(AppStrings.CoreSavedPlaylistWillBeRenamed));
                 }
 
                 await spotify.UpdatePlaylistDetailsAsync(
@@ -404,8 +449,8 @@ public sealed class SpotifyReleaseUpdater
             ReportMessage(
                 progress,
                 createIfMissing
-                    ? "Saved playlist was not found in your Spotify library. A visible playlist will be reused or created."
-                    : "Saved playlist was not found in your Spotify library.");
+                    ? AppLocalization.Get(AppStrings.CoreSavedPlaylistNotFoundReuseOrCreate)
+                    : AppLocalization.Get(AppStrings.CoreSavedPlaylistNotFound));
         }
 
         SpotifyPlaylist? existingPlaylist = userPlaylists.FirstOrDefault(
@@ -419,7 +464,7 @@ public sealed class SpotifyReleaseUpdater
         {
             ReportMessage(
                 progress,
-                "Existing playlist with the selected name will be reused.");
+                AppLocalization.Get(AppStrings.CoreExistingPlaylistReused));
 
             await spotify.UpdatePlaylistDetailsAsync(
                 existingPlaylist.Id,
@@ -481,7 +526,8 @@ public sealed class SpotifyReleaseUpdater
 
         foreach (ReleaseTrack track in tracks)
         {
-            string key = $"{track.Title.Trim().ToLowerInvariant()}|{track.Artists.Trim().ToLowerInvariant()}";
+            string artistsKey = JoinArtistNames(track.Artists).Trim().ToLowerInvariant();
+            string key = $"{track.Title.Trim().ToLowerInvariant()}|{artistsKey}";
 
             if (!seen.Add(key))
             {
@@ -495,9 +541,12 @@ public sealed class SpotifyReleaseUpdater
         return (uniqueTracks, duplicates);
     }
 
-    private static string CreatePlaylistDescription(int releaseLookbackDays) =>
-        "Automatically generated playlist with releases from followed artists " +
-        $"and collaborations from the last {releaseLookbackDays} days.";
+    // The text of the user when there is one, else the automatic one.
+    private static string CreatePlaylistDescription(ReleaseSettings settings) =>
+        !string.IsNullOrWhiteSpace(settings.PlaylistDescription)
+            ? settings.PlaylistDescription.Trim()
+            : "Automatically generated playlist with releases from followed artists " +
+                $"and collaborations from the last {settings.ReleaseLookbackDays} days.";
 
     private static string JoinArtistNames(IReadOnlyList<SpotifyArtist> artists) =>
         string.Join(", ", artists.Select(artist => artist.Name));

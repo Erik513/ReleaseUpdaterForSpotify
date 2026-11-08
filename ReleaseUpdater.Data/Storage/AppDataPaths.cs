@@ -8,12 +8,16 @@ public sealed class AppDataPaths
         SettingsPath = Path.Combine(BaseDirectory, "settings.json");
         TokenPath = Path.Combine(BaseDirectory, "spotify-token.json");
         ReportPath = Path.Combine(BaseDirectory, "last_run_report.html");
+        UnreleasedSongsPath = Path.Combine(BaseDirectory, "unreleased_songs.json");
+        UnreleasedSongsReportPath = Path.Combine(BaseDirectory, "unreleased_songs_report.html");
     }
 
     public string BaseDirectory { get; }
     public string SettingsPath { get; }
     public string TokenPath { get; }
     public string ReportPath { get; }
+    public string UnreleasedSongsPath { get; }
+    public string UnreleasedSongsReportPath { get; }
 
     public static AppDataPaths CreateDefault()
     {

@@ -10,7 +10,18 @@ A small Windows app that keeps one Spotify playlist stocked with new releases fr
 - Checks every artist you follow for new albums and singles released within a configurable lookback window (1–20 days)
 - Also finds new tracks where a followed artist appears as a featured collaborator
 - Deduplicates everything it finds and replaces the contents of one **private** playlist you choose
+- Speaks English and German (the language box in the settings)
 - Writes a sortable HTML report of what was added, and what got skipped as a duplicate
+- Keeps a list of songs you are waiting for and checks Spotify for them (the search icon): titles and artists are matched loosely, so a typo, a "feat." or a "- Remastered" does not hide a release; every match is marked as confident or similar
+- Remembers where you found a waiting song: one link per row (double click opens it, Ctrl + double click changes it); only real web addresses are kept
+- Imports and exports that list as Word, Excel, CSV or JSON, and pastes a table you copied from Word or Excel (hyperlinks come along); you choose which column is the title, the artist and the link, and Ctrl+Z undoes the last import or paste
+- Describes the playlist with a text of up to 300 characters (three-line box, saved when you confirm it)
+
+### The list of songs you are waiting for
+
+![The list of songs you are waiting for, with links](docs/screenshot-unreleased.png)
+
+Type the songs in (title and artist), or bring them in with the buttons below the list: import a file, paste a table from Word or Excel, export the list. The small link symbol at the end of a row is bright when the song has a link; a double click opens it, Ctrl + double click changes it.
 
 ## Requirements
 
@@ -23,10 +34,10 @@ The published build is self-contained: it bundles the .NET runtime, so there's n
 ## Getting started
 
 1. Download the latest release from the [Releases page](../../releases) and run `Release Updater for Spotify.exe`.
-2. Click the Client ID status indicator — it opens a short guide and copies the redirect URI you'll need.
+2. Click the status button at the top (the red one, while the Client ID is missing) — it opens a short guide and copies the redirect URI you'll need.
 3. Create a free app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), paste in the redirect URI, and copy the app's Client ID back into Release Updater for Spotify.
 4. Sign in with your Spotify account.
-5. Pick a playlist name and lookback window, then click **Update playlist**.
+5. Pick a playlist name and lookback window (and, if you like, a short description — the pencil unlocks a box until you confirm it), then press the green play button to update the playlist. The same button stops a run that is in progress.
 
 ## Why do I need my own Client ID?
 
@@ -34,9 +45,16 @@ Spotify requires every app to authenticate through its own registered applicatio
 
 ## Building from source
 
+The app references [ErikwnkWFUI](https://github.com/Erik513/ErikwnkWFUI) and
+[ErikwnkCore](https://github.com/Erik513/ErikwnkCore) as sibling
+checkouts (`../ErikwnkWFUI` and `../ErikwnkCore` relative to this repo),
+so clone all three next to each other first:
+
 ```bash
-git clone https://github.com/Erik513/ReleaseUpdaterGui.git
-cd ReleaseUpdaterGui
+git clone https://github.com/Erik513/ErikwnkWFUI.git
+git clone https://github.com/Erik513/ErikwnkCore.git
+git clone https://github.com/Erik513/ReleaseUpdaterForSpotify.git
+cd ReleaseUpdaterForSpotify
 dotnet build ReleaseUpdaterApp.sln
 ```
 
@@ -44,7 +62,11 @@ Run the tests with:
 
 ```bash
 dotnet test ReleaseUpdater.Core.Tests/ReleaseUpdater.Core.Tests.csproj
+dotnet test ReleaseUpdaterGui.Tests/ReleaseUpdaterGui.Tests.csproj
 ```
+
+The first covers the logic (Spotify access, matching, stores, texts); the second drives the two
+controllers of the app with stand-ins for the windows, so nothing is shown on screen.
 
 ## License
 

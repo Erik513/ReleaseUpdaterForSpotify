@@ -3,12 +3,15 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
+using ErikwnkCore;
 using ReleaseUpdater.Core.Abstractions;
+using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
 
 namespace ReleaseUpdater.Spotify.Auth;
 
-public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessTokenProvider
+public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessTokenProvider, ISpotifyAccessTokenInvalidation
 {
     public const int RedirectPort = 5543;
     public const string RedirectUri = "http://127.0.0.1:5543/callback";
@@ -18,6 +21,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
     private readonly ISpotifyTokenStore tokenStore;
     private readonly ISpotifyClientIdProvider clientIdProvider;
     private readonly HttpClient httpClient;
+    private readonly SemaphoreSlim tokenRefreshGate = new(1, 1);
 
     public SpotifyAuthService(
         ISpotifyTokenStore tokenStore,
@@ -29,27 +33,34 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
         this.clientIdProvider = clientIdProvider;
     }
 
-    public bool HasCachedToken
-    {
-        get
-        {
-            SpotifyToken? token = tokenStore.Load();
-
-            return HasRequiredScopes(token) &&
-                TokenBelongsToClient(token, GetConfiguredClientId());
-        }
-    }
-
     /// <summary>
-    /// Checks the stored token and returns the currently signed-in Spotify user.
+    /// Checks the stored token and asks Spotify who the signed-in user is. "Not signed in" is only
+    /// said when it is true (no token, a token that is no use, access that Spotify refuses); when
+    /// Spotify cannot be reached or has a problem the answer is "unavailable", so a bad moment of the
+    /// network does not look like a sign-out.
     /// </summary>
-    public async Task<SpotifyUser?> TryGetCurrentUserAsync(
+    public async Task<SpotifySignInCheck> CheckSignInAsync(
         CancellationToken cancellationToken)
     {
+        string accessToken;
+
         try
         {
-            string accessToken = await GetAccessTokenAsync(cancellationToken);
+            accessToken = await GetAccessTokenAsync(cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            // No token, the token of another client, missing permissions, a refresh that Spotify refused.
+            return new SpotifySignInCheck(SpotifySignInState.NotSignedIn);
+        }
+        catch
+        {
+            // The refresh could not even be tried (no network, timeout).
+            return new SpotifySignInCheck(SpotifySignInState.Unavailable);
+        }
 
+        try
+        {
             using HttpRequestMessage request = new(
                 HttpMethod.Get,
                 "https://api.spotify.com/v1/me");
@@ -64,7 +75,12 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                int status = (int)response.StatusCode;
+
+                // The token is refused (4xx) - or Spotify is the one with the problem (429, 5xx, timeout).
+                return status is >= 400 and < 500 and not 408 and not 429
+                    ? new SpotifySignInCheck(SpotifySignInState.NotSignedIn)
+                    : new SpotifySignInCheck(SpotifySignInState.Unavailable);
             }
 
             await using Stream stream =
@@ -81,12 +97,12 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
                 : id;
 
             return string.IsNullOrWhiteSpace(id)
-                ? null
-                : new SpotifyUser(id, displayName);
+                ? new SpotifySignInCheck(SpotifySignInState.NotSignedIn)
+                : new SpotifySignInCheck(SpotifySignInState.SignedIn, new SpotifyUser(id, displayName));
         }
         catch
         {
-            return null;
+            return new SpotifySignInCheck(SpotifySignInState.Unavailable);
         }
     }
 
@@ -120,21 +136,20 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
         if (!HasRequiredScopes(token))
         {
-            tokenStore.Clear();
-            throw new InvalidOperationException(
-                "Spotify did not grant the required permissions. Please sign in again and approve the requested access.");
+            ClearToken();
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyPermissionsNotGranted));
         }
 
-        tokenStore.Save(token);
+        SaveToken(token);
 
-        SpotifyUser? user = await TryGetCurrentUserAsync(cancellationToken);
+        SpotifySignInCheck check = await CheckSignInAsync(cancellationToken);
 
-        return user ?? new SpotifyUser(string.Empty, "Spotify");
+        return check.User ?? new SpotifyUser(string.Empty, "Spotify");
     }
 
     public Task LogoutAsync(CancellationToken cancellationToken)
     {
-        tokenStore.Clear();
+        ClearToken();
         return Task.CompletedTask;
     }
 
@@ -144,47 +159,119 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
     public async Task<string> GetAccessTokenAsync(
         CancellationToken cancellationToken)
     {
-        SpotifyToken? token = tokenStore.Load();
         string clientId = GetConfiguredClientId();
 
+        // The usual case (hundreds of API calls in one run, one token): answered from memory,
+        // without reading the token file each time. Only a token that was checked when it was
+        // stored is ever kept here (see StoreInMemory).
+        SpotifyToken? cached = cachedToken;
+
+        if (!refreshRequested &&
+            cached is not null &&
+            TokenBelongsToClient(cached, clientId) &&
+            cached.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
+        {
+            return cached.AccessToken;
+        }
+
+        SpotifyToken token = ValidateToken(tokenStore.Load(), clientId);
+
+        if (!refreshRequested && token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
+        {
+            StoreInMemory(token);
+            return token.AccessToken;
+        }
+
+        // Concurrent Spotify calls can all see an expiring token at once. Only one
+        // of them should refresh it; the rest wait, then re-check the now-current
+        // token instead of racing to refresh (and save) it themselves.
+        await tokenRefreshGate.WaitAsync(cancellationToken);
+
+        try
+        {
+            token = ValidateToken(tokenStore.Load(), clientId);
+
+            if (!refreshRequested && token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
+            {
+                StoreInMemory(token);
+                return token.AccessToken;
+            }
+
+            SpotifyToken refreshedToken =
+                await RefreshTokenAsync(clientId, token, cancellationToken);
+
+            tokenStore.Save(refreshedToken);
+
+            if (!HasRequiredScopes(refreshedToken))
+            {
+                ClearToken();
+                throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyLoginMissingPermissions));
+            }
+
+            StoreInMemory(refreshedToken);
+            refreshRequested = false;
+            return refreshedToken.AccessToken;
+        }
+        finally
+        {
+            tokenRefreshGate.Release();
+        }
+    }
+
+    // Set when Spotify refused the token (401): the next call refreshes it whatever its date says.
+    // Stays set until a refresh has worked, so a refresh that failed is tried again by the next call.
+    private volatile bool refreshRequested;
+
+    /// <summary>Tells the service that Spotify refused the token it handed out last (see <see cref="ISpotifyAccessTokenInvalidation"/>).</summary>
+    public void MarkAccessTokenRejected()
+    {
+        refreshRequested = true;
+        cachedToken = null;
+    }
+
+    // Set only for a token that passed ValidateToken (right client, required scopes) or was just
+    // received from Spotify, so reading it back needs no second check of the scopes.
+    private volatile SpotifyToken? cachedToken;
+
+    private void StoreInMemory(SpotifyToken token)
+    {
+        cachedToken = token;
+    }
+
+    private void SaveToken(SpotifyToken token)
+    {
+        tokenStore.Save(token);
+        cachedToken = token;
+    }
+
+    // Every removal goes through here, so the copy in memory never outlives the file (a sign-out,
+    // a token of another client, a missing permission).
+    private void ClearToken()
+    {
+        cachedToken = null;
+        tokenStore.Clear();
+    }
+
+    private SpotifyToken ValidateToken(SpotifyToken? token, string clientId)
+    {
         if (token is null)
         {
-            throw new InvalidOperationException(
-                "Please sign in to Spotify first.");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifySignInFirst));
         }
 
         if (!TokenBelongsToClient(token, clientId))
         {
-            tokenStore.Clear();
-            throw new InvalidOperationException(
-                "The saved Spotify login belongs to another Client ID. Please sign in again.");
+            ClearToken();
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyLoginOtherClientId));
         }
 
         if (!HasRequiredScopes(token))
         {
-            tokenStore.Clear();
-            throw new InvalidOperationException(
-                "Spotify login is missing required permissions. Please sign in again.");
+            ClearToken();
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyLoginMissingPermissions));
         }
 
-        if (token.ExpiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
-        {
-            return token.AccessToken;
-        }
-
-        SpotifyToken refreshedToken =
-            await RefreshTokenAsync(clientId, token, cancellationToken);
-
-        tokenStore.Save(refreshedToken);
-
-        if (!HasRequiredScopes(refreshedToken))
-        {
-            tokenStore.Clear();
-            throw new InvalidOperationException(
-                "Spotify login is missing required permissions. Please sign in again.");
-        }
-
-        return refreshedToken.AccessToken;
+        return token;
     }
 
     private string GetConfiguredClientId()
@@ -193,8 +280,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
         if (string.IsNullOrWhiteSpace(clientId))
         {
-            throw new InvalidOperationException(
-                "Spotify client ID is missing.");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyClientIdMissing));
         }
 
         return clientId.Trim();
@@ -253,8 +339,7 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
     {
         if (string.IsNullOrWhiteSpace(currentToken.RefreshToken))
         {
-            throw new InvalidOperationException(
-                "Spotify refresh token is missing. Please sign in again.");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyRefreshTokenMissing));
         }
 
         Dictionary<string, string> form = new()
@@ -292,15 +377,23 @@ public sealed class SpotifyAuthService : ISpotifyAuthService, ISpotifyAccessToke
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                $"Spotify login failed: {response.StatusCode} {responseText}");
+            string failure = AppLocalization.Get(AppStrings.SpotifyLoginFailedFormat, response.StatusCode, responseText);
+
+            // Spotify having a problem (5xx, 429) is not the same as refusing the sign-in (4xx): the
+            // first is an HttpRequestException, so a check of the sign-in says "unavailable" and keeps the token.
+            if ((int)response.StatusCode >= 500 || response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                throw new HttpRequestException(failure, null, response.StatusCode);
+            }
+
+            throw new InvalidOperationException(failure);
         }
 
         using JsonDocument json = JsonDocument.Parse(responseText);
         JsonElement root = json.RootElement;
 
         string accessToken = root.GetProperty("access_token").GetString()
-            ?? throw new InvalidOperationException("Spotify access token is missing.");
+            ?? throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyAccessTokenMissing));
 
         int expiresInSeconds = root.GetProperty("expires_in").GetInt32();
 
@@ -404,6 +497,9 @@ internal sealed class LoopbackCallbackListener : IDisposable
         listener.Start();
     }
 
+    /// <summary>The port actually listened on (differs from the requested one when that was 0).</summary>
+    public int Port => ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+
     public async Task<AuthorizationCallback> WaitForCallbackAsync(
         string expectedState,
         CancellationToken cancellationToken)
@@ -421,7 +517,7 @@ internal sealed class LoopbackCallbackListener : IDisposable
 
         if (string.IsNullOrWhiteSpace(requestLine))
         {
-            throw new InvalidOperationException("Spotify callback was empty.");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyCallbackEmpty));
         }
 
         while (!string.IsNullOrEmpty(await reader.ReadLineAsync(cancellationToken)))
@@ -434,39 +530,39 @@ internal sealed class LoopbackCallbackListener : IDisposable
         {
             await WriteResponseAsync(
                 stream,
-                "Login cancelled",
-                "Spotify cancelled the login.",
+                AppLocalization.Get(AppStrings.SpotifyPageLoginCancelledTitle),
+                AppLocalization.Get(AppStrings.SpotifyPageLoginCancelledMessage),
                 cancellationToken);
 
-            throw new InvalidOperationException($"Spotify login cancelled: {error}");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyLoginCancelledFormat, error));
         }
 
         if (!query.TryGetValue("state", out string? state) || state != expectedState)
         {
             await WriteResponseAsync(
                 stream,
-                "Login failed",
-                "The login security state did not match.",
+                AppLocalization.Get(AppStrings.SpotifyPageLoginFailedTitle),
+                AppLocalization.Get(AppStrings.SpotifyPageStateMismatchMessage),
                 cancellationToken);
 
-            throw new InvalidOperationException("Spotify callback state is invalid.");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyCallbackStateInvalid));
         }
 
         if (!query.TryGetValue("code", out string? code) || string.IsNullOrWhiteSpace(code))
         {
             await WriteResponseAsync(
                 stream,
-                "Login failed",
-                "Spotify did not return an authorization code.",
+                AppLocalization.Get(AppStrings.SpotifyPageLoginFailedTitle),
+                AppLocalization.Get(AppStrings.SpotifyPageCodeMissingMessage),
                 cancellationToken);
 
-            throw new InvalidOperationException("Spotify authorization code is missing.");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyCallbackCodeMissing));
         }
 
         await WriteResponseAsync(
             stream,
-            "Login successful",
-            "You can close this browser window now.",
+            AppLocalization.Get(AppStrings.SpotifyPageLoginSuccessfulTitle),
+            AppLocalization.Get(AppStrings.SpotifyPageLoginSuccessfulMessage),
             cancellationToken);
 
         return new AuthorizationCallback(code);
@@ -484,7 +580,7 @@ internal sealed class LoopbackCallbackListener : IDisposable
 
         if (parts.Length < 2)
         {
-            throw new InvalidOperationException("Spotify callback is invalid.");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyCallbackInvalid));
         }
 
         string target = parts[1];
@@ -495,7 +591,7 @@ internal sealed class LoopbackCallbackListener : IDisposable
 
         if (!string.Equals(targetPath, expectedPath, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Spotify callback path is invalid.");
+            throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyCallbackPathInvalid));
         }
 
         if (queryStart < 0 || queryStart == target.Length - 1)
@@ -528,10 +624,14 @@ internal sealed class LoopbackCallbackListener : IDisposable
         string message,
         CancellationToken cancellationToken)
     {
+        string language = AppLocalization.Language == AppLanguage.German ? "de" : "en";
+        string safeTitle = System.Net.WebUtility.HtmlEncode(title);
+        string safeMessage = System.Net.WebUtility.HtmlEncode(message);
+
         string body =
-            "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
-            $"<title>{title}</title></head><body style=\"font-family:Arial,sans-serif;margin:32px;\">" +
-            $"<h1>{title}</h1><p>{message}</p></body></html>";
+            $"<!doctype html><html lang=\"{language}\"><head><meta charset=\"utf-8\">" +
+            $"<title>{safeTitle}</title></head><body style=\"font-family:Arial,sans-serif;margin:32px;\">" +
+            $"<h1>{safeTitle}</h1><p>{safeMessage}</p></body></html>";
 
         byte[] bodyBytes = Encoding.UTF8.GetBytes(body);
         string headers =

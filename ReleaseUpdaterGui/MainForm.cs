@@ -1,22 +1,34 @@
-using CustomWFUI;
-using CustomWFUI.Controls;
-using CustomWFUI.Forms;
+using ErikwnkCore;
+using ErikwnkWFUI;
+using ErikwnkWFUI.Forms;
+using ErikwnkWFUI.Styles;
 using ReleaseUpdater.Data;
+using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Core.Services;
 using ReleaseUpdater.Data.Reports;
 using ReleaseUpdater.Data.Storage;
 using ReleaseUpdater.Spotify.Api;
 using ReleaseUpdater.Spotify.Auth;
+// Only these two come from ErikwnkWFUI.Controls: a "using" of the whole
+// namespace would make every standard control name used here (Panel,
+// ProgressBar, ...) ambiguous with the library's same-named controls.
+using PropertyColumn = ErikwnkWFUI.Controls.PropertyColumn;
+using PropertyTable = ErikwnkWFUI.Controls.PropertyTable;
 
 namespace ReleaseUpdaterGui
 {
-    public partial class MainForm : StyledForm
+    public partial class MainForm : AppForm, IMainView
     {
+        private static readonly TimeSpan UpdateCheckTimeout = TimeSpan.FromSeconds(8);
+        private const int SettingsSaveDelayMilliseconds = 400;
+
+        private DelayedAction? saveSettingsLater;
         private static readonly Size PropertyIconButtonSize = new(36, 30);
         private static readonly Size ActionIconButtonSize = new(48, 34);
         private const int PropertyIconColumnWidth = 54;
         private const int PropertyRowHeight = 34;
+        private const int DescriptionLines = 3;
 
         private readonly AppDataPaths dataPaths;
         private readonly JsonSettingsStore settingsStore;
@@ -27,6 +39,9 @@ namespace ReleaseUpdaterGui
         private readonly SpotifyApiClient spotifyApiClient;
         private readonly SpotifyReleaseUpdater releaseUpdater;
         private readonly AppUpdater appUpdater;
+        private readonly TrackedSongsStore trackedSongsStore;
+        private readonly UnreleasedSongsReportWriter unreleasedSongsReportWriter;
+        private readonly UnreleasedSongChecker unreleasedSongChecker;
         private readonly SystemReleaseClock releaseClock = new();
         private readonly HttpClient spotifyAccountsHttpClient = new();
         private readonly HttpClient spotifyApiHttpClient = new();
@@ -39,26 +54,31 @@ namespace ReleaseUpdaterGui
         private MainFormController controller;
         private string? currentPlaylistId;
 
+        private PropertyTable propertyTable = null!;
         private Label lblStatus = null!;
         private Label lblProgress = null!;
         private Label lblLoginStatus = null!;
         private Button btnClientIdStatus = null!;
         private ProgressBar progressBar = null!;
 
-        private TextBox txtPlaylistName = null!;
-        private Button btnEditPlaylistName = null!;
+        private ComboBox cmbLanguage = null!;
+        private ErikwnkWFUI.Controls.LockableTextBox txtPlaylistName = null!;
         private NumericUpDown numLookbackDays = null!;
-        private TextBox txtSpotifyClientId = null!;
-        private Button btnEditSpotifyClientId = null!;
+        private ErikwnkWFUI.Controls.LockableTextBox txtPlaylistDescription = null!;
+        private ErikwnkWFUI.Controls.LockableTextBox txtSpotifyClientId = null!;
 
-        private Button btnLogin = null!;
-        private Button btnCancel = null!;
+        private SymbolToggle btnLogin = null!;
         private Button btnOpenReport = null!;
-        private Button btnUpdatePlaylist = null!;
+        private SymbolToggle btnRun = null!;
+        private ErikwnkWFUI.Controls.VersionPanel versionPanel = null!;
+        private Button btnUnreleasedSongs = null!;
 
         private TextBox txtOutput = null!;
         private ToolTip spotifyAuthToolTip = null!;
         private System.Windows.Forms.Timer runAvailabilityTimer = null!;
+        private Label lblElapsedTime = null!;
+        private System.Threading.Timer? elapsedTimeTimer;
+        private DateTime runStartTimeUtc;
         private bool isSpotifySignedIn;
         private bool isSpotifyAuthLocked;
         private bool isLoadingSettings;
@@ -78,24 +98,19 @@ namespace ReleaseUpdaterGui
             get { return txtSpotifyClientId.Text.Trim(); }
         }
 
-        public bool IsPlaylistNameReadOnly
-        {
-            get { return txtPlaylistName.ReadOnly; }
-        }
-
-        public bool IsSpotifyClientIdReadOnly
-        {
-            get { return txtSpotifyClientId.ReadOnly; }
-        }
-
         public bool IsSpotifySignedIn
         {
             get { return isSpotifySignedIn; }
         }
 
+        /// <summary>True once the window has agreed to close (after the "close during a run?" question).</summary>
+        public bool IsClosing { get; private set; }
+
+        public bool IsShuttingDown => IsClosing || IsDisposed;
+
         public MainForm() : base(
-            StyledFormOptions.CreateStandard(
-                title: "Release Updater for Spotify",
+            FormOptions.CreateStandard(
+                title: AppLocalization.Get(AppStrings.MainFormWindowTitle),
                 titleTextAlign: ContentAlignment.MiddleCenter,
                 backColor: UIStyles.Colors.BackgroundDarkElevated,
                 icon: LoadTitleImage(),
@@ -126,17 +141,24 @@ namespace ReleaseUpdaterGui
 
             appUpdater = new AppUpdater(
                 "Erik513",
-                "ReleaseUpdaterGui",
+                "ReleaseUpdaterForSpotify",
                 updateCheckHttpClient,
                 selfUpdateHttpClient);
+
+            trackedSongsStore = new TrackedSongsStore(dataPaths);
+            unreleasedSongsReportWriter = new UnreleasedSongsReportWriter(dataPaths);
+            unreleasedSongChecker = new UnreleasedSongChecker(
+                spotifyApiClient,
+                unreleasedSongsReportWriter);
 
             controller = new MainFormController(
                 this,
                 settingsStore,
                 reportWriter,
                 authService,
-                releaseUpdater,
-                appUpdater);
+                releaseUpdater);
+
+            saveSettingsLater = new DelayedAction(controller.SaveSettingsFromUi, SettingsSaveDelayMilliseconds);
 
             Size = MinimumSize;
             MinimumSize = new Size(520, 740);
@@ -144,6 +166,8 @@ namespace ReleaseUpdaterGui
             BuildUi();
             StartRunAvailabilityTimer();
             CenterToScreen();
+
+            AppLocalization.LanguageChanged += AppLocalization_LanguageChanged;
         }
 
         protected override async void OnShown(EventArgs e)
@@ -158,8 +182,10 @@ namespace ReleaseUpdaterGui
             {
                 PlaylistId = currentPlaylistId,
                 PlaylistName = PlaylistName,
+                PlaylistDescription = txtPlaylistDescription.Text,
                 ReleaseLookbackDays = ReleaseLookbackDays,
-                CustomSpotifyClientId = CustomSpotifyClientId
+                CustomSpotifyClientId = CustomSpotifyClientId,
+                Language = AppLocalization.Language == AppLanguage.German ? "German" : "English"
             }.Normalize();
         }
 
@@ -173,16 +199,31 @@ namespace ReleaseUpdaterGui
                 currentPlaylistId = normalized.PlaylistId;
 
                 txtPlaylistName.Text = normalized.PlaylistName;
+                txtPlaylistDescription.Text = normalized.PlaylistDescription ?? string.Empty;
                 numLookbackDays.Value = ClampForControl(
                     normalized.ReleaseLookbackDays,
                     numLookbackDays);
                 txtSpotifyClientId.Text = normalized.CustomSpotifyClientId ?? string.Empty;
+
+                ApplyLanguage(normalized.Language);
             }
             finally
             {
                 isLoadingSettings = false;
             }
 
+        }
+
+        // Applies the language to ErikwnkWFUI's own built-in dialogs (title bar
+        // tooltips, message boxes, update prompt) and to AppLocalization, which
+        // covers this app's own UI text - both switch together so the whole
+        // window (including ErikwnkWFUI's dialogs) stays in one language.
+        private static void ApplyLanguage(string language)
+        {
+            UIStyles.SetLanguage(
+                string.Equals(language, "German", StringComparison.OrdinalIgnoreCase)
+                    ? AppLanguage.German
+                    : AppLanguage.English);
         }
 
         public void SetStatus(string status)
@@ -199,15 +240,10 @@ namespace ReleaseUpdaterGui
             string status,
             ClientIdStatusKind statusKind)
         {
-            Color backColor = GetClientIdStatusColor(statusKind);
-
-            btnClientIdStatus.BackColor = backColor;
-            btnClientIdStatus.ForeColor = Color.White;
+            UIStyles.Buttons.SetColors(
+                btnClientIdStatus,
+                UIStyles.Colors.CreateSet(GetClientIdStatusColor(statusKind)));
             btnClientIdStatus.AccessibleName = status;
-            btnClientIdStatus.FlatAppearance.MouseOverBackColor =
-                ControlPaint.Light(backColor);
-            btnClientIdStatus.FlatAppearance.MouseDownBackColor =
-                ControlPaint.Dark(backColor);
             spotifyAuthToolTip?.SetToolTip(btnClientIdStatus, status);
         }
 
@@ -217,8 +253,8 @@ namespace ReleaseUpdaterGui
             btnLogin.Enabled = true;
             SetSpotifyAuthToolTip(
                 isSpotifySignedIn
-                    ? "Spotify sign-out is currently running."
-                    : "Spotify sign-in is currently running.");
+                    ? AppLocalization.Get(AppStrings.MainFormSignOutBusyTooltip)
+                    : AppLocalization.Get(AppStrings.MainFormSignInBusyTooltip));
         }
 
         public void SetAuthenticationState(bool isLoggedIn)
@@ -226,29 +262,39 @@ namespace ReleaseUpdaterGui
             isSpotifyAuthLocked = false;
             isSpotifySignedIn = isLoggedIn;
             btnLogin.Enabled = true;
-            SetButtonSymbol(
-                btnLogin,
-                isLoggedIn ? ButtonSymbolKind.Logout : ButtonSymbolKind.Login,
-                isLoggedIn ? "Sign out from Spotify" : "Sign in with Spotify");
+            btnLogin.ShowSecond(isLoggedIn);
             SetSpotifyAuthToolTip(
                 isLoggedIn
-                    ? "Click to sign out from this app and remove the saved Spotify login."
-                    : "Click to open Spotify login in your browser.");
+                    ? AppLocalization.Get(AppStrings.MainFormSignOutTooltip)
+                    : AppLocalization.Get(AppStrings.MainFormSignInTooltip));
         }
 
         public void SetUpdateAvailability(bool isAvailable, string tooltip)
         {
             bool isSettingEditActive = IsSettingEditActive();
-            btnUpdatePlaylist.Enabled = isAvailable && !isSettingEditActive;
-            spotifyAuthToolTip?.SetToolTip(
-                btnUpdatePlaylist,
+
+            // While an update runs the button is the Stop button; the availability is not its business then.
+            if (btnRun.IsSecondShown)
+            {
+                return;
+            }
+
+            btnRun.Enabled = isAvailable && !isSettingEditActive;
+            btnRun.SetTooltips(
                 isSettingEditActive
-                    ? "Save the edited setting before updating the playlist."
-                    : tooltip);
+                    ? AppLocalization.Get(AppStrings.MainFormSaveSettingBeforeUpdateTooltip)
+                    : tooltip,
+                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
         }
 
         public void ApplyProgress(ReleaseProgress progress)
         {
+            // (Progress<T> posts to the UI thread, so a report can arrive after the window closed.)
+            if (IsClosing || IsDisposed)
+            {
+                return;
+            }
+
             if (!string.IsNullOrWhiteSpace(progress.Status))
             {
                 lblStatus.Text = progress.Status;
@@ -258,8 +304,11 @@ namespace ReleaseUpdaterGui
             {
                 int percent = progress.Percent ?? 0;
                 progressBar.Value = Math.Min(100, Math.Max(0, percent));
-                lblProgress.Text =
-                    $"{progress.Current} / {progress.Total} ({percent}%)";
+                lblProgress.Text = AppLocalization.Get(
+                    AppStrings.MainFormProgressFormat,
+                    progress.Current,
+                    progress.Total,
+                    percent);
             }
 
             if (!string.IsNullOrWhiteSpace(progress.Message))
@@ -270,62 +319,123 @@ namespace ReleaseUpdaterGui
 
         public void PrepareRunUi()
         {
-            lblStatus.Text = "Starting...";
+            lblStatus.Text = AppLocalization.Get(AppStrings.MainFormStarting);
             lblProgress.Text = "-";
             progressBar.Value = 0;
             txtOutput.Clear();
 
-            btnUpdatePlaylist.Enabled = false;
+            btnRun.ShowSecond(true);
+            btnRun.Enabled = true;
             isSpotifyAuthLocked = true;
             btnLogin.Enabled = true;
-            btnCancel.Enabled = true;
             SetSpotifyAuthToolTip(
-                "Spotify sign-in is disabled while the playlist update is running.");
+                AppLocalization.Get(AppStrings.MainFormSignInDisabledDuringRunTooltip));
+
+            runStartTimeUtc = DateTime.UtcNow;
+            lblElapsedTime.Visible = true;
+            UpdateElapsedTimeLabel();
+
+            elapsedTimeTimer?.Dispose();
+            elapsedTimeTimer = new System.Threading.Timer(
+                _ => RequestElapsedTimeLabelUpdate(),
+                null,
+                1000,
+                1000);
+        }
+
+        /// <summary>
+        /// Stops the elapsed-time display, hides it, and logs the final duration -
+        /// the timer itself is only meant to be visible while a run is in progress.
+        /// </summary>
+        public void StopElapsedTimer()
+        {
+            elapsedTimeTimer?.Dispose();
+            elapsedTimeTimer = null;
+
+            TimeSpan elapsed = DateTime.UtcNow - runStartTimeUtc;
+            lblElapsedTime.Visible = false;
+            txtOutput.AppendText(
+                AppLocalization.Get(AppStrings.MainFormFinishedInFormat, elapsed.ToString(@"hh\:mm\:ss")) +
+                Environment.NewLine);
+        }
+
+        /// <summary>
+        /// Runs on a threadpool thread (not the UI message queue), so the elapsed
+        /// display keeps ticking on time even while the UI thread is busy handling a
+        /// burst of progress updates - unlike a WinForms Timer, which relies on the
+        /// low-priority WM_TIMER message and can visibly stall under that load.
+        /// </summary>
+        private void RequestElapsedTimeLabelUpdate()
+        {
+            if (IsDisposed || !IsHandleCreated)
+            {
+                return;
+            }
+
+            try
+            {
+                BeginInvoke(UpdateElapsedTimeLabel);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private void UpdateElapsedTimeLabel()
+        {
+            TimeSpan elapsed = DateTime.UtcNow - runStartTimeUtc;
+            lblElapsedTime.Text = AppLocalization.Get(
+                AppStrings.MainFormElapsedFormat,
+                elapsed.ToString(@"hh\:mm\:ss"));
         }
 
         public void ShowCompleted(PlaylistUpdateResult result)
         {
-            btnUpdatePlaylist.Enabled = true;
+            btnRun.ShowSecond(false);
+            btnRun.Enabled = true;
             isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
-            btnCancel.Enabled = false;
             progressBar.Value = 100;
 
             lblStatus.Text = result.UniqueTrackCount == 0
-                ? "No new songs"
-                : "Done";
+                ? AppLocalization.Get(AppStrings.NoNewSongs)
+                : AppLocalization.Get(AppStrings.Done);
 
-            txtOutput.AppendText("HTML report updated." + Environment.NewLine);
+            txtOutput.AppendText(AppLocalization.Get(AppStrings.MainFormHtmlReportUpdated) + Environment.NewLine);
 
             ToastForm.ShowToast(
                 result.UniqueTrackCount == 0
-                    ? "No new songs found."
-                    : "Playlist updated successfully.",
+                    ? AppLocalization.Get(AppStrings.MainFormToastNoNewSongs)
+                    : AppLocalization.Get(AppStrings.MainFormToastPlaylistUpdated),
                 this);
         }
 
         public void ShowRunFailed(string message)
         {
-            btnUpdatePlaylist.Enabled = true;
+            btnRun.ShowSecond(false);
+            btnRun.Enabled = true;
             isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
-            btnCancel.Enabled = false;
 
-            lblStatus.Text = "Error";
-            txtOutput.AppendText("ERROR: " + message + Environment.NewLine);
-            ShowError(message, "Error");
+            string errorTitle = AppLocalization.Get(AppStrings.MainFormError);
+            lblStatus.Text = errorTitle;
+            txtOutput.AppendText(AppLocalization.Get(AppStrings.MainFormErrorLogFormat, message) + Environment.NewLine);
+            ShowError(message, errorTitle);
         }
 
         public void ShowCancelled()
         {
-            btnCancel.Enabled = false;
-            btnUpdatePlaylist.Enabled = true;
+            btnRun.ShowSecond(false);
+            btnRun.Enabled = true;
             isSpotifyAuthLocked = false;
             btnLogin.Enabled = true;
 
-            lblStatus.Text = "Cancelled";
+            lblStatus.Text = AppLocalization.Get(AppStrings.MainFormCancelled);
             txtOutput.AppendText(
-                "The update was cancelled." + Environment.NewLine);
+                AppLocalization.Get(AppStrings.MainFormUpdateCancelledLog) + Environment.NewLine);
         }
 
         public void AppendOutput(string message)
@@ -333,301 +443,129 @@ namespace ReleaseUpdaterGui
             txtOutput.AppendText(message + Environment.NewLine);
         }
 
-        public void EnablePlaylistNameEditing()
+        public void SetPlaylistNameError(string? message)
         {
-            txtPlaylistName.ReadOnly = false;
-            txtPlaylistName.TabStop = true;
-            SetButtonSymbol(
-                btnEditPlaylistName,
-                ButtonSymbolKind.Check,
-                "Save playlist name");
-            btnUpdatePlaylist.Enabled = false;
-
-            txtPlaylistName.Focus();
-            txtPlaylistName.SelectAll();
+            txtPlaylistName.ErrorText = message;
         }
 
-        public void DisablePlaylistNameEditing()
+        public void SetSpotifyClientIdError(string? message)
         {
-            txtPlaylistName.ReadOnly = true;
-            txtPlaylistName.TabStop = false;
-            SetButtonSymbol(
-                btnEditPlaylistName,
-                ButtonSymbolKind.Edit,
-                "Edit playlist name");
-
-            txtPlaylistName.SelectionLength = 0;
-            btnEditPlaylistName.Focus();
+            txtSpotifyClientId.ErrorText = message;
         }
 
-        public void FocusPlaylistName()
+        public void ShowInfo(string message, string title)
         {
-            txtPlaylistName.Focus();
-            txtPlaylistName.SelectAll();
-        }
-
-        public void EnableSpotifyClientIdEditing()
-        {
-            txtSpotifyClientId.ReadOnly = false;
-            txtSpotifyClientId.TabStop = true;
-            SetButtonSymbol(
-                btnEditSpotifyClientId,
-                ButtonSymbolKind.Check,
-                "Save Spotify Client ID");
-            btnUpdatePlaylist.Enabled = false;
-
-            txtSpotifyClientId.Focus();
-            txtSpotifyClientId.SelectAll();
-        }
-
-        public void DisableSpotifyClientIdEditing()
-        {
-            txtSpotifyClientId.ReadOnly = true;
-            txtSpotifyClientId.TabStop = false;
-            SetButtonSymbol(
-                btnEditSpotifyClientId,
-                ButtonSymbolKind.Edit,
-                "Edit Spotify Client ID");
-
-            txtSpotifyClientId.SelectionLength = 0;
-            btnEditSpotifyClientId.Focus();
-        }
-
-        public void FocusSpotifyClientId()
-        {
-            txtSpotifyClientId.Focus();
-            txtSpotifyClientId.SelectAll();
-        }
-
-        public void ShowInfo(
-            string message,
-            string title,
-            CustomMessageBoxSize size = CustomMessageBoxSize.Small)
-        {
-            CustomMessageBox.Show(
-                message,
-                title,
-                CustomMessageBoxButtons.OK,
-                CustomMessageBoxIcon.Info,
-                this,
-                size);
+            Dialogs.Info(this, message, title);
         }
 
         public void ShowWarning(string message, string title)
         {
-            CustomMessageBox.Show(
-                message,
-                title,
-                CustomMessageBoxButtons.OK,
-                CustomMessageBoxIcon.Warning,
-                this,
-                CustomMessageBoxSize.Small);
+            Dialogs.Warning(this, message, title);
         }
 
         public void ShowError(string message, string title)
         {
-            CustomMessageBox.Show(
-                message,
-                title,
-                CustomMessageBoxButtons.OK,
-                CustomMessageBoxIcon.Error,
-                this,
-                CustomMessageBoxSize.Small);
+            Dialogs.Error(this, message, title);
         }
 
-        private void BuildUi()
+        public void ShowToast(string message)
         {
-            Panel mainPanel = UIStyles.Panels.CreateElevated();
-            mainPanel.BackColor = UIStyles.Colors.BackgroundLight;
-            mainPanel.Dock = DockStyle.Fill;
-            mainPanel.Padding = new Padding(16);
+            ToastForm.ShowToast(message, this);
+        }
 
-            StyledPropertyTable propertyTable = new()
-            {
-                Dock = DockStyle.Top,
-                Padding = new Padding(5)
-            };
+        public bool ConfirmStart()
+        {
+            DialogResult result = MessageBox.Show(
+                AppLocalization.Get(AppStrings.ControllerConfirmStartMessage),
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question,
+                this,
+                FormSize.Medium,
+                defaultButton: MessageBoxDefault.Button1);
 
-            lblStatus = UIStyles.Labels.CreateNormal("Ready to run");
-            lblProgress = UIStyles.Labels.CreateNormal("0 / 0");
-            lblLoginStatus = UIStyles.Labels.CreateNormal("Not signed in");
+            return result == DialogResult.Yes;
+        }
 
-            progressBar = new ProgressBar
-            {
-                Dock = DockStyle.Top,
-                Height = 24,
-                Minimum = 0,
-                Maximum = 100,
-                Value = 0
-            };
+        // Asks before the window closes mid-run, since the playlist may be left only partially
+        // updated if the run is interrupted now.
+        private bool ConfirmCloseWhileRunning()
+        {
+            DialogResult result = MessageBox.Show(
+                AppLocalization.Get(AppStrings.ControllerConfirmCloseMessage),
+                AppLocalization.Get(AppStrings.ControllerConfirmCloseTitle),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                this,
+                FormSize.Small);
 
-            spotifyAuthToolTip = UIStyles.ToolTips.CreateToolTip();
+            return result == DialogResult.Yes;
+        }
 
-            btnLogin = UIStyles.Buttons.CreateStandard(
-                string.Empty,
-                string.Empty,
-                PropertyIconButtonSize,
-                true);
-            SetButtonSymbol(
-                btnLogin,
-                ButtonSymbolKind.Login,
-                "Sign in with Spotify");
-            SetSpotifyAuthToolTip(
-                "Click to open Spotify login in your browser.");
-            btnLogin.Click += BtnLogin_Click;
+        // Looks for a newer version once, silently (no net, a slow answer or no newer version change nothing): the strip at the bottom
+        // shows a green button when there is one.
+        public void BeginUpdateCheck()
+        {
+            _ = versionPanel.CheckForUpdateAsync(appUpdater, UpdateCheckTimeout);
+        }
 
-            btnClientIdStatus = UIStyles.Buttons.CreateStandard(
-                string.Empty,
-                string.Empty,
-                PropertyIconButtonSize,
-                true);
-            SetButtonSymbol(
-                btnClientIdStatus,
-                ButtonSymbolKind.Status,
-                "Spotify Client ID status");
-            SetClientIdStatus(
-                "Spotify Client ID status will appear here.",
-                ClientIdStatusKind.Info);
-            btnClientIdStatus.Click += BtnClientIdHelp_Click;
+        // Refreshes every piece of static (state-independent) UI text after a
+        // language switch (the property table's own row labels follow the
+        // language by themselves, see BuildPropertyTableRows). Dynamic text
+        // (login status, client ID status, run availability tooltip) is
+        // refreshed separately by the controller, since it depends on app
+        // state this form doesn't track on its own.
+        private void RefreshLocalizedUi()
+        {
+            Text = AppLocalization.Get(AppStrings.MainFormWindowTitle);
 
-            txtPlaylistName = UIStyles.TextBoxes.CreateBorderstyleNone(
-                ReleaseDefaults.PlaylistName);
-            txtPlaylistName.ReadOnly = true;
-            txtPlaylistName.TabStop = false;
-
-            btnEditPlaylistName = UIStyles.Buttons.CreateStandard(
-                string.Empty,
-                "Edit playlist name",
-                PropertyIconButtonSize,
-                true);
-            SetButtonSymbol(
-                btnEditPlaylistName,
-                ButtonSymbolKind.Edit,
-                "Edit playlist name");
-            btnEditPlaylistName.Click += BtnEditPlaylistName_Click;
-
-            numLookbackDays = UIStyles.NumericUpDowns.CreateStandard(
-                ReleaseDefaults.MinReleaseLookbackDays,
-                ReleaseDefaults.MaxReleaseLookbackDays,
-                1,
-                ReleaseDefaults.ReleaseLookbackDays);
-            numLookbackDays.TabStop = false;
-            numLookbackDays.ValueChanged += SettingsControl_Changed;
-
-            txtSpotifyClientId = UIStyles.TextBoxes.CreateBorderstyleNone(
-                string.Empty);
-            txtSpotifyClientId.PlaceholderText = "Required Spotify Client ID";
-            txtSpotifyClientId.ReadOnly = true;
-            txtSpotifyClientId.TabStop = false;
-            spotifyAuthToolTip.SetToolTip(
+            txtPlaylistDescription.PlaceholderText = AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionPlaceholder);
+            spotifyAuthToolTip?.SetToolTip(
+                txtPlaylistDescription,
+                AppLocalization.Get(AppStrings.MainFormPlaylistDescriptionTooltip));
+            txtSpotifyClientId.PlaceholderText = AppLocalization.Get(AppStrings.MainFormClientIdPlaceholder);
+            spotifyAuthToolTip?.SetToolTip(
                 txtSpotifyClientId,
-                "Required. Create a Spotify app and enter its Client ID. Do not enter a Client Secret.");
+                AppLocalization.Get(AppStrings.MainFormClientIdTooltip));
 
-            btnEditSpotifyClientId = UIStyles.Buttons.CreateStandard(
-                string.Empty,
-                "Edit Spotify Client ID",
-                PropertyIconButtonSize,
-                true);
-            SetButtonSymbol(
-                btnEditSpotifyClientId,
-                ButtonSymbolKind.Edit,
-                "Edit Spotify Client ID");
-            btnEditSpotifyClientId.Click += BtnEditSpotifyClientId_Click;
+            btnLogin.SetTooltips(
+                AppLocalization.Get(AppStrings.MainFormSignInTooltip),
+                AppLocalization.Get(AppStrings.MainFormSignOutTooltip));
+            btnLogin.SetAccessibleNames(
+                AppLocalization.Get(AppStrings.MainFormSignInAccessibleName),
+                AppLocalization.Get(AppStrings.MainFormSignOutAccessibleName));
 
-            propertyTable.AddRow(
-                "Status",
-                PropertyRowHeight,
-                UIColumn.Percent(lblStatus, 100),
-                UIColumn.Absolute(btnClientIdStatus, PropertyIconColumnWidth));
-            propertyTable.AddRow(
-                "Progress",
-                PropertyRowHeight,
-                UIColumn.Percent(lblProgress, 50),
-                UIColumn.Percent(progressBar, 50));
-            propertyTable.AddSection("Settings");
-            propertyTable.AddRow(
-                "Spotify",
-                PropertyRowHeight,
-                UIColumn.Percent(lblLoginStatus, 100),
-                UIColumn.Absolute(btnLogin, PropertyIconColumnWidth));
-            propertyTable.AddRow(
-                "Client ID",
-                PropertyRowHeight,
-                UIColumn.Percent(txtSpotifyClientId, 100),
-                UIColumn.Absolute(btnEditSpotifyClientId, PropertyIconColumnWidth));
-            propertyTable.AddRow(
-                "Playlist name",
-                PropertyRowHeight,
-                UIColumn.Percent(txtPlaylistName, 100),
-                UIColumn.Absolute(btnEditPlaylistName, PropertyIconColumnWidth));
-            propertyTable.AddRow(
-                "Lookback days",
-                PropertyRowHeight,
-                UIColumn.Auto(numLookbackDays));
+            UIStyles.Buttons.UpdateTooltip(btnOpenReport, AppLocalization.Get(AppStrings.MainFormOpenReport));
+            UIStyles.Buttons.UpdateTooltip(btnUnreleasedSongs, AppLocalization.Get(AppStrings.MainFormOpenUnreleasedSongs));
+            btnRun.SetTooltips(
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
+                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
+            btnRun.SetAccessibleNames(
+                AppLocalization.Get(AppStrings.UpdatePlaylist),
+                AppLocalization.Get(AppStrings.MainFormCancelUpdate));
 
-            CenterPropertyTableText(propertyTable);
+            _ = controller.RefreshLocalizedUiAsync();
+        }
 
-            FlowLayoutPanel buttonPanel = new FlowLayoutPanel
+        private void AppLocalization_LanguageChanged(object? sender, EventArgs e)
+        {
+            if (IsDisposed || !IsHandleCreated)
             {
-                Dock = DockStyle.Bottom,
-                Height = 48,
-                FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(0, 8, 0, 0),
-                BackColor = Color.Transparent
-            };
+                return;
+            }
 
-            btnUpdatePlaylist = UIStyles.Buttons.CreateGreen(
-                string.Empty,
-                "Update playlist",
-                ActionIconButtonSize);
-            SetButtonSymbol(
-                btnUpdatePlaylist,
-                ButtonSymbolKind.Play,
-                "Update playlist");
-            btnUpdatePlaylist.Click += BtnUpdatePlaylist_Click;
-            spotifyAuthToolTip.SetToolTip(
-                btnUpdatePlaylist,
-                "Update playlist");
+            // A choice in the language box (not the loading of the settings) is kept.
+            bool keepChoice = !isLoadingSettings;
 
-            btnOpenReport = UIStyles.Buttons.CreateStandard(
-                string.Empty,
-                "Open last HTML report",
-                ActionIconButtonSize);
-            SetButtonSymbol(
-                btnOpenReport,
-                ButtonSymbolKind.Report,
-                "Open last HTML report");
-            btnOpenReport.Click += BtnOpenReport_Click;
+            BeginInvoke(() =>
+            {
+                RefreshLocalizedUi();
 
-            btnCancel = UIStyles.Buttons.CreateDanger(
-                string.Empty,
-                "Cancel running update",
-                ActionIconButtonSize);
-            SetButtonSymbol(
-                btnCancel,
-                ButtonSymbolKind.Stop,
-                "Cancel running update");
-            btnCancel.Enabled = false;
-            btnCancel.Click += BtnCancel_Click;
-
-            buttonPanel.Controls.Add(btnUpdatePlaylist);
-            buttonPanel.Controls.Add(btnOpenReport);
-            buttonPanel.Controls.Add(btnCancel);
-
-            txtOutput = UIStyles.TextBoxes.CreateStandard();
-            txtOutput.Dock = DockStyle.Fill;
-            txtOutput.Multiline = true;
-            txtOutput.ScrollBars = ScrollBars.Vertical;
-            txtOutput.WordWrap = true;
-            txtOutput.ReadOnly = true;
-            txtOutput.TabStop = true;
-            txtOutput.Font = UIStyles.Fonts.Monospace;
-
-            mainPanel.Controls.Add(txtOutput);
-            mainPanel.Controls.Add(buttonPanel);
-            mainPanel.Controls.Add(propertyTable);
-
-            ContentPanel.Controls.Add(mainPanel);
+                if (keepChoice && !IsShuttingDown)
+                {
+                    controller.SaveSettingsFromUi();
+                }
+            });
         }
 
         private void SettingsControl_Changed(object? sender, EventArgs e)
@@ -637,13 +575,21 @@ namespace ReleaseUpdaterGui
                 return;
             }
 
-            controller.SaveSettingsFromUi();
+            // Held back a moment: holding the arrow of the number box changes the value many times a
+            // second, and each change used to rewrite the settings file.
+            saveSettingsLater?.Schedule();
         }
 
         private async void BtnLogin_Click(object? sender, EventArgs e)
         {
             if (isSpotifyAuthLocked)
             {
+                // A sign-in that waits for the browser can be ended by pressing the button again.
+                if (controller.IsLoginInProgress)
+                {
+                    controller.CancelLogin();
+                }
+
                 return;
             }
 
@@ -656,14 +602,16 @@ namespace ReleaseUpdaterGui
             await controller.LoginAsync();
         }
 
-        private async void BtnUpdatePlaylist_Click(object? sender, EventArgs e)
+        // Play starts the update; while it runs the same button is Stop.
+        private async void BtnRun_Click(object? sender, EventArgs e)
         {
-            await controller.StartUpdateAsync();
-        }
+            if (btnRun.IsSecondShown)
+            {
+                controller.CancelUpdate();
+                return;
+            }
 
-        private void BtnCancel_Click(object? sender, EventArgs e)
-        {
-            controller.CancelUpdate();
+            await controller.StartUpdateAsync();
         }
 
         private void BtnOpenReport_Click(object? sender, EventArgs e)
@@ -671,19 +619,30 @@ namespace ReleaseUpdaterGui
             controller.OpenReport();
         }
 
-        private void BtnEditPlaylistName_Click(object? sender, EventArgs e)
+        // A box was unlocked or locked: the run button follows (not while the settings are being loaded).
+        private void EditBox_LockedChanged(object? sender, EventArgs e)
         {
-            controller.TogglePlaylistNameEdit();
-        }
-
-        private void BtnEditSpotifyClientId_Click(object? sender, EventArgs e)
-        {
-            controller.ToggleSpotifyClientIdEdit();
+            if (!isLoadingSettings && !IsShuttingDown)
+            {
+                controller.EditingChanged();
+            }
         }
 
         private void BtnClientIdHelp_Click(object? sender, EventArgs e)
         {
-            controller.OpenSpotifyClientIdHelp();
+            using SpotifyClientIdHelpForm helpForm = new();
+            helpForm.ShowDialog(this);
+        }
+
+        private void BtnUnreleasedSongs_Click(object? sender, EventArgs e)
+        {
+            using UnreleasedSongsForm form = new(
+                trackedSongsStore,
+                unreleasedSongsReportWriter,
+                unreleasedSongChecker,
+                settingsStore);
+
+            form.ShowDialog(this);
         }
 
         private void RunAvailabilityTimer_Tick(object? sender, EventArgs e)
@@ -693,16 +652,27 @@ namespace ReleaseUpdaterGui
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            if (controller.IsRunInProgress && !controller.ConfirmCloseWhileRunning())
+            if (controller.IsRunInProgress && !ConfirmCloseWhileRunning())
             {
                 e.Cancel = true;
                 return;
             }
 
+            // From here on a run that is still ending must not touch this window or the
+            // HTTP clients below (see MainFormController.IsShuttingDown).
+            // A change that was still waiting for its save is written now, not lost with the window.
+            saveSettingsLater?.Flush();
+            saveSettingsLater?.Dispose();
+            saveSettingsLater = null;
+
+            IsClosing = true;
+            controller.CancelLogin();
             controller.CancelUpdate();
+            AppLocalization.LanguageChanged -= AppLocalization_LanguageChanged;
             spotifyAuthToolTip?.Dispose();
             runAvailabilityTimer?.Stop();
             runAvailabilityTimer?.Dispose();
+            elapsedTimeTimer?.Dispose();
             spotifyAccountsHttpClient.Dispose();
             spotifyApiHttpClient.Dispose();
             updateCheckHttpClient.Dispose();
@@ -771,66 +741,14 @@ namespace ReleaseUpdaterGui
             }
         }
 
-        private static void SetButtonSymbol(
-            Button button,
-            ButtonSymbolKind kind,
-            string accessibleName)
-        {
-            Image? previousImage = button.Image;
-
-            button.Image = null;
-            button.Text = GetButtonSymbol(kind);
-            button.TextAlign = ContentAlignment.MiddleCenter;
-            button.TextImageRelation = TextImageRelation.TextBeforeImage;
-            button.Font = new Font(button.Font.FontFamily, 10.5f, FontStyle.Regular);
-            button.Padding = Padding.Empty;
-            button.AccessibleName = accessibleName;
-
-            previousImage?.Dispose();
-        }
-
         private void SetSpotifyAuthToolTip(string text)
         {
-            spotifyAuthToolTip?.SetToolTip(btnLogin, text);
+            btnLogin.SetTooltips(text, text);
         }
 
         private bool IsSettingEditActive()
         {
-            return !txtPlaylistName.ReadOnly || !txtSpotifyClientId.ReadOnly;
-        }
-
-        private static void CenterPropertyTableText(Control parent)
-        {
-            foreach (Control child in parent.Controls)
-            {
-                if (child is Label label)
-                {
-                    label.TextAlign = ContentAlignment.MiddleLeft;
-                    label.Margin = new Padding(
-                        label.Margin.Left,
-                        0,
-                        label.Margin.Right,
-                        0);
-                }
-
-                CenterPropertyTableText(child);
-            }
-        }
-
-        private static string GetButtonSymbol(ButtonSymbolKind kind)
-        {
-            return kind switch
-            {
-                ButtonSymbolKind.Play => "\u25B6",
-                ButtonSymbolKind.Stop => "\u25A0",
-                ButtonSymbolKind.Report => "\U0001F4C4",
-                ButtonSymbolKind.Login => "\u21AA",
-                ButtonSymbolKind.Logout => "\u21A9",
-                ButtonSymbolKind.Edit => "\u270E",
-                ButtonSymbolKind.Check => "\u2713",
-                ButtonSymbolKind.Status => "\u25CF",
-                _ => string.Empty
-            };
+            return !txtPlaylistName.IsLocked || !txtPlaylistDescription.IsLocked || !txtSpotifyClientId.IsLocked;
         }
 
         private static Color GetClientIdStatusColor(
@@ -846,25 +764,6 @@ namespace ReleaseUpdaterGui
             };
         }
 
-        private enum ButtonSymbolKind
-        {
-            Play,
-            Stop,
-            Report,
-            Login,
-            Logout,
-            Edit,
-            Check,
-            Status
-        }
     }
 
-    public enum ClientIdStatusKind
-    {
-        Info,
-        Missing,
-        Configured,
-        TestMode,
-        Cooldown
-    }
 }

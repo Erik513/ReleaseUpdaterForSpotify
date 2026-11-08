@@ -3,7 +3,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using ErikwnkCore;
 using ReleaseUpdater.Core.Abstractions;
+using ReleaseUpdater.Core.Localization;
 using ReleaseUpdater.Core.Models;
 using ReleaseUpdater.Spotify.Auth;
 
@@ -77,9 +79,11 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
                 artists.Add(ParseArtist(item));
             }
 
-            after = artistsElement
-                .GetProperty("cursors")
-                .TryGetProperty("after", out JsonElement afterElement)
+            // (No "cursors", or "cursors": null, is the end of the list, not a crash.)
+            after = artistsElement.TryGetProperty("cursors", out JsonElement cursorsElement) &&
+                cursorsElement.ValueKind == JsonValueKind.Object &&
+                cursorsElement.TryGetProperty("after", out JsonElement afterElement) &&
+                afterElement.ValueKind == JsonValueKind.String
                     ? afterElement.GetString()
                     : null;
 
@@ -93,7 +97,12 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     }
 
     /// <summary>
-    /// Loads albums and singles for one artist using the same limit as the Python version.
+    /// Loads albums, singles, and guest-feature appearances for one artist. Spotify's
+    /// "album"/"single" groups only include releases where the artist is credited at
+    /// the release level; a feature that's only credited on the track (someone else's
+    /// single or compilation) shows up solely under "appears_on" - without it, tracks
+    /// where the followed artist is a featured, non-primary credit are missed
+    /// entirely, regardless of search-query tuning.
     /// </summary>
     public async Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
         string artistId,
@@ -102,11 +111,18 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         List<SpotifyAlbum> albums = new();
         int offset = 0;
 
+        // In logic test mode, only look at appears_on so a test run can verify that
+        // path cheaply without also re-scanning every artist's full album/single
+        // catalog.
+        string includeGroups = ReleaseDefaults.LogicTestModeEnabled
+            ? "appears_on"
+            : "album,single,appears_on";
+
         while (true)
         {
             string path =
                 $"artists/{Uri.EscapeDataString(artistId)}/albums" +
-                $"?include_groups=album,single&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
+                $"?include_groups={includeGroups}&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
 
             using JsonDocument json =
                 await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
@@ -173,13 +189,25 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     }
 
     /// <summary>
-    /// Searches tracks by artist name to catch additional songs from Spotify search.
+    /// Searches tracks by artist name to catch additional songs from Spotify search,
+    /// restricted to the lookback window's release years. Spotify ranks search
+    /// results by its own relevance/popularity, not by date, so an unfiltered query
+    /// can easily push a recent track where the followed artist is only a featured
+    /// (non-primary) credit past the first page - most likely exactly when it
+    /// matters, since a prolific followed artist's own older, more popular tracks
+    /// outrank it. Narrowing to the relevant years removes that competition instead
+    /// of just outranking it.
     /// </summary>
     public async Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksByArtistAsync(
         string artistName,
+        int fromYear,
+        int toYear,
         CancellationToken cancellationToken)
     {
-        string query = Uri.EscapeDataString($"artist:\"{artistName}\"");
+        string yearFilter = fromYear == toYear
+            ? fromYear.ToString(CultureInfo.InvariantCulture)
+            : $"{fromYear}-{toYear}";
+        string query = Uri.EscapeDataString($"artist:\"{artistName}\" year:{yearFilter}");
         string path =
             $"search?q={query}&type=track&limit={ReleaseDefaults.SearchResultLimit}";
 
@@ -199,6 +227,68 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
 
         return tracks;
     }
+
+    /// <summary>
+    /// Searches for one specific track by title and artist, e.g. to check whether a
+    /// still-unreleased song has since appeared on Spotify. Unlike
+    /// <see cref="SearchTracksByArtistAsync"/>, this filters on the track title too, so
+    /// it can return zero results instead of just a large unrelated candidate list.
+    /// </summary>
+    public async Task<IReadOnlyList<SpotifyTrackItem>> SearchTrackByTitleArtistAsync(
+        string title,
+        string artist,
+        CancellationToken cancellationToken)
+    {
+        string query = Uri.EscapeDataString(
+            $"track:\"{EscapeQueryText(title)}\" artist:\"{EscapeQueryText(artist)}\"");
+        string path =
+            $"search?q={query}&type=track&limit={ReleaseDefaults.SearchResultLimit}";
+
+        using JsonDocument json =
+            await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
+
+        List<SpotifyTrackItem> tracks = new();
+
+        foreach (JsonElement item in json.RootElement
+            .GetProperty("tracks")
+            .GetProperty("items")
+            .EnumerateArray())
+        {
+            SpotifyAlbum album = ParseAlbum(item.GetProperty("album"));
+            tracks.Add(ParseTrack(item, album));
+        }
+
+        return tracks;
+    }
+
+    public async Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksAsync(
+        string query,
+        CancellationToken cancellationToken)
+    {
+        string path =
+            $"search?q={Uri.EscapeDataString(EscapeQueryText(query))}&type=track&limit={ReleaseDefaults.SearchResultLimit}";
+
+        using JsonDocument json =
+            await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
+
+        List<SpotifyTrackItem> tracks = new();
+
+        foreach (JsonElement item in json.RootElement
+            .GetProperty("tracks")
+            .GetProperty("items")
+            .EnumerateArray())
+        {
+            SpotifyAlbum album = ParseAlbum(item.GetProperty("album"));
+            tracks.Add(ParseTrack(item, album));
+        }
+
+        return tracks;
+    }
+
+    // Strips double quotes so free-text title/artist input can never break out of the
+    // quoted field:value search query Spotify expects.
+    private static string EscapeQueryText(string value) =>
+        value.Replace("\"", string.Empty);
 
     public async Task<SpotifyPlaylist?> TryGetPlaylistAsync(
         string playlistId,
@@ -436,6 +526,8 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         bool allowNotFound,
         CancellationToken cancellationToken)
     {
+        bool refreshedAfterUnauthorized = false;
+
         for (int attempt = 1; attempt <= MaxRetryAttempts; attempt++)
         {
             string accessToken =
@@ -457,16 +549,35 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             HttpResponseMessage response =
                 await httpClient.SendAsync(request, cancellationToken);
 
-            if (IsRetryable(response.StatusCode) && attempt < MaxRetryAttempts)
+            // A 401 usually means the access token was revoked or ran out earlier than its date
+            // said: get a freshly refreshed one and send the same request once more. (Once per
+            // request, and it does not count as a retry - a second 401 is a real "no".)
+            if (response.StatusCode == HttpStatusCode.Unauthorized &&
+                !refreshedAfterUnauthorized &&
+                accessTokenProvider is ISpotifyAccessTokenInvalidation invalidation)
+            {
+                refreshedAfterUnauthorized = true;
+                invalidation.MarkAccessTokenRejected();
+                response.Dispose();
+                attempt--;
+                continue;
+            }
+
+            if (IsRetryable(response.StatusCode, method) && attempt < MaxRetryAttempts)
             {
                 EnableRobustModeWhenNeeded(response.StatusCode, attempt);
                 TimeSpan retryDelay = GetRetryDelay(response, attempt);
 
+                string rateLimitResponseText = response.StatusCode == HttpStatusCode.TooManyRequests
+                    ? await response.Content.ReadAsStringAsync(cancellationToken)
+                    : string.Empty;
+
+                // An exhausted quota (per developer account) does not come back within seconds: sending the request again would
+                // only use more of it, so it is reported at once, whatever the wait is that Spotify names.
                 if (response.StatusCode == HttpStatusCode.TooManyRequests &&
-                    retryDelay > MaxSilentRetryDelay)
+                    (retryDelay > MaxSilentRetryDelay ||
+                        SpotifyRateLimitException.IsQuotaExceededResponse(rateLimitResponseText)))
                 {
-                    string rateLimitResponseText =
-                        await response.Content.ReadAsStringAsync(cancellationToken);
                     response.Dispose();
 
                     throw new SpotifyRateLimitException(
@@ -511,25 +622,39 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
                 response.Dispose();
 
                 throw new InvalidOperationException(
-                    $"Spotify denied access for this account on {method.Method} /{path}. " +
-                    "Make sure this Spotify account is allowlisted in your Spotify Developer Dashboard app, or request extended quota mode from Spotify.");
+                    AppLocalization.Get(AppStrings.SpotifyApiForbiddenFormat, method.Method, path));
             }
 
             response.Dispose();
 
             throw new InvalidOperationException(
-                $"Spotify API error after {attempt} attempt(s) on {method.Method} /{path}: {(int)response.StatusCode} {response.StatusCode} {responseText}");
+                AppLocalization.Get(
+                    AppStrings.SpotifyApiErrorFormat,
+                    attempt,
+                    method.Method,
+                    path,
+                    (int)response.StatusCode,
+                    response.StatusCode,
+                    responseText));
         }
 
-        throw new InvalidOperationException("Spotify API request failed after all retry attempts.");
+        throw new InvalidOperationException(AppLocalization.Get(AppStrings.SpotifyApiRetriesExhausted));
     }
 
-    private static bool IsRetryable(HttpStatusCode statusCode)
+    // A 429 was refused before anything happened, so any request can be sent again. A 5xx may have
+    // happened anyway: sending a POST (add tracks, create a playlist) again could add the tracks
+    // twice or make a second playlist, so a POST is not retried after one - the run fails and the
+    // user starts it again (a run replaces the playlist's contents, so that is safe).
+    private static bool IsRetryable(HttpStatusCode statusCode, HttpMethod method)
     {
+        if (statusCode == HttpStatusCode.TooManyRequests)
+        {
+            return true;
+        }
+
         int statusCodeNumber = (int)statusCode;
 
-        return statusCode == HttpStatusCode.TooManyRequests ||
-            statusCodeNumber is >= 500 and <= 599;
+        return statusCodeNumber is >= 500 and <= 599 && method != HttpMethod.Post;
     }
 
     private void EnableRobustModeWhenNeeded(HttpStatusCode statusCode, int attempt)
@@ -544,8 +669,8 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         }
 
         string message = statusCode == HttpStatusCode.TooManyRequests
-            ? "Spotify request limit reached. Switching to robust request mode."
-            : "Spotify returned repeated temporary errors. Switching to robust request mode.";
+            ? AppLocalization.Get(AppStrings.SpotifyRequestLimitReached)
+            : AppLocalization.Get(AppStrings.SpotifyRepeatedTemporaryErrors);
 
         Progress?.Report(new ReleaseProgress(string.Empty, Message: message));
     }
@@ -660,11 +785,11 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         if (!item.TryGetProperty(propertyName, out JsonElement element))
         {
             throw new InvalidOperationException(
-                $"Spotify response does not contain '{propertyName}'.");
+                AppLocalization.Get(AppStrings.SpotifyResponseMissingFieldFormat, propertyName));
         }
 
         return element.GetString()
             ?? throw new InvalidOperationException(
-                $"Spotify response does not contain text for '{propertyName}'.");
+                AppLocalization.Get(AppStrings.SpotifyResponseMissingTextFormat, propertyName));
     }
 }

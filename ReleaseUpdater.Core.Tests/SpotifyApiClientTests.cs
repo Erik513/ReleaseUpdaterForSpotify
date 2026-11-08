@@ -55,11 +55,68 @@ public sealed class SpotifyApiClientTests
         SpotifyApiClient client = CreateClient(handler);
         handler.EnqueueJson("""{ "items": [], "total": 0 }""");
 
-        await client.GetArtistAlbumsAsync("artist-1", CancellationToken.None);
+        await client.GetArtistAlbumsAsync("artist-1", null, CancellationToken.None);
 
         Assert.Equal(
             "/v1/artists/artist-1/albums?include_groups=album,single,appears_on&limit=10&offset=0",
             handler.Requests.Single().PathAndQuery);
+    }
+
+    // A page of the albums of an artist as Spotify sends it: one album per date, "total" for the whole list.
+    private static string AlbumPage(int total, params string[] dates) =>
+        "{ \"total\": " + total + ", \"items\": [" +
+        string.Join(",", dates.Select((date, index) => "{ \"id\": \"album-" + date + "-" + index + "\", \"name\": \"A\", \"release_date\": \"" + date + "\" }")) +
+        "] }";
+
+    // Verifies that the albums of an artist are read newest first only as far as the lookback reaches: once a whole page is older than
+    // the first wanted day (with a margin), the pages behind it are not requested - an artist with hundreds of appearances costs 2
+    // requests here instead of 10.
+    [Fact]
+    public async Task GetArtistAlbumsAsync_StopsWhenAWholePageIsOlderThanWanted()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+        handler.EnqueueJson(AlbumPage(100, "2026-11-05", "2026-10-20"));   // wanted
+        handler.EnqueueJson(AlbumPage(100, "2026-08-02", "2026-07-15"));   // all older than the day minus the margin: stop here
+        handler.EnqueueJson(AlbumPage(100, "2026-06-01"));
+
+        IReadOnlyList<SpotifyAlbum> albums =
+            await client.GetArtistAlbumsAsync("artist-1", new DateOnly(2026, 11, 1), CancellationToken.None);
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(4, albums.Count);
+    }
+
+    // Verifies that nothing is cut when no first wanted day is given.
+    [Fact]
+    public async Task GetArtistAlbumsAsync_WithoutALimitDate_ReadsEveryPage()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+        handler.EnqueueJson(AlbumPage(4, "2026-08-02", "2026-07-15"));
+        handler.EnqueueJson(AlbumPage(4, "2026-06-01"));
+        handler.EnqueueJson(AlbumPage(4, "2026-05-01"));
+
+        await client.GetArtistAlbumsAsync("artist-1", null, CancellationToken.None);
+
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
+    // Verifies that a list that is not in the order newest first is read to the end (a later date after an earlier one: do not trust
+    // the order, take every page).
+    [Fact]
+    public async Task GetArtistAlbumsAsync_ReadsEveryPage_WhenTheOrderIsNotNewestFirst()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+        handler.EnqueueJson(AlbumPage(3, "2026-03-01", "2026-09-01"));    // later after earlier: not newest first
+        handler.EnqueueJson(AlbumPage(3, "2026-11-05"));
+
+        IReadOnlyList<SpotifyAlbum> albums =
+            await client.GetArtistAlbumsAsync("artist-1", new DateOnly(2026, 11, 1), CancellationToken.None);
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains(albums, album => album.ReleaseDate == new DateOnly(2026, 11, 5));
     }
 
     // Verifies that album tracks are loaded page by page until Spotify's total count is reached.

@@ -249,7 +249,7 @@ public sealed class SpotifyReleaseUpdater
             ReportProgress(progress, searchingReleasesStatus, index + 1, artists.Count);
 
             IReadOnlyList<SpotifyAlbum> albums =
-                await spotify.GetArtistAlbumsAsync(artist.Id, cancellationToken);
+                await spotify.GetArtistAlbumsAsync(artist.Id, cutoffDate, cancellationToken);
 
             foreach (SpotifyAlbum album in albums)
             {

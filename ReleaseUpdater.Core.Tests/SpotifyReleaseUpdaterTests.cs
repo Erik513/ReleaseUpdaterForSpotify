@@ -553,6 +553,7 @@ public sealed class SpotifyReleaseUpdaterTests
 
         public Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
             string artistId,
+            DateOnly? releasedSince,
             CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<SpotifyAlbum>>(

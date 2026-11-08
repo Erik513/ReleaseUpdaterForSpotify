@@ -9,8 +9,14 @@ public interface ISpotifyGateway
     Task<IReadOnlyList<SpotifyArtist>> GetFollowedArtistsAsync(
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The albums, singles and appearances of an artist. Spotify lists them newest first, 10 per request: when
+    /// <paramref name="releasedSince"/> is given, the paging stops once a whole page is older than that day (the older ones are not
+    /// wanted, and an artist can have hundreds of appearances), so only the newest pages are requested.
+    /// </summary>
     Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
         string artistId,
+        DateOnly? releasedSince,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<SpotifyTrackItem>> GetAlbumTracksAsync(

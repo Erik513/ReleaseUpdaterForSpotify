@@ -106,10 +106,13 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     /// </summary>
     public async Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
         string artistId,
+        DateOnly? releasedSince,
         CancellationToken cancellationToken)
     {
         List<SpotifyAlbum> albums = new();
         int offset = 0;
+        DateOnly? previousDate = null;
+        bool newestFirst = true;
 
         // In logic test mode, only look at appears_on so a test run can verify that
         // path cheaply without also re-scanning every artist's full album/single
@@ -130,9 +133,26 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             JsonElement root = json.RootElement;
             JsonElement items = root.GetProperty("items");
 
+            List<DateOnly> pageDates = new();
+
             foreach (JsonElement item in items.EnumerateArray())
             {
-                albums.Add(ParseAlbum(item));
+                SpotifyAlbum album = ParseAlbum(item);
+                albums.Add(album);
+
+                if (album.ReleaseDate is DateOnly date)
+                {
+                    pageDates.Add(date);
+
+                    // (A date that is later than the one before it - by more than the day a month or year date may be off - says the
+                    // list is not in the order that is expected: then every page is read.)
+                    if (previousDate is DateOnly before && date > before.AddDays(ReleaseDefaults.AlbumOrderToleranceDays))
+                    {
+                        newestFirst = false;
+                    }
+
+                    previousDate = date;
+                }
             }
 
             int itemCount = items.GetArrayLength();
@@ -140,6 +160,17 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             offset += itemCount;
 
             if (offset >= total || itemCount == 0)
+            {
+                break;
+            }
+
+            // The list is newest first: when everything on a page (that has a date) is older than what is wanted - with a margin - the
+            // pages behind it are older still and are not requested. This is what keeps the number of requests small for an artist with
+            // hundreds of appearances.
+            if (releasedSince is DateOnly since &&
+                newestFirst &&
+                pageDates.Count > 0 &&
+                pageDates.All(date => date < since.AddDays(-ReleaseDefaults.AlbumEarlyStopMarginDays)))
             {
                 break;
             }

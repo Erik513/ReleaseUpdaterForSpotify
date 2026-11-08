@@ -406,7 +406,7 @@ namespace ReleaseUpdaterGui
 
             txtOutput.AppendText(AppLocalization.Get(AppStrings.MainFormHtmlReportUpdated) + Environment.NewLine);
 
-            ToastForm.ShowToast(
+            UIStyles.Toasts.ShowPrimary(
                 result.UniqueTrackCount == 0
                     ? AppLocalization.Get(AppStrings.MainFormToastNoNewSongs)
                     : AppLocalization.Get(AppStrings.MainFormToastPlaylistUpdated),
@@ -470,7 +470,7 @@ namespace ReleaseUpdaterGui
 
         public void ShowToast(string message)
         {
-            ToastForm.ShowToast(message, this);
+            UIStyles.Toasts.ShowPrimary(message, this);
         }
 
         public bool ConfirmStart()

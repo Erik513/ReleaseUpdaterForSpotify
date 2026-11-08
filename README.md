@@ -12,6 +12,9 @@ A small Windows app that keeps one Spotify playlist stocked with new releases fr
 - Deduplicates everything it finds and replaces the contents of one **private** playlist you choose
 - Writes a sortable HTML report of what was added, and what got skipped as a duplicate
 - Keeps a list of songs you are waiting for and checks Spotify for them (the search icon): titles and artists are matched loosely, so a typo, a "feat." or a "- Remastered" does not hide a release; every match is marked as confident or similar
+- Remembers where you found a waiting song: one link per row (double click opens it, Ctrl + double click changes it); only real web addresses are kept
+- Imports and exports that list as Word, Excel, CSV or JSON, and pastes a table you copied from Word or Excel (hyperlinks come along); you choose which column is the title, the artist and the link, and Ctrl+Z undoes the last import or paste
+- Describes the playlist with a text of up to 300 characters (three-line box, saved when you confirm it)
 
 ## Requirements
 

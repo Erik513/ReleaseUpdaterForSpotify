@@ -17,6 +17,12 @@ A small Windows app that keeps one Spotify playlist stocked with new releases fr
 - Imports and exports that list as Word, Excel, CSV or JSON, and pastes a table you copied from Word or Excel (hyperlinks come along); you choose which column is the title, the artist and the link, and Ctrl+Z undoes the last import or paste
 - Describes the playlist with a text of up to 300 characters (three-line box, saved when you confirm it)
 
+### The list of songs you are waiting for
+
+![The list of songs you are waiting for, with links](docs/screenshot-unreleased.png)
+
+Type the songs in (title and artist), or bring them in with the buttons below the list: import a file, paste a table from Word or Excel, export the list. The small link symbol at the end of a row is bright when the song has a link; a double click opens it, Ctrl + double click changes it.
+
 ## Requirements
 
 - Windows 10/11, 64-bit

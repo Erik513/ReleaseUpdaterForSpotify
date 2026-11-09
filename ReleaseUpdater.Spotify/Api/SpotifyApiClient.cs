@@ -110,22 +110,38 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         CancellationToken cancellationToken)
     {
         List<SpotifyAlbum> albums = new();
+
+        // One group at a time: Spotify lists a single group newest first (a list of several groups is not in a reliable order), so
+        // each group can be read only as far as the lookback reaches. In logic test mode, only look at appears_on so a test run can
+        // verify that path cheaply without also re-scanning every artist's full album/single catalog.
+        string[] groups = ReleaseDefaults.LogicTestModeEnabled
+            ? new[] { "appears_on" }
+            : new[] { "album", "single", "appears_on" };
+
+        foreach (string group in groups)
+        {
+            await ReadAlbumGroupAsync(artistId, group, releasedSince, albums, cancellationToken);
+        }
+
+        return albums;
+    }
+
+    private async Task ReadAlbumGroupAsync(
+        string artistId,
+        string group,
+        DateOnly? releasedSince,
+        List<SpotifyAlbum> albums,
+        CancellationToken cancellationToken)
+    {
         int offset = 0;
         DateOnly? previousDate = null;
         bool newestFirst = true;
-
-        // In logic test mode, only look at appears_on so a test run can verify that
-        // path cheaply without also re-scanning every artist's full album/single
-        // catalog.
-        string includeGroups = ReleaseDefaults.LogicTestModeEnabled
-            ? "appears_on"
-            : "album,single,appears_on";
 
         while (true)
         {
             string path =
                 $"artists/{Uri.EscapeDataString(artistId)}/albums" +
-                $"?include_groups={includeGroups}&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
+                $"?include_groups={group}&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
 
             using JsonDocument json =
                 await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
@@ -161,22 +177,20 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
 
             if (offset >= total || itemCount == 0)
             {
-                break;
+                return;
             }
 
-            // The list is newest first: when everything on a page (that has a date) is older than what is wanted - with a margin - the
+            // The group is newest first: when everything on a page (that has a date) is older than what is wanted - with a margin - the
             // pages behind it are older still and are not requested. This is what keeps the number of requests small for an artist with
-            // hundreds of appearances.
+            // hundreds of releases or appearances.
             if (releasedSince is DateOnly since &&
                 newestFirst &&
                 pageDates.Count > 0 &&
                 pageDates.All(date => date < since.AddDays(-ReleaseDefaults.AlbumEarlyStopMarginDays)))
             {
-                break;
+                return;
             }
         }
-
-        return albums;
     }
 
     /// <summary>

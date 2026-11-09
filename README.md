@@ -9,7 +9,7 @@ A small Windows app that keeps one Spotify playlist stocked with new releases fr
 - Signs in with **your own** Spotify account (no shared login, no shared app credentials — ever)
 - Checks every artist you follow for new albums and singles released within a configurable lookback window (1–20 days)
 - Also finds new tracks where a followed artist appears as a featured collaborator
-- Deduplicates everything it finds and replaces the contents of one **private** playlist you choose
+- Deduplicates everything it finds and replaces the contents of one playlist you choose. The playlist is created as "not on your profile" (`public: false`, so it does not show on your profile or in search); Spotify's own apps still call such a playlist public, and the Web API has no way to make it private there. If you want it private, switch it in Spotify yourself.
 - Speaks English and German (the language box in the settings)
 - Writes a sortable HTML report of what was added, and what got skipped as a duplicate
 - Keeps a list of songs you are waiting for and checks Spotify for them (the search icon): titles and artists are matched loosely, so a typo, a "feat." or a "- Remastered" does not hide a release; every match is marked as confident or similar

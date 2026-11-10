@@ -76,6 +76,31 @@ public sealed class SpotifyApiClientTests
         string.Join(",", dates.Select((date, index) => "{ \"id\": \"album-" + date + "-" + index + "\", \"name\": \"A\", \"release_date\": \"" + date + "\" }")) +
         "] }";
 
+    // Verifies that a compilation (a sampler such as "2010 European Club Hits": old songs, new date) is not taken as a release of new
+    // songs, while the album next to it is.
+    [Fact]
+    public async Task GetArtistAlbumsAsync_LeavesCompilationsOut()
+    {
+        StubHttpMessageHandler handler = new();
+        SpotifyApiClient client = CreateClient(handler);
+        handler.EnqueueJson("""{ "items": [], "total": 0 }""");
+        handler.EnqueueJson("""{ "items": [], "total": 0 }""");
+        handler.EnqueueJson("""
+            {
+              "total": 2,
+              "items": [
+                { "id": "sampler", "name": "2010 European Club Hits", "album_type": "compilation", "release_date": "2026-11-08" },
+                { "id": "feature", "name": "Someone Else's Single", "album_type": "single", "release_date": "2026-11-07" }
+              ]
+            }
+            """);
+
+        IReadOnlyList<SpotifyAlbum> albums =
+            await client.GetArtistAlbumsAsync("artist-1", new DateOnly(2026, 11, 1), CancellationToken.None);
+
+        Assert.Equal(new[] { "feature" }, albums.Select(album => album.Id));
+    }
+
     // Verifies that each group is read newest first only as far as the lookback reaches: once a whole page is older than the first wanted
     // day (with a margin), the pages behind it are not requested - a group with hundreds of entries costs 1 or 2 requests, not 10.
     [Fact]

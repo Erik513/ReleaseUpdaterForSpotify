@@ -362,7 +362,8 @@ public sealed class SpotifyReleaseUpdater
 
             foreach (SpotifyTrackItem item in searchResults)
             {
-                if (item.Album?.ReleaseDate is null || item.Album.ReleaseDate < cutoffDate)
+                // (A compilation gathers older songs under a new date: no release of new songs.)
+                if (item.Album?.ReleaseDate is null || item.Album.ReleaseDate < cutoffDate || item.Album.IsCompilation)
                 {
                     continue;
                 }

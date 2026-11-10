@@ -154,7 +154,13 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             foreach (JsonElement item in items.EnumerateArray())
             {
                 SpotifyAlbum album = ParseAlbum(item);
-                albums.Add(album);
+
+                // A compilation (a sampler, a "best of") gathers songs that are mostly older than the compilation itself: it is not a
+                // release of new songs, so it is left out - its date still counts for the order below.
+                if (!album.IsCompilation)
+                {
+                    albums.Add(album);
+                }
 
                 if (album.ReleaseDate is DateOnly date)
                 {
@@ -741,7 +747,10 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             GetRequiredString(item, "id"),
             GetRequiredString(item, "name"),
             TryParseReleaseDate(item),
-            GetSmallestImageUrl(item));
+            GetSmallestImageUrl(item),
+            item.TryGetProperty("album_type", out JsonElement albumType) && albumType.ValueKind == JsonValueKind.String
+                ? albumType.GetString()
+                : null);
 
     /// <summary>
     /// Spotify lists album images largest-first, so the last entry is the smallest thumbnail.

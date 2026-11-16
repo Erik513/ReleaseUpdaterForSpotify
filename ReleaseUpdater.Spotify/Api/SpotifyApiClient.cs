@@ -99,12 +99,10 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     }
 
     /// <summary>
-    /// Loads albums, singles, and guest-feature appearances for one artist. Spotify's
-    /// "album"/"single" groups only include releases where the artist is credited at
-    /// the release level; a feature that's only credited on the track (someone else's
-    /// single or compilation) shows up solely under "appears_on" - without it, tracks
-    /// where the followed artist is a featured, non-primary credit are missed
-    /// entirely, regardless of search-query tuning.
+    /// Loads the albums and singles of one artist, newest first, as far as the lookback reaches. The "appears_on" group (someone else's
+    /// release with a feature of the artist) is NOT read: Spotify lists it in no order of date (measured 2026-11-17: dates through
+    /// each other, and up to 46 pages of 10 for one artist), so only the whole list could be read - hundreds of requests per run. The
+    /// features are found by the song search of the artist instead (see the updater), as in version 1.1.
     /// </summary>
     public async Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
         string artistId,
@@ -114,11 +112,8 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         List<SpotifyAlbum> albums = new();
 
         // One group at a time: Spotify lists a single group newest first (a list of several groups is not in a reliable order), so
-        // each group can be read only as far as the lookback reaches. In logic test mode, only look at appears_on so a test run can
-        // verify that path cheaply without also re-scanning every artist's full album/single catalog.
-        string[] groups = ReleaseDefaults.LogicTestModeEnabled
-            ? new[] { "appears_on" }
-            : new[] { "album", "single", "appears_on" };
+        // each group can be read only as far as the lookback reaches.
+        string[] groups = { "album", "single" };
 
         foreach (string group in groups)
         {

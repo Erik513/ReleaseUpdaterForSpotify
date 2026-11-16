@@ -303,10 +303,10 @@ public sealed class SpotifyReleaseUpdater
                 bool isFollowedArtistTrack = trackArtistIds
                     .Any(followedArtistIds.Contains);
 
-                // An "appears_on" release can be someone else's album or a
-                // various-artists compilation with many tracks that don't involve
-                // the followed artist at all - only the ones that actually credit
-                // them belong in the playlist.
+                // A release can hold tracks that don't involve the followed
+                // artist at all (a split release, a guest on someone else's song)
+                // - only the ones that actually credit a followed artist belong in
+                // the playlist.
                 if (!isFollowedArtistTrack)
                 {
                     continue;

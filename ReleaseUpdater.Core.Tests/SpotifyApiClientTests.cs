@@ -46,15 +46,14 @@ public sealed class SpotifyApiClientTests
             handler.Requests[1].PathAndQuery);
     }
 
-    // Verifies that the albums of an artist are requested one group at a time (album, single, appears_on): Spotify lists one group
-    // newest first, so each can be read only as far as needed - and "appears_on" is included, so releases where the artist is only a
-    // featured (non-primary) credit aren't missed.
+    // Verifies that the albums of an artist are requested one group at a time (album, single): Spotify lists one group newest first, so
+    // each can be read only as far as needed. "appears_on" is NOT requested: Spotify lists it in no order of date, so only the whole list
+    // (up to 46 pages for one artist) could be read.
     [Fact]
-    public async Task GetArtistAlbumsAsync_RequestsEachGroupOnItsOwn_IncludingAppearsOn()
+    public async Task GetArtistAlbumsAsync_RequestsAlbumAndSingleOnTheirOwn_AndNotAppearsOn()
     {
         StubHttpMessageHandler handler = new();
         SpotifyApiClient client = CreateClient(handler);
-        handler.EnqueueJson("""{ "items": [], "total": 0 }""");
         handler.EnqueueJson("""{ "items": [], "total": 0 }""");
         handler.EnqueueJson("""{ "items": [], "total": 0 }""");
 
@@ -64,8 +63,7 @@ public sealed class SpotifyApiClientTests
             new[]
             {
                 "/v1/artists/artist-1/albums?include_groups=album&limit=10&offset=0",
-                "/v1/artists/artist-1/albums?include_groups=single&limit=10&offset=0",
-                "/v1/artists/artist-1/albums?include_groups=appears_on&limit=10&offset=0"
+                "/v1/artists/artist-1/albums?include_groups=single&limit=10&offset=0"
             },
             handler.Requests.Select(request => request.PathAndQuery));
     }
@@ -84,13 +82,12 @@ public sealed class SpotifyApiClientTests
         StubHttpMessageHandler handler = new();
         SpotifyApiClient client = CreateClient(handler);
         handler.EnqueueJson("""{ "items": [], "total": 0 }""");
-        handler.EnqueueJson("""{ "items": [], "total": 0 }""");
         handler.EnqueueJson("""
             {
               "total": 2,
               "items": [
                 { "id": "sampler", "name": "2010 European Club Hits", "album_type": "compilation", "release_date": "2026-11-08" },
-                { "id": "feature", "name": "Someone Else's Single", "album_type": "single", "release_date": "2026-11-07" }
+                { "id": "feature", "name": "A Single", "album_type": "single", "release_date": "2026-11-07" }
               ]
             }
             """);
@@ -111,13 +108,12 @@ public sealed class SpotifyApiClientTests
         handler.EnqueueJson(AlbumPage(1, "2026-11-05"));                    // album: one release, done
         handler.EnqueueJson(AlbumPage(100, "2026-11-04", "2026-10-20"));    // single: wanted, so the next page is read
         handler.EnqueueJson(AlbumPage(100, "2026-08-02", "2026-07-15"));    // single: all older than the day minus the margin: stop
-        handler.EnqueueJson(AlbumPage(100, "2026-05-02", "2026-04-15"));    // appears_on: all older at once: stop
 
         IReadOnlyList<SpotifyAlbum> albums =
             await client.GetArtistAlbumsAsync("artist-1", new DateOnly(2026, 11, 1), CancellationToken.None);
 
-        Assert.Equal(4, handler.Requests.Count);
-        Assert.Equal(7, albums.Count);
+        Assert.Equal(3, handler.Requests.Count);
+        Assert.Equal(5, albums.Count);
     }
 
     // Verifies that nothing is cut when no first wanted day is given (every page of every group).
@@ -129,11 +125,10 @@ public sealed class SpotifyApiClientTests
         handler.EnqueueJson(AlbumPage(3, "2026-08-02", "2026-07-15"));
         handler.EnqueueJson(AlbumPage(3, "2026-06-01"));
         handler.EnqueueJson(AlbumPage(0));
-        handler.EnqueueJson(AlbumPage(0));
 
         await client.GetArtistAlbumsAsync("artist-1", null, CancellationToken.None);
 
-        Assert.Equal(4, handler.Requests.Count);
+        Assert.Equal(3, handler.Requests.Count);
     }
 
     // Verifies that a group that is not in the order newest first is read to the end (a later date after an earlier one: do not trust
@@ -146,12 +141,11 @@ public sealed class SpotifyApiClientTests
         handler.EnqueueJson(AlbumPage(3, "2026-03-01", "2026-09-01"));    // later after earlier: not newest first
         handler.EnqueueJson(AlbumPage(3, "2026-11-05"));
         handler.EnqueueJson(AlbumPage(0));
-        handler.EnqueueJson(AlbumPage(0));
 
         IReadOnlyList<SpotifyAlbum> albums =
             await client.GetArtistAlbumsAsync("artist-1", new DateOnly(2026, 11, 1), CancellationToken.None);
 
-        Assert.Equal(4, handler.Requests.Count);
+        Assert.Equal(3, handler.Requests.Count);
         Assert.Contains(albums, album => album.ReleaseDate == new DateOnly(2026, 11, 5));
     }
 

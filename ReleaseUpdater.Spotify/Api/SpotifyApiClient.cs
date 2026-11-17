@@ -97,32 +97,46 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     }
 
     /// <summary>
-    /// Loads albums, singles, and guest-feature appearances for one artist. Spotify's
-    /// "album"/"single" groups only include releases where the artist is credited at
-    /// the release level; a feature that's only credited on the track (someone else's
-    /// single or compilation) shows up solely under "appears_on" - without it, tracks
-    /// where the followed artist is a featured, non-primary credit are missed
-    /// entirely, regardless of search-query tuning.
+    /// Loads the albums and singles of one artist, newest first, as far as the lookback reaches. The "appears_on" group (someone else's
+    /// release with a feature of the artist) is NOT read: Spotify lists it in no order of date (measured 2026-11-17: dates through
+    /// each other, and up to 46 pages of 10 for one artist), so only the whole list could be read - hundreds of requests per run. The
+    /// features are found by the song search of the artist instead (see the updater), as in version 1.1.
     /// </summary>
     public async Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
         string artistId,
+        DateOnly? releasedSince,
         CancellationToken cancellationToken)
     {
         List<SpotifyAlbum> albums = new();
-        int offset = 0;
 
-        // In logic test mode, only look at appears_on so a test run can verify that
-        // path cheaply without also re-scanning every artist's full album/single
-        // catalog.
-        string includeGroups = ReleaseDefaults.LogicTestModeEnabled
-            ? "appears_on"
-            : "album,single,appears_on";
+        // One group at a time: Spotify lists a single group newest first (a list of several groups is not in a reliable order), so
+        // each group can be read only as far as the lookback reaches.
+        string[] groups = { "album", "single" };
+
+        foreach (string group in groups)
+        {
+            await ReadAlbumGroupAsync(artistId, group, releasedSince, albums, cancellationToken);
+        }
+
+        return albums;
+    }
+
+    private async Task ReadAlbumGroupAsync(
+        string artistId,
+        string group,
+        DateOnly? releasedSince,
+        List<SpotifyAlbum> albums,
+        CancellationToken cancellationToken)
+    {
+        int offset = 0;
+        DateOnly? previousDate = null;
+        bool newestFirst = true;
 
         while (true)
         {
             string path =
                 $"artists/{Uri.EscapeDataString(artistId)}/albums" +
-                $"?include_groups={includeGroups}&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
+                $"?include_groups={group}&limit={ReleaseDefaults.AlbumPageSize}&offset={offset}";
 
             using JsonDocument json =
                 await SendJsonAsync(HttpMethod.Get, path, null, false, cancellationToken);
@@ -130,9 +144,32 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             JsonElement root = json.RootElement;
             JsonElement items = root.GetProperty("items");
 
+            List<DateOnly> pageDates = new();
+
             foreach (JsonElement item in items.EnumerateArray())
             {
-                albums.Add(ParseAlbum(item));
+                SpotifyAlbum album = ParseAlbum(item);
+
+                // A compilation (a sampler, a "best of") gathers songs that are mostly older than the compilation itself: it is not a
+                // release of new songs, so it is left out - its date still counts for the order below.
+                if (!album.IsCompilation)
+                {
+                    albums.Add(album);
+                }
+
+                if (album.ReleaseDate is DateOnly date)
+                {
+                    pageDates.Add(date);
+
+                    // (A date that is later than the one before it - by more than the day a month or year date may be off - says the
+                    // list is not in the order that is expected: then every page is read.)
+                    if (previousDate is DateOnly before && date > before.AddDays(ReleaseDefaults.AlbumOrderToleranceDays))
+                    {
+                        newestFirst = false;
+                    }
+
+                    previousDate = date;
+                }
             }
 
             int itemCount = items.GetArrayLength();
@@ -141,11 +178,20 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
 
             if (offset >= total || itemCount == 0)
             {
-                break;
+                return;
+            }
+
+            // The group is newest first: when everything on a page (that has a date) is older than what is wanted - with a margin - the
+            // pages behind it are older still and are not requested. This is what keeps the number of requests small for an artist with
+            // hundreds of releases or appearances.
+            if (releasedSince is DateOnly since &&
+                newestFirst &&
+                pageDates.Count > 0 &&
+                pageDates.All(date => date < since.AddDays(-ReleaseDefaults.AlbumEarlyStopMarginDays)))
+            {
+                return;
             }
         }
-
-        return albums;
     }
 
     /// <summary>
@@ -696,7 +742,10 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             GetRequiredString(item, "id"),
             GetRequiredString(item, "name"),
             TryParseReleaseDate(item),
-            GetSmallestImageUrl(item));
+            GetSmallestImageUrl(item),
+            item.TryGetProperty("album_type", out JsonElement albumType) && albumType.ValueKind == JsonValueKind.String
+                ? albumType.GetString()
+                : null);
 
     /// <summary>
     /// Spotify lists album images largest-first, so the last entry is the smallest thumbnail.

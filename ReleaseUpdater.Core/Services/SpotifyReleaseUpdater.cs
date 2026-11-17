@@ -249,7 +249,7 @@ public sealed class SpotifyReleaseUpdater
             ReportProgress(progress, searchingReleasesStatus, index + 1, artists.Count);
 
             IReadOnlyList<SpotifyAlbum> albums =
-                await spotify.GetArtistAlbumsAsync(artist.Id, cancellationToken);
+                await spotify.GetArtistAlbumsAsync(artist.Id, cutoffDate, cancellationToken);
 
             foreach (SpotifyAlbum album in albums)
             {
@@ -303,10 +303,10 @@ public sealed class SpotifyReleaseUpdater
                 bool isFollowedArtistTrack = trackArtistIds
                     .Any(followedArtistIds.Contains);
 
-                // An "appears_on" release can be someone else's album or a
-                // various-artists compilation with many tracks that don't involve
-                // the followed artist at all - only the ones that actually credit
-                // them belong in the playlist.
+                // A release can hold tracks that don't involve the followed
+                // artist at all (a split release, a guest on someone else's song)
+                // - only the ones that actually credit a followed artist belong in
+                // the playlist.
                 if (!isFollowedArtistTrack)
                 {
                     continue;
@@ -362,7 +362,8 @@ public sealed class SpotifyReleaseUpdater
 
             foreach (SpotifyTrackItem item in searchResults)
             {
-                if (item.Album?.ReleaseDate is null || item.Album.ReleaseDate < cutoffDate)
+                // (A compilation gathers older songs under a new date: no release of new songs.)
+                if (item.Album?.ReleaseDate is null || item.Album.ReleaseDate < cutoffDate || item.Album.IsCompilation)
                 {
                     continue;
                 }

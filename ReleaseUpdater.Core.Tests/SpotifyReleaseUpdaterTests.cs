@@ -222,6 +222,31 @@ public sealed class SpotifyReleaseUpdaterTests
         Assert.Empty(spotify.AlbumTrackCalls);
     }
 
+    // Verifies that a song of a followed artist on a compilation (a sampler with a new date, old songs) found by the search is not added.
+    [Fact]
+    public async Task RunAsync_LeavesOutACompilationFoundBySearch()
+    {
+        SpotifyArtist artist = Artist("artist-1", "Artist One");
+        SpotifyAlbum sampler = new("sampler", "2010 European Club Hits", Today.AddDays(-1), null, "compilation");
+        SpotifyAlbum single = new("single", "New Single", Today.AddDays(-1), null, "single");
+        FakeSpotifyGateway spotify = new();
+        SpotifyReleaseUpdater updater = CreateUpdater(
+            spotify,
+            Settings(new ReleaseSettings { PlaylistName = "Target Playlist", ReleaseLookbackDays = 10 }),
+            new FakeReportWriter());
+
+        spotify.FollowedArtists.Add(artist);
+        spotify.SearchResultsByArtistName[artist.Name] = new List<SpotifyTrackItem>
+        {
+            Track("club-hit", "Old Club Hit", "spotify:track:club", sampler, artist),
+            Track("new-song", "New Song", "spotify:track:new", single, artist)
+        };
+
+        PlaylistUpdateResult result = await updater.RunAsync(new ProgressRecorder(), CancellationToken.None);
+
+        Assert.Equal(1, result.UniqueTrackCount);
+    }
+
     // Verifies that adapter-level diagnostic messages are forwarded to the UI progress/log channel.
     [Fact]
     public async Task RunAsync_ForwardsProgressToSpotifyDiagnostics()
@@ -553,6 +578,7 @@ public sealed class SpotifyReleaseUpdaterTests
 
         public Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
             string artistId,
+            DateOnly? releasedSince,
             CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<SpotifyAlbum>>(

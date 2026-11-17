@@ -7,6 +7,7 @@ internal sealed class SpotifyApiRateLimiter
     private readonly object modeLock = new();
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Queue<DateTimeOffset> requestStarts = new();
+    private readonly int? requestBudget;
     private readonly int robustRequestBudget;
     private readonly TimeSpan robustWindow;
     private readonly TimeSpan robustModeDecay;
@@ -16,14 +17,16 @@ internal sealed class SpotifyApiRateLimiter
         : this(
             ReleaseDefaults.SpotifyRobustRequestBudget,
             TimeSpan.FromSeconds(ReleaseDefaults.SpotifyRobustWindowSeconds),
-            TimeSpan.FromSeconds(ReleaseDefaults.SpotifyRobustModeDecaySeconds))
+            TimeSpan.FromSeconds(ReleaseDefaults.SpotifyRobustModeDecaySeconds),
+            ReleaseDefaults.SpotifyRequestBudget)
     {
     }
 
     public SpotifyApiRateLimiter(
         int robustRequestBudget,
         TimeSpan robustWindow,
-        TimeSpan robustModeDecay)
+        TimeSpan robustModeDecay,
+        int? requestBudget = null)
     {
         if (robustRequestBudget <= 0)
         {
@@ -46,6 +49,14 @@ internal sealed class SpotifyApiRateLimiter
                 "Robust-mode decay must be greater than zero.");
         }
 
+        if (requestBudget is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(requestBudget),
+                "Request budget must be greater than zero.");
+        }
+
+        this.requestBudget = requestBudget;
         this.robustRequestBudget = robustRequestBudget;
         this.robustWindow = robustWindow;
         this.robustModeDecay = robustModeDecay;
@@ -69,7 +80,8 @@ internal sealed class SpotifyApiRateLimiter
     }
 
     /// <summary>
-    /// Counts every request, but only waits after robust mode was enabled.
+    /// Counts every request and waits when the budget of the window is used up: the normal budget, or the smaller one after robust mode
+    /// was enabled (no normal budget given: only robust mode waits).
     /// </summary>
     public async Task WaitForSlotAsync(CancellationToken cancellationToken)
     {
@@ -84,7 +96,9 @@ internal sealed class SpotifyApiRateLimiter
                 DateTimeOffset now = DateTimeOffset.UtcNow;
                 RemoveExpiredRequests(now);
 
-                if (!IsRobustMode() || requestStarts.Count < robustRequestBudget)
+                int? budget = IsRobustMode() ? robustRequestBudget : requestBudget;
+
+                if (budget is null || requestStarts.Count < budget)
                 {
                     requestStarts.Enqueue(now);
                     return;

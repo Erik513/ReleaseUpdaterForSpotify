@@ -749,6 +749,7 @@ public sealed class UnreleasedSongCheckerTests
 
         public Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(
             string artistId,
+            DateOnly? releasedSince,
             CancellationToken cancellationToken) =>
             throw new NotImplementedException();
 

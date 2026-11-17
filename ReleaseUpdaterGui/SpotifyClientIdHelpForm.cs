@@ -150,7 +150,7 @@ namespace ReleaseUpdaterGui
             try
             {
                 Clipboard.SetText(text);
-                ToastForm.ShowToast(AppLocalization.Get(AppStrings.HelpFormToastRedirectUriCopied), this);
+                UIStyles.Toasts.ShowPrimary(AppLocalization.Get(AppStrings.HelpFormToastRedirectUriCopied), this);
             }
             catch (Exception ex)
             {

@@ -269,7 +269,7 @@ internal sealed class FakeGateway : ISpotifyGateway
     }
 
     public Task<SpotifyUser> GetCurrentUserAsync(CancellationToken cancellationToken) => throw new NotImplementedException();
-    public Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(string artistId, CancellationToken cancellationToken) => throw new NotImplementedException();
+    public Task<IReadOnlyList<SpotifyAlbum>> GetArtistAlbumsAsync(string artistId, DateOnly? releasedSince, CancellationToken cancellationToken) => throw new NotImplementedException();
     public Task<IReadOnlyList<SpotifyTrackItem>> GetAlbumTracksAsync(string albumId, CancellationToken cancellationToken) => throw new NotImplementedException();
     public Task<IReadOnlyList<SpotifyTrackItem>> SearchTracksByArtistAsync(string artistName, int fromYear, int toYear, CancellationToken cancellationToken) => throw new NotImplementedException();
     public Task<SpotifyPlaylist?> TryGetPlaylistAsync(string playlistId, CancellationToken cancellationToken) => throw new NotImplementedException();

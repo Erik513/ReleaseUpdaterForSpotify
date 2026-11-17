@@ -12,7 +12,12 @@ public sealed record SpotifyAlbum(
     string Id,
     string Name,
     DateOnly? ReleaseDate,
-    string? ImageUrl = null);
+    string? ImageUrl = null,
+    string? AlbumType = null)
+{
+    /// <summary>True for a compilation (a sampler or "best of" that gathers songs that are mostly older than the compilation itself).</summary>
+    public bool IsCompilation => string.Equals(AlbumType, "compilation", StringComparison.OrdinalIgnoreCase);
+}
 
 public sealed record SpotifyTrackItem(
     string Id,

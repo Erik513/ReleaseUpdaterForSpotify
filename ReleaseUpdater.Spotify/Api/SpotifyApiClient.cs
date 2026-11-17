@@ -23,8 +23,6 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
     private readonly ISpotifyAccessTokenProvider accessTokenProvider;
     private readonly HttpClient httpClient;
     private readonly SpotifyApiRateLimiter rateLimiter;
-    private int requestCount;
-    private int orderReports;
 
     public IProgress<ReleaseProgress>? Progress { get; set; }
 
@@ -131,10 +129,8 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
         CancellationToken cancellationToken)
     {
         int offset = 0;
-        int pages = 0;
         DateOnly? previousDate = null;
         bool newestFirst = true;
-        List<string> firstDates = new();
 
         while (true)
         {
@@ -149,18 +145,10 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             JsonElement items = root.GetProperty("items");
 
             List<DateOnly> pageDates = new();
-            pages++;
 
             foreach (JsonElement item in items.EnumerateArray())
             {
                 SpotifyAlbum album = ParseAlbum(item);
-
-                if (firstDates.Count < 12)
-                {
-                    firstDates.Add(
-                        (album.ReleaseDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "?") +
-                        (album.IsCompilation ? "c" : string.Empty));
-                }
 
                 // A compilation (a sampler, a "best of") gathers songs that are mostly older than the compilation itself: it is not a
                 // release of new songs, so it is left out - its date still counts for the order below.
@@ -187,15 +175,6 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             int itemCount = items.GetArrayLength();
             int total = root.GetProperty("total").GetInt32();
             offset += itemCount;
-
-            if (pages >= 3 && releasedSince is not null && Interlocked.Increment(ref orderReports) <= 6)
-            {
-                // (Diagnosis, the first few times only: a group that needs many pages although only the newest are wanted.)
-                Progress?.Report(new ReleaseProgress(
-                    string.Empty,
-                    Message: $"Order check: artist {artistId}, group {group}, page {pages} of {(total + ReleaseDefaults.AlbumPageSize - 1) / ReleaseDefaults.AlbumPageSize}, " +
-                        $"newestFirst={newestFirst}, wanted since {releasedSince:yyyy-MM-dd}, first dates: {string.Join(' ', firstDates)}"));
-            }
 
             if (offset >= total || itemCount == 0)
             {
@@ -612,14 +591,6 @@ public sealed class SpotifyApiClient : ISpotifyGateway, ISpotifyRequestDiagnosti
             }
 
             await rateLimiter.WaitForSlotAsync(cancellationToken);
-
-            // (A line in the output every hundred requests: what a run costs, and how fast it goes.)
-            int sent = Interlocked.Increment(ref requestCount);
-
-            if (sent % 100 == 0)
-            {
-                Progress?.Report(new ReleaseProgress(string.Empty, Message: "Spotify requests so far: " + sent));
-            }
 
             HttpResponseMessage response =
                 await httpClient.SendAsync(request, cancellationToken);
